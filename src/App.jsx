@@ -128,8 +128,10 @@ export default function App() {
       stop();
       if (e.dwHandled) return; // a device card already took it
       // Dropped somewhere other than a device: let the user pick one (or connect one).
-      const paths = api.pathsFromFiles(e.dataTransfer.files);
+      // An array, not the FileList: a FileList arrives empty on the other side of the preload bridge.
+      const paths = api.pathsFromFiles([...e.dataTransfer.files]);
       if (paths.length) setToSend(paths);
+      else if (e.dataTransfer.files.length) toast('Could not read the dropped items', 'error');
     };
     window.addEventListener('dragenter', over);
     window.addEventListener('dragover', over);
@@ -146,7 +148,7 @@ export default function App() {
       window.removeEventListener('dragend', stop);
       window.removeEventListener('blur', stop);
     };
-  }, []);
+  }, [toast]);
 
   useEffect(() => { if (dragging && view !== 'nearby') setView('nearby'); }, [dragging, view]);
 

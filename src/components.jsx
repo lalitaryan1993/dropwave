@@ -62,8 +62,9 @@ export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick, onText }
       e.preventDefault();
       e.nativeEvent.dwHandled = true; // the window handler ends the drag but won't open the picker
       setOver(false);
-      const paths = api.pathsFromFiles(e.dataTransfer.files);
-      if (paths.length) onDropPaths(peer, paths);
+      // An array, not the FileList: a FileList arrives empty on the other side of the preload bridge.
+      const paths = api.pathsFromFiles([...e.dataTransfer.files]);
+      onDropPaths(peer, paths); // empty → the main process answers "Could not read the dropped items"
     },
   };
 

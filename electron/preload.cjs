@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('dropwave', {
   chooseSaveDir: () => ipcRenderer.invoke('settings:chooseSaveDir'),
 
   // Dropped File objects -> real paths on disk (works for folders too).
+  // Callers must pass an array of Files: a FileList does not survive contextBridge (it arrives empty).
   pathsFromFiles: (files) => Array.from(files).map((f) => webUtils.getPathForFile(f)).filter(Boolean),
   sendPaths: (peerId, paths) => ipcRenderer.invoke('send:paths', peerId, paths),
   pickAndSend: (peerId, kind) => ipcRenderer.invoke('send:pick', peerId, kind),

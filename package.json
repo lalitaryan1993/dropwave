@@ -1,7 +1,7 @@
 {
   "name": "dropwave",
   "productName": "DropWave",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Drag and drop files between computers on your local network",
   "main": "electron/main.cjs",
   "author": "LALIT ARYAN",

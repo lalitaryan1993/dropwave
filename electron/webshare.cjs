@@ -21,6 +21,7 @@ const COOKIE = 'dropwave_key';
 const CLIENT_GRACE_MS = 6000;
 const SHARE_TTL_MS = 2 * 60 * 60 * 1000;
 const STREAM_TTL_MS = 3 * 60 * 60 * 1000;
+const DECISION_TIMEOUT_MS = 60000;
 const PROGRESS_EVERY_MS = 200;
 
 const MIME = {
@@ -75,6 +76,7 @@ class WebShare extends EventEmitter {
    * @param {() => string} o.pin            current 6-digit PIN
    * @param {string} o.webRoot              folder with the phone page
    * @param {number} [o.port]
+   * @param {(request) => Promise<boolean>} [o.decide]  accept files a browser sends to this PC
    */
   constructor(o) {
     super();
@@ -240,6 +242,16 @@ class WebShare extends EventEmitter {
       return json(res, 200, { ok: true });
     }
     if (p === '/api/batch' && req.method === 'POST') return this.#newBatch(req, res);
+    if (p === '/api/text' && req.method === 'POST') {
+      const b = await readJson(req, 128 * 1024);
+      const from = this.clients.get(String(b.from));
+      const text = String(b.text || '').slice(0, 100 * 1024);
+      if (!from || !text) return json(res, 400, { error: 'Nothing to send' });
+      const sender = { id: from.id, name: from.name, kind: from.kind, ip: from.ip };
+      if (!b.to || b.to === this.o.me().id) this.emit('text', { id: crypto.randomUUID(), from: sender, text, at: Date.now() });
+      else if (!this.sendText(String(b.to), text, sender)) return json(res, 400, { error: 'That device is no longer connected' });
+      return json(res, 200, { ok: true });
+    }
     if (p === '/api/upload' && req.method === 'POST') return this.#upload(req, res, url);
     if (p === '/api/cancel' && req.method === 'POST') {
       const b = await readJson(req, 1024);
@@ -329,7 +341,30 @@ class WebShare extends EventEmitter {
     if (!toPc && !target) return json(res, 400, { error: 'That device is no longer connected' });
 
     const id = crypto.randomUUID();
-    const dir = toPc ? this.o.saveDir() : path.join(this.relayDir, id);
+    const total = files.reduce((a, f) => a + f.size, 0);
+
+    // Files for this PC need the same Accept / Decline as PC-to-PC transfers
+    // (trusted devices are auto-accepted by the decide() callback).
+    if (toPc) {
+      const request = {
+        id, direction: 'in', web: true, from: { id: from.id, name: from.name, kind: from.kind, ip: from.ip },
+        files: files.map((f) => ({ name: f.name.split(path.sep).join('/'), size: f.size })), total, count: files.length,
+      };
+      let ok = false;
+      try {
+        ok = await Promise.race([
+          Promise.resolve(this.o.decide ? this.o.decide(request) : true),
+          new Promise((r) => setTimeout(() => r(false), DECISION_TIMEOUT_MS)),
+        ]);
+      } catch { ok = false; }
+      this.emit('request-closed', id);
+      if (!ok) {
+        this.emit('transfer', { ...request, status: 'rejected', done: 0, startedAt: Date.now(), finishedAt: Date.now() });
+        return json(res, 403, { error: `${me.name} declined the files` });
+      }
+    }
+
+    const dir = toPc ? path.resolve(this.o.saveDir()) : path.join(this.relayDir, id);
     await fsp.mkdir(dir, { recursive: true });
     const batch = {
       id, from, toPc, target, dir, files, received: new Array(files.length).fill(false), paths: [],
@@ -421,6 +456,15 @@ class WebShare extends EventEmitter {
   }
 
   // ---------- PC / browser -> browser ----------
+
+  /** Push a piece of text to a connected browser. Returns false if it isn't connected. */
+  sendText(clientId, text, from = null) {
+    const c = this.clients.get(clientId);
+    if (!c) return false;
+    const me = this.o.me();
+    this.#send(c, 'text', { id: crypto.randomUUID(), from: from || { id: me.id, name: me.name }, text: String(text).slice(0, 100 * 1024) });
+    return true;
+  }
 
   /** Offer files to a connected browser. files: [{abs, name, size}] */
   offer(clientId, files, from = null, relayDir = null) {

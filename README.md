@@ -8,7 +8,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.1.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.2.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
 [![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
 [![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
@@ -65,9 +65,30 @@ and on phones and TVs right in the browser.
 ### 🔁 Phone ↔ phone, phone ↔ TV
 Any connected browser can send to any other (relayed through the PC).
 
-### 🛡️ Reliable & safe
-SHA-256 verified transfers · no overwrites (`photo (1).jpg`) · PIN-protected browser access ·
-works offline · runs quietly in the tray.
+### 🔒 Encrypted & reliable
+PC-to-PC transfers are **end-to-end encrypted** (X25519 + AES-256-GCM, device identities pinned).
+Wi-Fi dropped? Transfers **resume where they stopped**. SHA-256 verified, no overwrites.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 📋 Send text & links
+Share your clipboard, a link or a note with any PC, phone or TV. One click to **Copy** or **Open link**.
+
+### 🖱️ Right-click → Send with DropWave
+Send files and folders straight from File Explorer, without opening the app first.
+
+</td>
+<td width="50%" valign="top">
+
+### 🩺 One-click network check
+"Can't see my other PC?" DropWave finds the usual causes (Public network, firewall block)
+and fixes them with one click.
+
+### 🔄 Auto-update
+New versions download in the background. Restart when you like.
 
 </td>
 </tr>
@@ -146,8 +167,22 @@ the network is set to <i>Private</i> in Windows. You can always use <b>Add by IP
 
 <details>
 <summary><b>Can someone on my Wi-Fi send me files without asking?</b></summary>
-No. PC-to-PC transfers need you to press <b>Accept</b> (unless you trusted that device). Browsers need the
-6-digit PIN, and <b>New PIN</b> instantly disconnects every phone and TV.
+No. Every transfer, from a PC or a phone, needs you to press <b>Accept</b> (unless you trusted that device).
+Browsers also need the 6-digit PIN, and <b>New PIN</b> instantly disconnects every phone and TV.
+</details>
+
+<details>
+<summary><b>Is it encrypted? Can others on the network see my files?</b></summary>
+PC-to-PC transfers and text are end-to-end encrypted: a fresh X25519 key exchange per connection, AES-256-GCM for
+the data, and each PC's Ed25519 identity is remembered on first contact, so an impostor is refused. Compare the
+<b>Security code</b> in Settings on both PCs to be sure. The phone/TV browser page uses plain HTTP on your local
+network (browsers would show certificate warnings otherwise), so use it on networks you trust.
+</details>
+
+<details>
+<summary><b>What happens if the Wi-Fi drops in the middle of a big transfer?</b></summary>
+The sender reconnects automatically and continues from where it stopped. Nothing is sent twice, and the file is
+still checked end-to-end with SHA-256. The receiver keeps the partial file for 2 minutes.
 </details>
 
 <details>
@@ -189,7 +224,7 @@ flowchart LR
 | Port | Used for |
 |---|---|
 | UDP **47821** | PCs announce themselves every 2 s, so they appear automatically |
-| TCP **47822** | PC-to-PC transfers: file list → accept → raw stream → SHA-256 check |
+| TCP **47822** | PC-to-PC: signed X25519 handshake → AES-256-GCM channel → file list → accept → stream (resumable) → SHA-256 check. Also text/clipboard |
 | HTTP **47823** | The phone/TV page: PIN login (cookie), streaming uploads, downloads with range support, Server-Sent Events. Also serves PC-to-PC **Play now** streams at a secret per-transfer link |
 
 ## Build from source
@@ -213,11 +248,14 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 
 ## Roadmap
 
+- [x] Clipboard / text sharing
+- [x] Auto-update
+- [x] Encrypted, resumable PC-to-PC transfers
+- [x] Explorer right-click "Send with DropWave"
 - [ ] Android app (receive in the background, share-sheet integration)
 - [ ] macOS & Linux builds
-- [ ] Auto-update
-- [ ] Code-signed installer (removes the SmartScreen warning)
-- [ ] Clipboard / text sharing
+- [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)
+- [ ] Hindi and other languages
 
 Ideas and bug reports are welcome. [Open an issue](https://github.com/lalitaryan1993/dropwave/issues).
 

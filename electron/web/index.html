@@ -92,6 +92,9 @@
   .frow { display:flex; align-items:center; gap:12px; }
   .frow .meta { flex:1; min-width:0; }
   .empty { text-align:center; padding:26px 10px; color:var(--faint); font-size:13.5px; }
+  .textbox { margin-top:12px; display:flex; gap:10px; align-items:flex-end; padding:10px; border-radius:18px; background:var(--panel); border:1px solid var(--line); }
+  .textbox textarea { flex:1; resize:none; border:0; outline:none; background:transparent; font:inherit; color:inherit; padding:8px 6px; max-height:140px; }
+  .msg { white-space:pre-wrap; word-break:break-word; background:var(--raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin:12px 0; font-size:14.5px; max-height:220px; overflow:auto; user-select:text; -webkit-user-select:text; }
 
   /* viewer (TV friendly) */
   .viewer { position:fixed; inset:0; z-index:50; background:#000; display:grid; place-items:center; }
@@ -138,6 +141,10 @@
       <span class="muted" style="font-size:13.5px">Photos, videos, documents — any size</span>
       <input id="file" type="file" multiple class="hidden" />
     </label>
+    <form id="textForm" class="textbox">
+      <textarea id="textIn" rows="1" placeholder="Send a link or text…" aria-label="Text to send"></textarea>
+      <button class="btn primary small" type="submit" aria-label="Send text">Send</button>
+    </form>
 
     <h2 id="actTitle" class="hidden">Activity</h2>
     <div id="activity" class="list"></div>
@@ -215,6 +222,7 @@
     });
     es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); });
     es.addEventListener('offer', (m) => addOffer(JSON.parse(m.data)));
+    es.addEventListener('text', (m) => addText(JSON.parse(m.data)));
     es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); toast('The sender cancelled'); });
     es.onerror = () => {
       setConn(false);
@@ -262,13 +270,15 @@
     const to = peers.find((p) => p.id === target) || peers[0];
     if (!to) return toast('No device to send to');
     const list = files.map((f) => ({ name: f.webkitRelativePath || f.name, size: f.size }));
-    const r = await fetch('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, files: list }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return toast(j.error || 'Could not start the transfer');
-
     const total = files.reduce((a, f) => a + f.size, 0);
     const label = files.length === 1 ? files[0].name : `${files.length} files`;
-    const row = activityRow(j.id, `↑ ${label}`, `to ${to.name} · ${fmt(total)}`, true);
+    // A PC asks its user first, so show that we're waiting.
+    const row = activityRow('pending', `↑ ${label}`, to.pc ? `Waiting for ${to.name} to accept…` : `to ${to.name} · ${fmt(total)}`, false);
+    const r = await fetch('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, files: list }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return finishRow(row, false, j.error || 'Could not start the transfer');
+    row.querySelector('.row').insertAdjacentHTML('beforeend', `<button class="btn ghost small" data-cancel aria-label="Cancel">${svg('x')}</button>`);
+    row.querySelector('[data-sub]').textContent = `to ${to.name} · ${fmt(total)}`;
     const u = { id: j.id, xhr: null, cancelled: false };
     uploads.set(j.id, u);
     row.querySelector('[data-cancel]').onclick = () => { u.cancelled = true; u.xhr?.abort(); fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: j.id }) }); };
@@ -314,6 +324,48 @@
     row.querySelector('[data-cancel]')?.remove();
     const s = row.querySelector('[data-sub]');
     s.innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✕'}</span> ${esc(text)}`;
+  }
+
+  // ---------- text / clipboard ----------
+  const textIn = $('#textIn');
+  textIn.addEventListener('input', () => { textIn.style.height = 'auto'; textIn.style.height = textIn.scrollHeight + 'px'; });
+  $('#textForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = textIn.value.trim();
+    const to = peers.find((p) => p.id === target) || peers[0];
+    if (!text || !to) return;
+    const r = await fetch('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) });
+    if (!r.ok) return toast((await r.json().catch(() => ({}))).error || 'Could not send');
+    textIn.value = ''; textIn.style.height = 'auto';
+    toast(`Sent to ${to.name}`);
+  });
+
+  // Clipboard API needs HTTPS; on plain-HTTP LAN pages fall back to a hidden textarea + execCommand.
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch {}
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+    let ok = false; try { ok = document.execCommand('copy'); } catch {}
+    ta.remove();
+    return ok;
+  }
+
+  function addText(m) {
+    const url = (m.text.match(/https?:\/\/[^\s<>"']+/i) || [])[0];
+    const card = el('div', 'offer', `
+      <div class="row"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:16px">${esc(m.from.name)} sent you text</div></div>
+        <button class="btn ghost small" data-close aria-label="Dismiss">${svg('x')}</button></div>
+      <div class="msg"></div>
+      <div class="row" style="gap:10px">
+        <button class="btn primary" style="flex:1" data-copy>Copy</button>
+        ${url ? `<a class="btn soft" style="flex:1" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open link</a>` : ''}
+      </div>`);
+    card.querySelector('.msg').textContent = m.text;
+    card.querySelector('[data-close]').onclick = () => card.remove();
+    card.querySelector('[data-copy]').onclick = async (e) => { e.currentTarget.textContent = (await copyText(m.text)) ? 'Copied ✓' : 'Select and copy above'; };
+    $('#offers').prepend(card);
+    if (navigator.vibrate) navigator.vibrate(60);
   }
 
   // ---------- receiving ----------

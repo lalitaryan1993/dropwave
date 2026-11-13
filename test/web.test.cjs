@@ -56,9 +56,11 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'dropwave-web-'));
   const saveDir = path.join(root, 'inbox');
   const pcEvents = [];
+  let acceptPhone = true;
   const web = new WebShare({
     me: () => ({ id: 'PC', name: 'Test PC' }), saveDir: () => saveDir, pin: () => '123456',
     webRoot: path.join(__dirname, '..', 'electron', 'web'), port: PORT,
+    decide: async () => acceptPhone,
   });
   web.on('transfer', (t) => pcEvents.push(t));
   await web.start();
@@ -90,6 +92,25 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   assert.equal(sha(fs.readFileSync(path.join(saveDir, 'clip.mp4'))), sha(data));
   assert.equal(pcEvents.at(-1).status, 'completed');
   console.log('ok  phone -> PC upload (hash match)');
+
+  // 3b. The PC user can decline files from a phone
+  acceptPhone = false;
+  r = await post('/api/batch', cookie, { from: 'phone1', to: 'PC', files: [{ name: 'spam.zip', size: 10 }] });
+  assert.equal(r.status, 403);
+  assert.match((await r.json()).error, /declined/);
+  assert.equal(pcEvents.at(-1).status, 'rejected');
+  acceptPhone = true;
+  console.log('ok  PC can decline files sent from a phone');
+
+  // 3c. Text: phone -> PC and phone -> TV
+  const pcText = new Promise((r) => web.once('text', r));
+  assert.equal((await post('/api/text', cookie, { from: 'phone1', to: 'PC', text: 'hello PC' })).status, 200);
+  assert.equal((await pcText).text, 'hello PC');
+  assert.equal((await post('/api/text', cookie, { from: 'phone1', to: 'tv1', text: 'https://youtu.be/x' })).status, 200);
+  const tvText = await tv.next('text');
+  assert.equal(tvText.text, 'https://youtu.be/x');
+  assert.equal(tvText.from.name, 'Riya iPhone');
+  console.log('ok  text from a phone reaches the PC and the TV');
 
   // 4. Phone -> TV relay
   const photo = crypto.randomBytes(300000);

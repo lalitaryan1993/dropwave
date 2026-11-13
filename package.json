@@ -1,7 +1,7 @@
 {
   "name": "dropwave",
   "productName": "DropWave",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Drag and drop files between computers on your local network",
   "main": "electron/main.cjs",
   "author": "LALIT ARYAN",
@@ -53,7 +53,14 @@
       "uninstallerIcon": "build/icon.ico",
       "installerSidebar": "build/installerSidebar.bmp",
       "uninstallerSidebar": "build/installerSidebar.bmp"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "lalitaryan1993",
+        "repo": "dropwave"
+      }
+    ]
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.5",
@@ -71,6 +78,7 @@
     "wait-on": "^9.5.1"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "qrcode": "^1.5.4"
   },
   "repository": {

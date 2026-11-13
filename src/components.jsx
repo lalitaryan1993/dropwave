@@ -6,7 +6,7 @@ import {
   Smartphone, Tablet, Tv, QrCode, RefreshCw, Copy,
 } from 'lucide-react';
 import { api, fmtSize, fmtSpeed, fmtEta, timeAgo, hueFor, initials, label, peerOf, isPlayable, playStream } from './lib.js';
-import { Play } from 'lucide-react';
+import { Play, ClipboardType, ExternalLink, Send } from 'lucide-react';
 
 const spring = { type: 'spring', stiffness: 420, damping: 32 };
 
@@ -48,7 +48,7 @@ export function Button({ variant = 'ghost', className = '', children, ...rest })
 
 // ---------- device card (drop target) ----------
 
-export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick }) {
+export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick, onText }) {
   const [over, setOver] = useState(false);
   const depth = useRef(0);
   const h = hueFor(peer.id);
@@ -98,6 +98,7 @@ export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick }) {
             <span className="tabular">{peer.ip}</span>
             {peer.manual && <span className="rounded-md bg-[var(--line)] px-1.5 py-px text-[10.5px]">added by IP</span>}
             {peer.web && <span className="rounded-md bg-accent-2/15 px-1.5 py-px text-[10.5px] text-accent-2">browser</span>}
+            {peer.outdated && <span className="rounded-md bg-warn/15 px-1.5 py-px text-[10.5px] text-warn" title="This PC runs an older DropWave. Ask them to update to send files.">update needed</span>}
           </div>
         </div>
         {busy && <Loader2 className="h-4 w-4 animate-spin text-accent" />}
@@ -119,6 +120,7 @@ export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick }) {
             <motion.div key="btns" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex gap-2">
               <Button variant="soft" className="flex-1" onClick={() => onPick(peer, 'files')}><FileUp className="h-4 w-4" /> Files</Button>
               <Button variant="soft" className="flex-1" onClick={() => onPick(peer, 'folder')}><FolderUp className="h-4 w-4" /> Folder</Button>
+              <Button variant="soft" className="w-9 shrink-0 px-0" onClick={() => onText(peer)} title="Send text or clipboard"><ClipboardType className="h-4 w-4" /></Button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -129,7 +131,7 @@ export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick }) {
 
 // ---------- empty state ----------
 
-export function Radar({ me, onAdd, onPhone }) {
+export function Radar({ me, onAdd, onPhone, onCheck }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <div className="relative grid h-64 w-64 place-items-center">
@@ -147,7 +149,10 @@ export function Radar({ me, onAdd, onPhone }) {
         <Button variant="primary" onClick={onPhone}><QrCode className="h-4 w-4" /> Connect phone or TV</Button>
         <Button variant="soft" onClick={onAdd}><Plus className="h-4 w-4" /> Add PC by IP</Button>
       </div>
-      <p className="mt-8 flex items-center gap-1.5 text-[12px] text-faint">
+      <button onClick={onCheck} className="mt-4 text-[12.5px] font-medium text-accent hover:underline">
+        Can’t see your other devices? Run a network check
+      </button>
+      <p className="mt-6 flex items-center gap-1.5 text-[12px] text-faint">
         <Wifi className="h-3.5 w-3.5" /> This PC is visible as <b className="font-semibold text-muted">{me.name}</b> · {me.ips.join(', ') || 'no network'}
       </p>
     </div>
@@ -168,7 +173,9 @@ const statusMeta = {
 export function TransferRow({ t, compact = false }) {
   const p = peerOf(t) || {};
   const pct = t.total ? Math.min(100, (t.done / t.total) * 100) : t.status === 'completed' ? 100 : 0;
-  const live = t.status === 'active' || t.status === 'waiting';
+  // paused / reconnecting = the connection dropped and DropWave is resuming it
+  const live = ['active', 'waiting', 'paused', 'reconnecting'].includes(t.status);
+  const stalled = t.status === 'paused' || t.status === 'reconnecting';
   const meta = statusMeta[t.status] || statusMeta.failed;
   const Dir = t.direction === 'in' ? ArrowDownLeft : ArrowUpRight;
   const openable = t.direction === 'in' && t.status === 'completed' && t.savedTo?.length;
@@ -254,7 +261,12 @@ export function TransferRow({ t, compact = false }) {
             <div className="absolute inset-0 bar-shimmer" />
           </div>
           <div className="mt-1.5 flex justify-between text-[11.5px] text-faint tabular">
-            <span>{t.status === 'waiting' ? `Waiting for ${p.name} to accept…` : `${fmtSize(t.done)} of ${fmtSize(t.total)} · ${pct.toFixed(0)}%`}</span>
+            <span className={stalled ? 'flex items-center gap-1 text-warn' : ''}>
+              {stalled && <Loader2 className="h-3 w-3 animate-spin" />}
+              {t.status === 'waiting' ? `Waiting for ${p.name} to accept…`
+                : stalled ? `${t.status === 'reconnecting' ? 'Reconnecting' : 'Connection lost, waiting'} · ${pct.toFixed(0)}% saved`
+                : `${fmtSize(t.done)} of ${fmtSize(t.total)} · ${pct.toFixed(0)}%${t.resumed ? ' · resumed' : ''}`}
+            </span>
             <span>{fmtSpeed(t.bps)} {t.eta != null && t.status === 'active' ? `· ${fmtEta(t.eta)}` : ''}</span>
           </div>
         </div>
@@ -424,6 +436,108 @@ export function PhoneModal({ onClose, onOpenSettings }) {
             <Button variant="primary" onClick={onClose}>Done</Button>
           </div>
         </>
+      )}
+    </Modal>
+  );
+}
+
+// ---------- text / clipboard ----------
+
+const firstUrl = (s) => (String(s).match(/https?:\/\/[^\s<>"']+/i) || [])[0];
+
+export function SendTextModal({ peer, onClose, onSent }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { api.readClipboard().then((t) => setText((cur) => cur || t || '')); }, []);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setErr('');
+    try { await api.sendText(peer.id, text); onSent(peer); onClose(); }
+    catch (e2) { setErr(String(e2.message || e2).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Modal onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="flex items-center gap-3">
+          <Avatar id={peer.id} name={peer.name} size={40} />
+          <div>
+            <div className="font-display text-[18px] font-semibold">Send text</div>
+            <div className="text-[13px] text-muted">to {peer.name}. Your clipboard is already pasted.</div>
+          </div>
+        </div>
+        <textarea
+          autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={6} maxLength={100000}
+          placeholder="Paste a link, a note, a password-free message…"
+          className="mt-4 w-full resize-none rounded-xl border border-line-strong bg-bg-2 px-3.5 py-3 text-[13.5px] outline-none transition focus:border-accent focus:shadow-[0_0_0_4px_var(--glow)]"
+        />
+        {err && <div className="mt-2 flex items-center gap-1.5 text-[12.5px] text-bad"><AlertCircle className="h-3.5 w-3.5" /> {err}</div>}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={!text.trim() || busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export function TextReceivedModal({ msg, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const url = firstUrl(msg.text);
+  const copy = async () => { await api.writeClipboard(msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  return (
+    <Modal onClose={onClose}>
+      <div className="flex items-center gap-3">
+        <Avatar id={msg.from.id || msg.from.name} name={msg.from.name} size={40} />
+        <div className="min-w-0">
+          <div className="truncate font-display text-[18px] font-semibold">{msg.from.name}</div>
+          <div className="text-[13px] text-muted">sent you text</div>
+        </div>
+      </div>
+      <div className="mt-4 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-bg-2/60 px-3.5 py-3 text-[13.5px] select-text">{msg.text}</div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+        {url && <Button variant="soft" onClick={() => api.openLink(url)}><ExternalLink className="h-4 w-4" /> Open link</Button>}
+        <Button variant="primary" onClick={copy} autoFocus>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy'}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+// Opened from Explorer's right-click "Send with DropWave": choose where the items go.
+export function SendToModal({ paths, peers, onSend, onClose, onPhone }) {
+  const names = paths.map((p) => p.split(/[\\/]/).pop());
+  return (
+    <Modal onClose={onClose}>
+      <div className="flex items-start justify-between">
+        <div className="min-w-0">
+          <div className="font-display text-[19px] font-semibold">Send with DropWave</div>
+          <div className="mt-1 truncate text-[13px] text-muted" title={names.join('\n')}>
+            {names.length === 1 ? names[0] : `${names.length} items: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`}
+          </div>
+        </div>
+        <button onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint hover:bg-[var(--line)] hover:text-fg"><X className="h-4 w-4" /></button>
+      </div>
+      {peers.length === 0 ? (
+        <div className="mt-5 rounded-2xl border border-line bg-bg-2/60 p-6 text-center text-[13px] text-muted">
+          No devices nearby yet. Open DropWave on another PC, or connect a phone.
+          <div className="mt-3"><Button variant="soft" onClick={onPhone}><QrCode className="h-4 w-4" /> Connect phone or TV</Button></div>
+        </div>
+      ) : (
+        <div className="mt-5 grid max-h-80 gap-2 overflow-auto">
+          {peers.map((p) => (
+            <button key={p.id} onClick={() => onSend(p)}
+              className="flex items-center gap-3 rounded-2xl border border-line px-3.5 py-3 text-left transition hover:border-accent hover:bg-accent/10">
+              <Avatar id={p.id} name={p.name} size={38} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-medium">{p.name}</div>
+                <div className="flex items-center gap-1.5 text-[12px] text-faint"><PlatformIcon platform={p.platform} className="h-3.5 w-3.5" /> {p.ip}</div>
+              </div>
+              <ArrowUpRight className="h-4 w-4 text-faint" />
+            </button>
+          ))}
+        </div>
       )}
     </Modal>
   );

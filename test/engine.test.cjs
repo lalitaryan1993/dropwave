@@ -70,6 +70,19 @@ function waitFor(engine, id, statuses = ['completed', 'failed', 'rejected', 'can
   B.decide = prevDecide;
   console.log('ok  "Play now" stream link travels with the offer');
 
+  // 3c. Text / clipboard sharing — and it is encrypted on the wire
+  const wire = [];
+  const sniff = (raw) => raw.on('data', (c) => wire.push(c));
+  B.server.on('connection', sniff);
+  const gotText = new Promise((r) => B.once('text', r));
+  await A.sendText(peerB, 'https://example.com/doc — see this');
+  B.server.off('connection', sniff);
+  assert.ok(!Buffer.concat(wire).includes('example.com'), 'text must not travel in plaintext');
+  const tm = await gotText;
+  assert.equal(tm.text, 'https://example.com/doc — see this');
+  assert.equal(tm.from.name, 'PC-A');
+  console.log('ok  text / clipboard sharing between PCs (encrypted on the wire)');
+
   // 4. Rejected
   acceptB = false;
   id = await A.sendPaths(peerB, [path.join(src, 'Album', 'a.txt')]);
@@ -86,6 +99,44 @@ function waitFor(engine, id, statuses = ['completed', 'failed', 'rejected', 'can
   await new Promise((r) => setTimeout(r, 300));
   assert.ok(!fs.existsSync(path.join(inboxB, 'big (2).bin')), 'partial file should be removed');
   console.log('ok  cancel (partial file cleaned up)');
+
+  // 5b. Receiver cancels: sender stops too (no reconnect / resume)
+  id = await A.sendPaths(peerB, [path.join(src, 'big.bin')]);
+  await new Promise((r) => B.on('transfer', function on(t) { if (t.direction === 'in' && t.status === 'active' && t.done > 5 * 1048576) { B.off('transfer', on); B.cancel(t.id); r(); } }));
+  const senderSide = await waitFor(A, id);
+  assert.equal(senderSide.status, 'cancelled');
+  assert.match(senderSide.error, /other device/);
+  console.log('ok  receiver cancel stops the sender (no silent retry)');
+
+  // 5c. Connection drops mid-transfer -> sender reconnects and resumes where it stopped
+  let prompts = 0;
+  B.decide = async () => { prompts++; return true; };
+  const statuses = new Set();
+  t0 = Date.now();
+  const recvDone = new Promise((r) => B.on('transfer', function on(t) { if (t.direction === 'in' && t.status === 'completed') { B.off('transfer', on); r(t); } }));
+  id = await A.sendPaths(peerB, [path.join(src, 'Album'), path.join(src, 'big.bin')]);
+  A.on('transfer', function track(t) { if (t.id === id) statuses.add(t.status); if (t.id === id && ['completed', 'failed', 'cancelled'].includes(t.status)) A.off('transfer', track); });
+  await new Promise((r) => A.on('transfer', function on(t) { if (t.id === id && t.done > 30 * 1048576) { A.off('transfer', on); r(); } }));
+  A.transfers.get(id).socket.raw.destroy(); // pull the cable
+  const resumedSend = await waitFor(A, id);
+  assert.equal(resumedSend.status, 'completed', resumedSend.error);
+  assert.ok(statuses.has('reconnecting'), 'should show reconnecting');
+  assert.ok(resumedSend.resumed, 'sender should have resumed, not restarted');
+  assert.equal(prompts, 1, 'resume must not ask the receiver again');
+  const recvT = await recvDone;
+  assert.ok(recvT.resumed, 'receiver should have continued the partial file');
+  const savedBig = recvT.savedTo.find((p) => /big.*\.bin$/.test(p));
+  assert.equal(sha(savedBig), sha(path.join(src, 'big.bin')));
+  assert.equal(sha(path.join(recvT.savedTo.find((p) => /Album/.test(p)), 'Nested', 'b.bin')), sha(path.join(src, 'Album', 'Nested', 'b.bin')));
+  console.log(`ok  dropped connection resumes and finishes (${Date.now() - t0} ms, checksums match)`);
+  B.decide = async () => acceptB;
+
+  // 5d. Identity pinning: someone pretending to be PC-A with a different key is refused
+  const fakeA = new Engine({ id: 'A', name: 'PC-A', saveDir: path.join(root, 'fake'), port: 48003, discoveryPort: 48101 });
+  await fakeA.start();
+  await assert.rejects(fakeA.sendText({ id: 'B', name: 'PC-B', ip: '127.0.0.1', port: 48002 }, 'hi'), /closed|identity|handshake/i);
+  await fakeA.stop();
+  console.log('ok  impostor with a different identity key is refused');
 
   // 6. Unreachable
   id = await A.sendPaths({ id: 'X', name: 'X', ip: '127.0.0.1', port: 48999 }, [path.join(src, 'Album', 'a.txt')]);

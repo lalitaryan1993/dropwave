@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Radar as RadarIcon, History, Settings as SettingsIcon, FolderOpen, Plus, Trash2, Sun, Moon, MonitorSmartphone,
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
+  Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
-import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, Toasts } from './components.jsx';
+import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, SendTextModal, TextReceivedModal, Toasts } from './components.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -30,6 +31,20 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
+  const [checkSignal, setCheckSignal] = useState(0); // bump to open Settings and run the network check
+  const [update, setUpdate] = useState({ state: 'idle' });
+  useEffect(() => {
+    api.updateState().then(setUpdate);
+    return api.onUpdate((u) => setUpdate((prev) => ({ ...prev, ...u })));
+  }, []);
+  const [textTo, setTextTo] = useState(null);   // peer we're composing text for
+  const [texts, setTexts] = useState([]);       // received texts, shown one at a time
+  useEffect(() => api.onText((m) => setTexts((q) => [...q, m])), []);
+  const [toSend, setToSend] = useState(null); // paths from Explorer's "Send with DropWave"
+  useEffect(() => {
+    api.pendingSend().then((p) => p?.length && setToSend(p));
+    return api.onSendRequest((p) => p?.length && setToSend(p));
+  }, []);
   const [toasts, setToasts] = useState([]);
   const dragDepth = useRef(0);
 
@@ -138,6 +153,22 @@ export default function App() {
           </nav>
 
           <div className="mt-auto space-y-2">
+            <AnimatePresence>
+              {(update.state === 'ready' || update.state === 'downloading') && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  className="rounded-2xl border border-accent/40 bg-accent/10 p-3">
+                  <div className="flex items-center gap-2 text-[12.5px] font-semibold">
+                    <Sparkles className="h-4 w-4 text-accent" />
+                    {update.state === 'ready' ? `DropWave ${update.version} is ready` : `Downloading update… ${update.percent || 0}%`}
+                  </div>
+                  {update.state === 'ready' && (
+                    <Button variant="primary" className="no-drag mt-2.5 h-8 w-full" onClick={() => api.installUpdate()}>
+                      <RotateCw className="h-3.5 w-3.5" /> Restart to update
+                    </Button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <button onClick={() => api.openSaveDir()} className="no-drag flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-muted transition hover:bg-[var(--line)] hover:text-fg">
               <FolderOpen className="h-[18px] w-[18px] shrink-0" />
               <span className="min-w-0">
@@ -173,10 +204,12 @@ export default function App() {
                     me={state.me} peers={peers} dragging={dragging} busyPeers={busyPeers}
                     activeList={activeList} recent={history.slice(0, 4)}
                     onDropPaths={sendPaths} onPick={pick} onAdd={() => setShowAdd(true)} onPhone={() => setShowPhone(true)} onSeeAll={() => setView('activity')}
+                    onCheck={() => { setView('settings'); setCheckSignal((n) => n + 1); }}
+                    onText={setTextTo}
                   />
                 )}
                 {view === 'activity' && <Activity activeList={activeList} history={history} onClear={async () => setHistory(await api.clearHistory())} />}
-                {view === 'settings' && <Settings state={state} update={updateSettings} chooseDir={async () => setState(await api.chooseSaveDir())} />}
+                {view === 'settings' && <Settings state={state} update={updateSettings} chooseDir={async () => setState(await api.chooseSaveDir())} checkSignal={checkSignal} appUpdate={update} setAppUpdate={setUpdate} />}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -186,6 +219,16 @@ export default function App() {
       <AnimatePresence>
         {pending[0] && <IncomingModal key={pending[0].id} req={pending[0]} onRespond={respond} />}
         {showAdd && <AddDeviceModal onClose={() => setShowAdd(false)} onAdded={(p) => toast(`Connected to ${p.name}`)} />}
+        {textTo && <SendTextModal key="send-text" peer={textTo} onClose={() => setTextTo(null)} onSent={(p) => toast(`Text sent to ${p.name}`)} />}
+        {texts[0] && !pending[0] && <TextReceivedModal key={texts[0].id} msg={texts[0]} onClose={() => setTexts((q) => q.slice(1))} />}
+        {toSend && !pending[0] && (
+          <SendToModal
+            key="send-to" paths={toSend} peers={peers}
+            onSend={async (peer) => { const p = toSend; setToSend(null); api.pendingSendDone(); await sendPaths(peer, p); setView('nearby'); }}
+            onClose={() => { setToSend(null); api.pendingSendDone(); }}
+            onPhone={() => setShowPhone(true)}
+          />
+        )}
         {showPhone && <PhoneModal onClose={() => setShowPhone(false)} onOpenSettings={() => { setShowPhone(false); setView('settings'); }} />}
       </AnimatePresence>
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
@@ -211,14 +254,14 @@ function SectionTitle({ title, sub, right }) {
 
 // ---------- Nearby ----------
 
-function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPaths, onPick, onAdd, onPhone, onSeeAll }) {
+function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPaths, onPick, onAdd, onPhone, onSeeAll, onCheck, onText }) {
   // Computers first, then phones/TVs; alphabetical inside each group.
   const sorted = useMemo(() => [...peers].sort((a, b) => Number(!!a.web) - Number(!!b.web) || a.name.localeCompare(b.name)), [peers]);
   return (
     <div className="flex h-full">
       <section className="relative min-w-0 flex-1 overflow-auto p-7">
         {sorted.length === 0 ? (
-          <Radar me={me} onAdd={onAdd} onPhone={onPhone} />
+          <Radar me={me} onAdd={onAdd} onPhone={onPhone} onCheck={onCheck} />
         ) : (
           <>
             <SectionTitle
@@ -234,7 +277,7 @@ function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPath
             <motion.div layout className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">
               <AnimatePresence>
                 {sorted.map((p) => (
-                  <DeviceCard key={p.id} peer={p} dragging={dragging} busy={busyPeers.has(p.id)} onDropPaths={onDropPaths} onPick={onPick} />
+                  <DeviceCard key={p.id} peer={p} dragging={dragging} busy={busyPeers.has(p.id)} onDropPaths={onDropPaths} onPick={onPick} onText={onText} />
                 ))}
               </AnimatePresence>
             </motion.div>
@@ -335,7 +378,94 @@ function Stat({ Icon, label, value, color }) {
 
 // ---------- Settings ----------
 
-function Settings({ state, update, chooseDir }) {
+function NetworkCheck({ signal }) {
+  const [checks, setChecks] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [fixing, setFixing] = useState(null);
+  const [note, setNote] = useState('');
+  const ref = useRef(null);
+  const run = useCallback(async () => {
+    setBusy(true); setNote('');
+    try { setChecks(await api.runChecks()); } finally { setBusy(false); }
+  }, []);
+  useEffect(() => {
+    if (!signal) return;
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    run();
+  }, [signal, run]);
+  const fix = async (id) => {
+    setFixing(id); setNote('');
+    try {
+      const r = await api.fixCheck(id);
+      setChecks(r.checks);
+      if (!r.ran) setNote('The fix needs administrator permission. Click "Yes" when Windows asks.');
+    } finally { setFixing(null); }
+  };
+  const problems = checks?.filter((c) => !c.ok && !c.info).length || 0;
+
+  return (
+    <section ref={ref} className="rounded-2xl border border-line bg-raised/60 p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-[11.5px] font-semibold uppercase tracking-wider text-faint">Network check</div>
+        <Button variant="soft" onClick={run} disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />} {checks ? 'Check again' : 'Run check'}
+        </Button>
+      </div>
+      {!checks && !busy && <div className="text-[13px] text-muted">Can’t see your other devices? This finds the usual causes (Public network, firewall) and fixes them in one click.</div>}
+      {busy && !checks && <div className="text-[13px] text-muted">Checking network, firewall and ports…</div>}
+      {checks && (
+        <div className="space-y-2">
+          {checks.map((c) => (
+            <div key={c.id} className="flex items-start gap-3 rounded-xl border border-line px-3.5 py-3">
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full"
+                style={{ background: c.ok ? 'color-mix(in oklab, var(--good) 18%, transparent)' : c.info ? 'var(--line)' : 'color-mix(in oklab, var(--warn) 20%, transparent)' }}>
+                {c.ok ? <Check className="h-3 w-3 text-good" /> : c.info ? <Info className="h-3 w-3 text-faint" /> : <AlertTriangle className="h-3 w-3 text-warn" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-medium">{c.title}</div>
+                {c.detail && <div className="mt-0.5 text-[12px] text-faint">{c.detail}</div>}
+              </div>
+              {c.fix && (
+                <Button variant="primary" className="h-8 shrink-0" onClick={() => fix(c.id)} disabled={!!fixing}>
+                  {fixing === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} {c.fix}
+                </Button>
+              )}
+            </div>
+          ))}
+          <div className="pt-1 text-[12px] text-faint">
+            {note || (problems ? `${problems} problem(s) found. Fixes ask for administrator permission.` : 'Everything looks good on this PC. If a device is still missing, run this check on that device too.')}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UpdatesCard({ version, appUpdate, setAppUpdate }) {
+  const [busy, setBusy] = useState(false);
+  const u = appUpdate || {};
+  const status = {
+    checking: 'Checking for updates…',
+    downloading: `Downloading version ${u.version || ''}… ${u.percent || 0}%`,
+    ready: `Version ${u.version} is downloaded and installs on restart.`,
+    latest: 'You have the latest version.',
+    error: `Couldn’t check for updates${u.error ? `: ${u.error}` : ''}.`,
+  }[u.state] || (u.supported === false ? 'Updates are checked automatically in the installed app.' : 'DropWave checks for updates automatically.');
+  const check = async () => { setBusy(true); try { setAppUpdate(await api.checkUpdate()); } finally { setBusy(false); } };
+  return (
+    <Card title="Updates">
+      <Row label={`DropWave ${version}`} hint={status}>
+        {u.state === 'ready'
+          ? <Button variant="primary" onClick={() => api.installUpdate()}><RotateCw className="h-4 w-4" /> Restart to update</Button>
+          : <Button variant="soft" onClick={check} disabled={busy || u.state === 'checking' || u.state === 'downloading'}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Check for updates
+            </Button>}
+      </Row>
+    </Card>
+  );
+}
+
+function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpdate }) {
   const s = state.settings;
   const [name, setName] = useState(s.deviceName);
   const [editing, setEditing] = useState(false);
@@ -367,7 +497,17 @@ function Settings({ state, update, chooseDir }) {
               </div>
             </div>
           </div>
+          <Row label="Security code" hint="Transfers between PCs are end-to-end encrypted. Compare this code with the other PC to be sure you're talking to the right device.">
+            <span className="shrink-0 whitespace-nowrap rounded-lg border border-line bg-bg-2/60 px-3 py-1.5 font-mono text-[13px] tracking-wider tabular">{state.me.fingerprint || '—'}</span>
+          </Row>
+          <Row label="Forget remembered devices" hint="Use this if a device shows a security warning because DropWave was reinstalled on it.">
+            <Button variant="soft" onClick={async () => { await api.forgetKeys(); }}><ShieldCheck className="h-4 w-4" /> Forget</Button>
+          </Row>
         </Card>
+
+        <NetworkCheck signal={checkSignal} />
+
+        <UpdatesCard version={state.version} appUpdate={appUpdate} setAppUpdate={setAppUpdate} />
 
         <Card title="Phones & TVs">
           <Row label="Allow phones, tablets and TVs" hint="They connect from their web browser using a QR code or PIN">

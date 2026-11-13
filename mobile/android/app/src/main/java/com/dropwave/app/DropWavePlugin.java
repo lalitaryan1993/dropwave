@@ -8,6 +8,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.OpenableColumns;
+import android.util.Log;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -38,6 +39,8 @@ import java.util.List;
 @CapacitorPlugin(name = "DropWave")
 public class DropWavePlugin extends Plugin {
 
+    private static final String TAG = "DropWave";
+
     private JSObject pendingShare = null;
 
     @Override
@@ -60,9 +63,11 @@ public class DropWavePlugin extends Plugin {
 
     // Copy shared content:// files into the app cache so the web layer can read them.
     private void collectShare(final Intent intent, final boolean notify) {
+        Log.i(TAG, "share intent: " + intent.getAction() + " type=" + intent.getType() + " notify=" + notify);
         new Thread(() -> {
             JSObject data = new JSObject();
             JSArray files = new JSArray();
+            JSArray errors = new JSArray();
             List<Uri> uris = new ArrayList<>();
             if (Intent.ACTION_SEND.equals(intent.getAction())) {
                 Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -91,12 +96,18 @@ public class DropWavePlugin extends Plugin {
                     f.put("type", cr.getType(u) != null ? cr.getType(u) : "application/octet-stream");
                     f.put("size", out.length());
                     files.put(f);
-                } catch (Exception ignored) { }
+                    Log.i(TAG, "shared file copied: " + name + " (" + out.length() + " bytes)");
+                } catch (Exception e) {
+                    Log.w(TAG, "could not read shared item " + u, e);
+                    errors.put(String.valueOf(e.getMessage()));
+                }
             }
             data.put("files", files);
+            data.put("errors", errors);
             String text = intent.getStringExtra(Intent.EXTRA_TEXT);
             data.put("text", text != null && uris.isEmpty() ? text : "");
             pendingShare = data;
+            Log.i(TAG, "share ready: " + files.length() + " file(s), notify=" + notify);
             if (notify) notifyListeners("shared", data, true);
         }).start();
     }

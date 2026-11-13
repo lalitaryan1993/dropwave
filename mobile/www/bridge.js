@@ -26,11 +26,18 @@
   };
 
   // Files shared into the app arrive as paths in the app cache; turn them into File objects.
+  const say = (t) => { const go = () => (window.dwToast ? window.dwToast(t) : setTimeout(go, 150)); go(); };
   async function deliver(d) {
-    if (!d || (!(d.files || []).length && !d.text)) return;
+    if (!d) return;
+    if ((d.errors || []).length && !(d.files || []).length) say('Couldn’t read the shared item — try sharing it again');
+    if (!(d.files || []).length && !d.text) return;
     const files = [];
     for (const f of d.files || []) {
-      try { const b = await (await fetch(Cap.convertFileSrc(f.path))).blob(); files.push(new File([b], f.name, { type: f.type })); } catch {}
+      try {
+        const r = await fetch(Cap.convertFileSrc(f.path));
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        files.push(new File([await r.blob()], f.name, { type: f.type }));
+      } catch (e) { console.error('DropWave share: could not load', f.path, e); say(`Couldn’t open ${f.name}`); }
     }
     const go = () => (window.dwShare ? window.dwShare(files, d.text) : setTimeout(go, 150));
     go();

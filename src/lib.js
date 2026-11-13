@@ -41,3 +41,14 @@ export function initials(name = '?') {
 export const label = (t) => (t.count === 1 ? t.files[0].name.split(/[\\/]/).pop() : `${t.count} files`);
 
 export const peerOf = (t) => (t.direction === 'in' ? t.from : t.to);
+
+const PLAYABLE = /\.(mp4|m4v|webm|mov|mkv|ogv|mp3|m4a|aac|wav|ogg|oga|flac|opus|jpe?g|png|gif|webp|bmp|avif)$/i;
+export const baseName = (n) => n.split(/[\\/]/).pop();
+export const isPlayable = (name) => PLAYABLE.test(name);
+
+// Stream URL for file i of an incoming PC-to-PC transfer ("Play now").
+export const streamUrl = (t, i) => `${t.stream}/${i}/${encodeURIComponent(baseName(t.files[i].name))}`;
+
+export function playStream(t, i) {
+  return api.play({ url: streamUrl(t, i), name: baseName(t.files[i].name) });
+}

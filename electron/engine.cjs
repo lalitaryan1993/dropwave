@@ -302,6 +302,11 @@ class Engine extends EventEmitter {
     const from = { id: String(offer.from?.id || ''), name: String(offer.from?.name || sock.remoteAddress).slice(0, 64), ip: sock.remoteAddress?.replace(/^::ffff:/, '') };
     const id = crypto.randomUUID();
     const request = { id, direction: 'in', from, files: files.map((f) => ({ name: f.path, size: f.size })), total, count: files.length };
+    // Optional "Play now": the sender serves these files over HTTP at a secret token.
+    const st = offer.stream;
+    if (st && /^[a-f0-9]{32}$/.test(String(st.token)) && Number.isInteger(st.port) && st.port > 0 && st.port < 65536) {
+      request.stream = `http://${from.ip}:${st.port}/s/${st.token}`;
+    }
 
     let accepted = false;
     try {
@@ -444,9 +449,16 @@ class Engine extends EventEmitter {
 
   // ---------- sending ----------
 
-  async sendPaths(peer, paths) {
+  /**
+   * @param {object} [opts]
+   * @param {(files:{abs,path,size}[]) => ({token:string,port:number}|null)} [opts.streamLink]
+   *        lets the receiver play the files before/while they copy
+   */
+  async sendPaths(peer, paths, opts = {}) {
     const files = await collectFiles(paths);
     if (!files.length) throw new Error('Nothing to send — the folder is empty');
+    let stream = null;
+    try { stream = opts.streamLink ? opts.streamLink(files) : null; } catch { stream = null; }
     const total = files.reduce((a, f) => a + f.size, 0);
     const id = crypto.randomUUID();
     const t = {
@@ -478,7 +490,11 @@ class Engine extends EventEmitter {
 
     sock.on('error', (e) => finish('failed', e.code === 'ECONNREFUSED' ? 'Device is not reachable' : e.message));
     sock.on('close', () => { if (!finished) finish('failed', 'Connection closed by the other device'); });
-    sock.on('connect', () => send(sock, { type: 'offer', from: { id: this.id, name: this.name }, files: files.map((f) => ({ path: f.path, size: f.size })), total }));
+    sock.on('connect', () => send(sock, {
+      type: 'offer', from: { id: this.id, name: this.name },
+      files: files.map((f) => ({ path: f.path, size: f.size })), total,
+      ...(stream ? { stream } : {}),
+    }));
 
     let phase = 'await-accept';
     sock.on('data', (c) => {

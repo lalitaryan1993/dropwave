@@ -135,6 +135,18 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
 }
 
+function openPlayer(src, name, local) {
+  const p = new BrowserWindow({
+    width: 1040, height: 640, minWidth: 420, minHeight: 280, backgroundColor: '#000000',
+    title: `${name} · DropWave`, icon: iconPath(), autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  p.setMenu(null);
+  p.loadFile(path.join(__dirname, 'player.html'), { query: { src, name, local: local ? '1' : '0' } });
+  p.webContents.on('will-navigate', (e) => e.preventDefault());
+  p.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+}
+
 function showWindow() {
   if (!win) createWindow();
   if (win.isMinimized()) win.restore();
@@ -322,7 +334,12 @@ function registerIpc() {
 
   // Computers get a direct TCP transfer; phones/TVs get download links in their browser.
   const sendTo = async (peer, paths) => {
-    if (!peer.web) return engine.sendPaths(peer, paths);
+    if (!peer.web) {
+      // Let the receiving PC play media straight from us ("Play now") while it decides or copies.
+      return engine.sendPaths(peer, paths, {
+        streamLink: web ? (files) => web.addStreamLink(files.map((f) => ({ abs: f.abs, name: f.path }))) : null,
+      });
+    }
     const files = await collectFiles(paths);
     if (!files.length) throw new Error('Nothing to send — the folder is empty');
     return web.offer(peer.id, files.map((f) => ({ abs: f.abs, name: f.path, size: f.size })));
@@ -388,6 +405,15 @@ function registerIpc() {
     else { fs.mkdirSync(settings.saveDir, { recursive: true }); shell.openPath(settings.saveDir); }
   });
   ipcMain.handle('shell:openSaveDir', () => { fs.mkdirSync(settings.saveDir, { recursive: true }); return shell.openPath(settings.saveDir); });
+
+  // In-app player: a stream from another PC ("Play now") or a file already on this PC.
+  ipcMain.handle('player:open', (_e, { url, file, name } = {}) => {
+    let src, local = false;
+    if (typeof url === 'string' && /^http:\/\/[\d.]+:\d{1,5}\/s\/[a-f0-9]{32}\/\d+(\/[^?#]*)?$/.test(url)) src = url;
+    else if (typeof file === 'string' && fs.existsSync(file) && fs.statSync(file).isFile()) { src = require('node:url').pathToFileURL(file).href; local = true; }
+    else throw new Error('Nothing to play');
+    openPlayer(src, String(name || path.basename(file || 'Media')), local);
+  });
 }
 
 // ---- lifecycle ----

@@ -59,6 +59,17 @@ function waitFor(engine, id, statuses = ['completed', 'failed', 'rejected', 'can
   assert.ok(fs.existsSync(path.join(inboxB, 'big (1).bin')));
   console.log('ok  duplicate name saved as "big (1).bin"');
 
+  // 3b. "Play now" stream info reaches the receiver as a URL built from the sender's IP
+  let seenRequest = null;
+  const prevDecide = B.decide;
+  B.decide = async (r) => { seenRequest = r; return true; };
+  const token = 'ab'.repeat(16);
+  id = await A.sendPaths(peerB, [path.join(src, 'Album', 'a.txt')], { streamLink: () => ({ token, port: 47823 }) });
+  assert.equal((await waitFor(A, id)).status, 'completed');
+  assert.equal(seenRequest.stream, `http://127.0.0.1:47823/s/${token}`);
+  B.decide = prevDecide;
+  console.log('ok  "Play now" stream link travels with the offer');
+
   // 4. Rejected
   acceptB = false;
   id = await A.sendPaths(peerB, [path.join(src, 'Album', 'a.txt')]);

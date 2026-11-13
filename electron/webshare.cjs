@@ -20,6 +20,7 @@ const DEFAULT_WEB_PORT = 47823;
 const COOKIE = 'dropwave_key';
 const CLIENT_GRACE_MS = 6000;
 const SHARE_TTL_MS = 2 * 60 * 60 * 1000;
+const STREAM_TTL_MS = 3 * 60 * 60 * 1000;
 const PROGRESS_EVERY_MS = 200;
 
 const MIME = {
@@ -81,6 +82,7 @@ class WebShare extends EventEmitter {
     this.port = o.port || DEFAULT_WEB_PORT;
     this.clients = new Map();  // id -> { id, name, kind, ip, streams:Set<res>, lastSeen }
     this.shares = new Map();   // id -> share (files offered to a browser)
+    this.streamLinks = new Map(); // token -> { files:[{abs,name}], created } — PC-to-PC "Play now"
     this.uploads = new Map();  // batchId -> upload batch
     this.failedLogins = new Map(); // ip -> { n, until }
     this.relayDir = path.join(os.tmpdir(), 'dropwave-relay');
@@ -135,7 +137,46 @@ class WebShare extends EventEmitter {
     for (const [id, s] of this.shares) {
       if (now - s.created > SHARE_TTL_MS) { this.shares.delete(id); if (s.relayDir) fsp.rm(s.relayDir, { recursive: true, force: true }).catch(() => {}); }
     }
+    for (const [token, l] of this.streamLinks) if (now - l.created > STREAM_TTL_MS) this.streamLinks.delete(token);
     if (changed) this.emit('clients', this.clientList());
+  }
+
+  // ---------- PC-to-PC streaming ("Play now") ----------
+
+  /**
+   * Make the given files playable by whoever holds the returned token, without the PIN.
+   * The token is only sent to the PC the user chose to send these files to.
+   * @param {{abs:string,name:string}[]} files
+   */
+  addStreamLink(files) {
+    const token = crypto.randomBytes(16).toString('hex');
+    this.streamLinks.set(token, { files: files.map((f) => ({ abs: f.abs, name: f.name })), created: Date.now() });
+    return { token, port: this.port };
+  }
+
+  async #serveStream(req, res, token, i) {
+    const f = this.streamLinks.get(token)?.files[i];
+    if (!f) return json(res, 404, { error: 'This stream has expired' });
+    let st;
+    try { st = await fsp.stat(f.abs); } catch { return json(res, 410, { error: 'File was moved or deleted' }); }
+    const headers = {
+      'Content-Type': mimeOf(f.name), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store',
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(path.basename(f.name))}`,
+    };
+    const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/);
+    let start = 0, end = st.size - 1;
+    if (range) {
+      start = range[1] ? Number(range[1]) : Math.max(0, st.size - Number(range[2]));
+      end = range[1] && range[2] ? Math.min(Number(range[2]), st.size - 1) : st.size - 1;
+      if (start > end || start >= st.size) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); return res.end(); }
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
+    } else {
+      res.writeHead(200, { ...headers, 'Content-Length': st.size });
+    }
+    if (req.method === 'HEAD') return res.end();
+    const rs = fs.createReadStream(f.abs, { start, end, highWaterMark: 1024 * 1024 });
+    rs.pipe(res);
+    res.on('close', () => rs.destroy());
   }
 
   // ---------- auth ----------
@@ -171,6 +212,9 @@ class WebShare extends EventEmitter {
       res.writeHead(302, { Location: '/', ...(r === 'ok' ? { 'Set-Cookie': this.#setCookie() } : {}) });
       return res.end();
     }
+
+    const sm = p.match(/^\/s\/([a-f0-9]{32})\/(\d+)(?:\/.*)?$/);
+    if (sm && (req.method === 'GET' || req.method === 'HEAD')) return this.#serveStream(req, res, sm[1], Number(sm[2]));
 
     if (req.method === 'GET' && !p.startsWith('/api/') && !p.startsWith('/dl/')) return this.#static(p, res);
 

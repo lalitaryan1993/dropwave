@@ -8,7 +8,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.0.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.1.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
 [![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
 [![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
@@ -57,9 +57,10 @@ tablets and smart TVs alike.
 </td>
 <td width="50%" valign="top">
 
-### ▶️ Stream, don't just download
-Photos and videos open **right in the browser** with seeking support, which is perfect for showing
-holiday videos on the living-room TV.
+### ▶️ Play now: stream, don't wait
+Got a 4 GB video from another PC? Hit **Play** in the Accept dialog and it starts
+**instantly**, with seeking, while you decide whether to keep it. It also works while it's copying,
+and on phones and TVs right in the browser.
 
 ### 🔁 Phone ↔ phone, phone ↔ TV
 Any connected browser can send to any other (relayed through the PC).
@@ -104,12 +105,15 @@ works offline · runs quietly in the tray.
 
 <table>
 <tr>
+<td width="50%"><img src="docs/screenshots/play-now.png" alt="Play a video before accepting it" /><br /><sub><b>Play now</b>: watch a video before accepting it, streamed from the sender</sub></td>
 <td width="50%"><img src="docs/screenshots/incoming.png" alt="Accept or decline incoming files" /><br /><sub>Incoming files always ask first</sub></td>
-<td width="50%"><img src="docs/screenshots/activity.png" alt="Transfer activity and history" /><br /><sub>Live progress, speed, time left and history</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/desktop-light.png" alt="Light theme" /><br /><sub>Light theme</sub></td>
+<td width="50%"><img src="docs/screenshots/activity.png" alt="Transfer activity and history" /><br /><sub>Live progress, speed, time left and history</sub></td>
 <td width="50%"><img src="docs/screenshots/settings-light.png" alt="Settings" /><br /><sub>Settings: device name, PIN, save folder, theme, trusted devices</sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><img src="docs/screenshots/desktop-light.png" alt="Light theme" width="70%" /><br /><sub>Light theme</sub></td>
 </tr>
 </table>
 
@@ -147,6 +151,13 @@ No. PC-to-PC transfers need you to press <b>Accept</b> (unless you trusted that 
 </details>
 
 <details>
+<summary><b>How does "Play now" work? Which formats play?</b></summary>
+The sending PC serves the file over your network through a secret, single-transfer link that expires after a
+few hours, so the receiver can watch and seek without copying first. Anything Chromium plays works: MP4 (H.264),
+WebM, MP3, M4A, WAV, common images. HEVC/H.265 videos may need to be accepted and opened in your usual player.
+</details>
+
+<details>
 <summary><b>Where do received files go?</b></summary>
 <code>Downloads\DropWave</code> by default. You can change it in Settings.
 </details>
@@ -179,7 +190,7 @@ flowchart LR
 |---|---|
 | UDP **47821** | PCs announce themselves every 2 s, so they appear automatically |
 | TCP **47822** | PC-to-PC transfers: file list → accept → raw stream → SHA-256 check |
-| HTTP **47823** | The phone/TV page: PIN login (cookie), streaming uploads, downloads with range support, Server-Sent Events |
+| HTTP **47823** | The phone/TV page: PIN login (cookie), streaming uploads, downloads with range support, Server-Sent Events. Also serves PC-to-PC **Play now** streams at a secret per-transfer link |
 
 ## Build from source
 

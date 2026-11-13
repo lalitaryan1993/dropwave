@@ -5,7 +5,8 @@ import {
   FolderOpen, File as FileIcon, ShieldCheck, AlertCircle, Ban, Clock, Plus, Loader2, Wifi,
   Smartphone, Tablet, Tv, QrCode, RefreshCw, Copy,
 } from 'lucide-react';
-import { api, fmtSize, fmtSpeed, fmtEta, timeAgo, hueFor, initials, label, peerOf } from './lib.js';
+import { api, fmtSize, fmtSpeed, fmtEta, timeAgo, hueFor, initials, label, peerOf, isPlayable, playStream } from './lib.js';
+import { Play } from 'lucide-react';
 
 const spring = { type: 'spring', stiffness: 420, damping: 32 };
 
@@ -171,6 +172,10 @@ export function TransferRow({ t, compact = false }) {
   const meta = statusMeta[t.status] || statusMeta.failed;
   const Dir = t.direction === 'in' ? ArrowDownLeft : ArrowUpRight;
   const openable = t.direction === 'in' && t.status === 'completed' && t.savedTo?.length;
+  // "Play now" while an incoming PC transfer is still copying; "Play" once a single media file landed.
+  const playIdx = t.direction === 'in' ? t.files.findIndex((f) => isPlayable(f.name)) : -1;
+  const canStream = live && t.stream && playIdx >= 0;
+  const canPlayLocal = openable && t.count === 1 && isPlayable(t.files[0].name);
 
   return (
     // No layout animation here: rows re-render on every progress tick, and animating
@@ -199,6 +204,15 @@ export function TransferRow({ t, compact = false }) {
             {!live && !compact && <> · {timeAgo(t.finishedAt)}</>}
           </div>
         </div>
+        {canStream && (
+          <button
+            onClick={() => playStream(t, playIdx)}
+            title="Watch it now, while it copies"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 text-[12px] font-semibold text-accent transition hover:bg-accent/25"
+          >
+            <Play className="h-3.5 w-3.5 fill-current" /> {compact ? 'Play' : 'Play now'}
+          </button>
+        )}
         {live ? (
           <button
             onClick={() => api.cancel(t.id)}
@@ -210,6 +224,11 @@ export function TransferRow({ t, compact = false }) {
         ) : openable ? (
           // Hidden (not just transparent) until hover, so it doesn't squeeze the file name.
           <div className="hidden shrink-0 gap-1 group-hover:flex">
+            {canPlayLocal && (
+              <button onClick={() => api.play({ file: t.savedTo[0], name: label(t) })} className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-[12px] font-semibold text-accent hover:bg-accent/15">
+                <Play className="h-3.5 w-3.5 fill-current" /> Play
+              </button>
+            )}
             {t.count === 1 && (
               <button onClick={() => api.openPath(t.savedTo[0])} className="h-8 rounded-lg px-2.5 text-[12px] text-muted hover:bg-[var(--line)] hover:text-fg">Open</button>
             )}
@@ -285,11 +304,20 @@ export function IncomingModal({ req, onRespond }) {
       </div>
 
       <div className="mt-5 max-h-44 overflow-auto rounded-2xl border border-line bg-bg-2/60 p-1.5">
-        {shown.map((f) => (
-          <div key={f.name} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2">
+        {shown.map((f, i) => (
+          <div key={f.name} className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5">
             <FileIcon className="h-4 w-4 shrink-0 text-faint" />
             <span className="min-w-0 flex-1 truncate text-left text-[13px]">{f.name}</span>
             <span className="text-[12px] text-faint tabular">{fmtSize(f.size)}</span>
+            {req.stream && isPlayable(f.name) && (
+              <button
+                onClick={() => playStream(req, i)}
+                title="Preview before accepting"
+                className="flex h-7 shrink-0 items-center gap-1 rounded-lg bg-accent/15 px-2 text-[12px] font-semibold text-accent transition hover:bg-accent/25"
+              >
+                <Play className="h-3 w-3 fill-current" /> Play
+              </button>
+            )}
           </div>
         ))}
         {req.files.length > shown.length && <div className="px-2.5 py-1.5 text-left text-[12px] text-faint">+ {req.files.length - shown.length} more</div>}

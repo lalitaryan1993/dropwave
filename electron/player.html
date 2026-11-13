@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src http: file:; img-src http: file: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+<title>DropWave Player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #e8eaf3; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  .stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  video, img { max-width: 100%; max-height: 100%; outline: none; }
+  video { width: 100%; height: 100%; }
+  .audio { display: grid; place-items: center; gap: 22px; text-align: center; }
+  .disc { width: 180px; height: 180px; border-radius: 50%; background: conic-gradient(from 0deg, #6d5dfc, #19b5d8, #6d5dfc); box-shadow: 0 30px 80px -20px rgba(109,93,252,.7); animation: spin 8s linear infinite; }
+  .disc.paused { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .bar { position: fixed; left: 0; right: 0; top: 0; padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, rgba(0,0,0,.7), transparent); font-size: 14px; transition: opacity .3s; }
+  .bar.hide { opacity: 0; }
+  .badge { font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: rgba(109,93,252,.25); color: #c7beff; }
+  .badge.local { background: rgba(61,220,151,.18); color: #8ff0c4; }
+  .err { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 30px; color: #a0a6bd; line-height: 1.6; }
+  .err b { color: #fff; font-size: 17px; display: block; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="bar" id="bar"><span id="name"></span><span class="badge" id="badge"></span></div>
+<div class="stage" id="stage"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const src = q.get('src'), name = q.get('name') || 'Media', local = q.get('local') === '1';
+  document.title = `${name} · DropWave`;
+  document.getElementById('name').textContent = name;
+  const badge = document.getElementById('badge');
+  badge.textContent = local ? 'On this PC' : 'Streaming';
+  if (local) badge.classList.add('local');
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const kind = ['jpg','jpeg','png','gif','webp','bmp','svg','avif'].includes(ext) ? 'image'
+    : ['mp3','m4a','aac','wav','ogg','oga','flac','opus'].includes(ext) ? 'audio' : 'video';
+  const stage = document.getElementById('stage');
+  const fail = (why) => { stage.innerHTML = ''; const e = document.createElement('div'); e.className = 'err';
+    e.innerHTML = `<div><b>Can't play this file here</b>${why}</div>`; document.body.appendChild(e); };
+
+  if (kind === 'image') {
+    const img = new Image(); img.src = src; img.alt = name; img.onerror = () => fail('The image could not be loaded.'); stage.appendChild(img);
+  } else if (kind === 'audio') {
+    stage.innerHTML = '<div class="audio"><div class="disc paused" id="disc"></div><audio id="m" controls autoplay></audio></div>';
+    const a = document.getElementById('m'); a.src = src;
+    a.onplay = () => document.getElementById('disc').classList.remove('paused');
+    a.onpause = () => document.getElementById('disc').classList.add('paused');
+    a.onerror = () => fail('This audio format is not supported. Accept the transfer and open it with your usual player.');
+  } else {
+    const v = document.createElement('video'); v.src = src; v.controls = true; v.autoplay = true; v.playsInline = true;
+    v.onerror = () => fail('This video format or codec (for example HEVC/H.265) is not supported for streaming.<br>Accept the transfer and open it with your usual player.');
+    stage.appendChild(v);
+    // Keyboard: space = play/pause, arrows = seek 10 s, F = fullscreen.
+    addEventListener('keydown', (e) => {
+      if (e.key === ' ') { e.preventDefault(); v.paused ? v.play() : v.pause(); }
+      if (e.key === 'ArrowRight') v.currentTime += 10;
+      if (e.key === 'ArrowLeft') v.currentTime -= 10;
+      if (e.key.toLowerCase() === 'f') document.fullscreenElement ? document.exitFullscreen() : v.requestFullscreen();
+    });
+  }
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.fullscreenElement) window.close(); });
+  let t; const bar = document.getElementById('bar');
+  addEventListener('mousemove', () => { bar.classList.remove('hide'); clearTimeout(t); t = setTimeout(() => bar.classList.add('hide'), 2500); });
+  t = setTimeout(() => bar.classList.add('hide'), 2500);
+</script>
+</body>
+</html>

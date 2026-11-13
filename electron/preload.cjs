@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('dropwave', {
   openPath: (p) => ipcRenderer.invoke('shell:open', p),
   showInFolder: (p) => ipcRenderer.invoke('shell:show', p),
   openSaveDir: () => ipcRenderer.invoke('shell:openSaveDir'),
+  play: (opts) => ipcRenderer.invoke('player:open', opts),
 
   onPeers: on('peers'),
   onTransfer: on('transfer'),

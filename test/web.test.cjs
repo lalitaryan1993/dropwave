@@ -127,6 +127,17 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   assert.equal((await fetch(`${base}/dl/${sid}/0/movie.mp4`, { headers: { cookie } })).status, 404);
   console.log('ok  cancelled offer is withdrawn');
 
+  // 6b. PC-to-PC "Play now": token link works without the PIN, supports seeking, bad tokens 404
+  const { token, port } = web.addStreamLink([{ abs: vid, name: 'movie.mp4' }]);
+  assert.equal(port, PORT);
+  r = await fetch(`${base}/s/${token}/0/movie.mp4`, { headers: { range: 'bytes=0-99' } });
+  assert.equal(r.status, 206);
+  assert.equal(r.headers.get('content-type'), 'video/mp4');
+  assert.equal((await r.arrayBuffer()).byteLength, 100);
+  assert.equal((await fetch(`${base}/s/${'0'.repeat(32)}/0/x.mp4`)).status, 404);
+  assert.equal((await fetch(`${base}/s/${token}/5/x.mp4`)).status, 404);
+  console.log('ok  "Play now" stream link: no PIN needed, range requests, unknown tokens rejected');
+
   // 7. Path traversal is blocked
   r = await post('/api/batch', cookie, { from: 'phone1', to: 'PC', files: [{ name: '../../evil.txt', size: 4 }] });
   const { id: b3 } = await r.json();

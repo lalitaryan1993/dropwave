@@ -50,17 +50,17 @@ export function Button({ variant = 'ghost', className = '', children, ...rest })
 
 export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick, onText }) {
   const [over, setOver] = useState(false);
-  const depth = useRef(0);
   const h = hueFor(peer.id);
+  useEffect(() => { if (!dragging) setOver(false); }, [dragging]);
 
   const handlers = {
-    onDragEnter: (e) => { e.preventDefault(); depth.current++; setOver(true); },
-    onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; },
-    onDragLeave: () => { depth.current = Math.max(0, depth.current - 1); if (!depth.current) setOver(false); },
+    onDragEnter: (e) => { e.preventDefault(); setOver(true); },
+    onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; if (!over) setOver(true); },
+    // Only "left" when the pointer really goes outside the card, not onto one of its children.
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); },
     onDrop: (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      depth.current = 0;
+      e.nativeEvent.dwHandled = true; // the window handler ends the drag but won't open the picker
       setOver(false);
       const paths = api.pathsFromFiles(e.dataTransfer.files);
       if (paths.length) onDropPaths(peer, paths);

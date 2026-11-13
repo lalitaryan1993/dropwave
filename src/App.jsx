@@ -49,7 +49,6 @@ export default function App() {
     return api.onSendRequest((p) => p?.length && setToSend(p));
   }, []);
   const [toasts, setToasts] = useState([]);
-  const dragDepth = useRef(0);
 
   const toast = useCallback((text, kind = 'ok') => {
     const id = Math.random().toString(36).slice(2);
@@ -106,20 +105,46 @@ export default function App() {
   }, [toast, openChatWith]);
 
   // Window-wide drag tracking so every card can show its drop state.
+  // No enter/leave counting: it drifts (elements re-render under the cursor, card drops never
+  // reached the window) and left the overlay stuck. Instead `dragover`, which Chromium fires
+  // every ~50 ms while a drag is over the window, keeps the state alive, and a short watchdog
+  // ends it once the drag has left or finished.
   useEffect(() => {
     const isFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-    const enter = (e) => { if (!isFiles(e)) return; dragDepth.current++; setDragging(true); };
-    const leave = () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); };
-    const end = () => { dragDepth.current = 0; setDragging(false); };
-    window.addEventListener('dragenter', enter);
+    let timer;
+    const stop = () => { clearTimeout(timer); setDragging(false); };
+    const over = (e) => {
+      if (!isFiles(e)) return;
+      e.preventDefault(); // lets a drop land anywhere (never navigates the window)
+      e.dataTransfer.dropEffect = 'copy';
+      setDragging(true);
+      clearTimeout(timer);
+      timer = setTimeout(stop, 350);
+    };
+    const leave = (e) => { if (!e.relatedTarget) stop(); }; // left the window
+    const drop = (e) => {
+      if (!isFiles(e)) return;
+      e.preventDefault();
+      stop();
+      if (e.dwHandled) return; // a device card already took it
+      // Dropped somewhere other than a device: let the user pick one (or connect one).
+      const paths = api.pathsFromFiles(e.dataTransfer.files);
+      if (paths.length) setToSend(paths);
+    };
+    window.addEventListener('dragenter', over);
+    window.addEventListener('dragover', over);
     window.addEventListener('dragleave', leave);
-    window.addEventListener('drop', end);
-    window.addEventListener('dragend', end);
+    window.addEventListener('drop', drop);
+    window.addEventListener('dragend', stop);
+    window.addEventListener('blur', stop);
     return () => {
-      window.removeEventListener('dragenter', enter);
+      clearTimeout(timer);
+      window.removeEventListener('dragenter', over);
+      window.removeEventListener('dragover', over);
       window.removeEventListener('dragleave', leave);
-      window.removeEventListener('drop', end);
-      window.removeEventListener('dragend', end);
+      window.removeEventListener('drop', drop);
+      window.removeEventListener('dragend', stop);
+      window.removeEventListener('blur', stop);
     };
   }, []);
 
@@ -314,8 +339,8 @@ function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPath
             >
               <div className="text-center">
                 <UploadCloud className="mx-auto h-10 w-10 text-faint" />
-                <div className="mt-3 font-display text-[17px] font-semibold">No devices to send to yet</div>
-                <div className="mt-1 text-[13px] text-muted">Open DropWave on another computer first</div>
+                <div className="mt-3 font-display text-[17px] font-semibold">Drop to send</div>
+                <div className="mt-1 text-[13px] text-muted">No devices nearby yet. Drop here, then connect a phone or open DropWave on another PC.</div>
               </div>
             </motion.div>
           )}

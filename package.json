@@ -1,0 +1,76 @@
+{
+  "name": "landrop",
+  "productName": "LANDrop",
+  "version": "1.0.0",
+  "description": "Drag and drop files between computers on your local network",
+  "main": "electron/main.cjs",
+  "author": "LANDrop",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n vite,app \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "dev:second": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 LANDROP_PROFILE=second LANDROP_PORT=47832 electron .",
+    "build": "vite build",
+    "start": "electron .",
+    "test:engine": "node test/engine.test.cjs",
+    "icon": "electron scripts/process-icons.cjs",
+    "dist": "vite build && electron-builder --win nsis",
+    "test:web": "node test/web.test.cjs",
+    "test": "node test/engine.test.cjs && node test/web.test.cjs"
+  },
+  "build": {
+    "appId": "com.landrop.app",
+    "productName": "LANDrop",
+    "copyright": "LANDrop",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "build/icon.png",
+      "build/icon.ico",
+      "build/tray.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LANDrop",
+      "include": "build/installer.nsh",
+      "artifactName": "LANDrop-Setup-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp"
+    }
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^10.0.7",
+    "cross-env": "^10.1.0",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
+    "lucide-react": "^1.72.0",
+    "motion": "^14.14.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.8",
+    "wait-on": "^9.5.1"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

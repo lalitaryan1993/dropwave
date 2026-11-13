@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d14" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<link rel="icon" href="favicon.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<title>LANDrop</title>
+<style>
+  :root {
+    --bg:#f5f6fa; --panel:#ffffffd9; --raised:#fff; --line:rgba(20,24,40,.09); --line2:rgba(20,24,40,.16);
+    --fg:#151827; --muted:#5f6478; --faint:#8a8fa3; --accent:#6d5dfc; --accent2:#19b5d8; --good:#12a36b; --bad:#e5484d;
+    --glow:rgba(109,93,252,.28); --a1:rgba(109,93,252,.16); --a2:rgba(25,181,216,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0b0d14; --panel:#161a27cc; --raised:#1b2031; --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.14);
+      --fg:#e8eaf3; --muted:#a0a6bd; --faint:#6e7590; --accent:#8b7dff; --accent2:#2cc8ea; --good:#3ddc97; --bad:#ff6369;
+      --glow:rgba(139,125,255,.35); --a1:rgba(139,125,255,.18); --a2:rgba(44,200,234,.1); }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; }
+  body {
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; color:var(--fg); font-size:15px;
+    background: radial-gradient(700px 420px at 100% -10%, var(--a1), transparent 60%), radial-gradient(600px 420px at -10% 110%, var(--a2), transparent 60%), var(--bg);
+    background-attachment: fixed; -webkit-font-smoothing:antialiased;
+  }
+  button, input { font:inherit; color:inherit; }
+  button { cursor:pointer; border:0; background:none; }
+  :focus-visible { outline:3px solid var(--accent); outline-offset:3px; border-radius:14px; }
+  .wrap { max-width:620px; margin:0 auto; padding: max(18px, env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom)); }
+  .grad { background:linear-gradient(120deg,var(--accent),var(--accent2)); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:22px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+  .muted { color:var(--muted); } .faint { color:var(--faint); }
+  .row { display:flex; align-items:center; gap:12px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:46px; padding:0 18px; border-radius:14px; font-weight:600; font-size:15px; transition:transform .12s, filter .15s; }
+  .btn:active { transform:scale(.97); }
+  .btn.primary { color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 10px 26px -10px var(--glow); }
+  .btn.soft { background:var(--raised); border:1px solid var(--line2); color:var(--fg); }
+  a.btn { text-decoration:none; color:var(--fg); }
+  a.btn.ok { color:var(--good); border-color:color-mix(in oklab, var(--good) 40%, var(--line)); }
+  .ellipsis { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .btn.ghost { color:var(--muted); }
+  .btn.small { height:36px; padding:0 12px; font-size:13.5px; border-radius:11px; }
+  .btn[disabled] { opacity:.5; pointer-events:none; }
+  svg.i { width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .hidden { display:none !important; }
+
+  header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+  header img { width:34px; height:34px; border-radius:10px; }
+  header .t { font-weight:700; font-size:17px; letter-spacing:-.01em; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:5px 10px; border-radius:999px; background:var(--raised); border:1px solid var(--line); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--good); box-shadow:0 0 8px var(--good); }
+  .dot.off { background:var(--bad); box-shadow:none; }
+
+  /* lock */
+  .lock { min-height:80vh; display:grid; place-items:center; text-align:center; }
+  .lock img { width:84px; height:84px; border-radius:24px; box-shadow:0 20px 50px -18px var(--glow); }
+  .lock h1 { font-size:24px; margin:18px 0 6px; letter-spacing:-.02em; }
+  .pin { width:100%; max-width:300px; height:62px; margin:22px auto 0; display:block; text-align:center; font-size:30px; letter-spacing:.45em; padding-left:.45em;
+    border-radius:18px; border:1px solid var(--line2); background:var(--raised); outline:none; font-variant-numeric:tabular-nums; }
+  .pin:focus { border-color:var(--accent); box-shadow:0 0 0 5px var(--glow); }
+  .err { color:var(--bad); font-size:13.5px; min-height:20px; margin-top:10px; }
+
+  /* send */
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); margin:26px 4px 10px; font-weight:700; }
+  .targets { display:flex; gap:10px; overflow-x:auto; padding:2px 2px 6px; scrollbar-width:none; }
+  .target { flex:none; display:flex; align-items:center; gap:10px; padding:8px 14px 8px 8px; border-radius:16px; border:1px solid var(--line); background:var(--raised); font-weight:600; font-size:14px; transition:all .15s; }
+  .target .av { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#fff; }
+  .target.on { border-color:var(--accent); box-shadow:0 0 0 3px var(--glow); }
+  .drop { margin-top:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; padding:34px 20px; border-radius:22px;
+    border:2px dashed var(--line2); background:var(--panel); transition:all .2s; width:100%; }
+  .drop.over { border-color:var(--accent); background:color-mix(in oklab, var(--accent) 10%, var(--panel)); transform:scale(1.01); }
+  .drop .big { width:62px; height:62px; border-radius:20px; display:grid; place-items:center; color:#fff; box-shadow:0 14px 34px -12px var(--glow); }
+  .drop .big svg { width:30px; height:30px; }
+  .drop b { font-size:17px; }
+
+  /* lists */
+  .list { display:flex; flex-direction:column; gap:10px; }
+  .item { padding:14px; border-radius:18px; background:var(--raised); border:1px solid var(--line); }
+  .item .name { font-weight:600; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item .sub { font-size:12.5px; color:var(--faint); margin-top:2px; }
+  .bar { height:6px; border-radius:6px; background:var(--line); overflow:hidden; margin-top:10px; }
+  .bar > i { display:block; height:100%; width:0; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .2s linear; }
+  .ok { color:var(--good); } .bad { color:var(--bad); }
+  .thumb { width:46px; height:46px; border-radius:12px; flex:none; display:grid; place-items:center; background:var(--line); overflow:hidden; color:var(--muted); }
+  .thumb img { width:100%; height:100%; object-fit:cover; }
+  .offer { padding:16px; border-radius:22px; border:1px solid color-mix(in oklab, var(--accent) 45%, var(--line)); background:var(--panel); box-shadow:0 18px 40px -24px var(--glow); }
+  .offer .files { margin:12px 0; display:flex; flex-direction:column; gap:8px; max-height:340px; overflow:auto; }
+  .frow { display:flex; align-items:center; gap:12px; }
+  .frow .meta { flex:1; min-width:0; }
+  .empty { text-align:center; padding:26px 10px; color:var(--faint); font-size:13.5px; }
+
+  /* viewer (TV friendly) */
+  .viewer { position:fixed; inset:0; z-index:50; background:#000; display:grid; place-items:center; }
+  .viewer video, .viewer img, .viewer audio { max-width:100vw; max-height:100vh; }
+  .viewer .close { position:fixed; top:max(14px, env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,.15); color:#fff; width:46px; height:46px; border-radius:50%; display:grid; place-items:center; }
+
+  .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:60; }
+  @media (min-width: 900px) { .wrap { max-width:760px; } body { font-size:16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Locked -->
+  <section id="lock" class="lock hidden">
+    <form id="pinForm" style="width:100%">
+      <img src="icon-192.png" alt="" />
+      <h1>Connect to <span id="pcName1">your PC</span></h1>
+      <div class="muted">Enter the 6-digit PIN shown in LANDrop on the PC<br/>(Nearby → Phone or TV)</div>
+      <input id="pin" class="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="PIN" />
+      <div id="pinErr" class="err"></div>
+      <button class="btn primary" style="width:100%;max-width:300px;margin-top:6px" type="submit">Connect</button>
+    </form>
+  </section>
+
+  <!-- Main -->
+  <section id="app" class="hidden">
+    <header>
+      <img src="icon-192.png" alt="" />
+      <div style="flex:1;min-width:0">
+        <div class="t">LANDrop</div>
+        <div class="faint" style="font-size:12.5px"><span id="conn" class="row" style="gap:6px;display:flex;min-width:0"><span class="dot" style="flex:none"></span><span id="connText" class="ellipsis">Connected</span></span></div>
+      </div>
+      <button id="meBtn" class="pill" style="flex:none;max-width:45%" title="Rename this device"><span id="meName" class="ellipsis">This device</span>
+        <svg class="i" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+    </header>
+
+    <div id="offers" class="list"></div>
+
+    <h2>Send to</h2>
+    <div id="targets" class="targets"></div>
+    <label id="drop" class="drop" tabindex="0">
+      <div class="big grad"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></div>
+      <b>Choose files to send</b>
+      <span class="muted" style="font-size:13.5px">Photos, videos, documents — any size</span>
+      <input id="file" type="file" multiple class="hidden" />
+    </label>
+
+    <h2 id="actTitle" class="hidden">Activity</h2>
+    <div id="activity" class="list"></div>
+  </section>
+</div>
+
+<div id="viewer" class="viewer hidden">
+  <button class="close" id="vClose" aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div id="vBody"></div>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const fmt = (b) => { const u=['B','KB','MB','GB','TB']; let i=0; while (b>=1024&&i<u.length-1){b/=1024;i++;} return `${b.toFixed(b<10&&i?1:0)} ${u[i]}`; };
+  const hue = (id='') => { let h=0; for (const c of id) h=(h*31+c.charCodeAt(0))>>>0; return h%360; };
+  const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+
+  const ICON = {
+    computer: '<path d="M4 5h16v11H4zM8 20h8M12 16v4"/>',
+    phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+    tablet: '<rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+    tv: '<rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+    play: '<path d="M7 4v16l13-8z"/>',
+    down: '<path d="M12 4v12M7 11l5 5 5-5M5 20h14"/>',
+    check: '<path d="M5 12l5 5 9-10"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  };
+  const svg = (name, extra='') => `<svg class="i" ${extra} viewBox="0 0 24 24">${ICON[name]}</svg>`;
+
+  let myId = store.get('ld_id');
+  if (!myId) { myId = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); store.set('ld_id', myId); }
+  let pc = null, peers = [], target = null, es = null;
+  const uploads = new Map();
+
+  function toast(text) {
+    const t = el('div', 'toast', esc(text));
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3200);
+  }
+
+  async function boot() {
+    const r = await fetch('/api/hello').then((x) => x.json()).catch(() => null);
+    if (!r) { $('#lock').classList.remove('hidden'); $('#pinErr').textContent = 'Can’t reach the PC. Is LANDrop open?'; return; }
+    pc = r.pc;
+    document.title = `LANDrop · ${pc.name}`;
+    $('#pcName1').textContent = pc.name;
+    if (!r.authed) { $('#lock').classList.remove('hidden'); $('#app').classList.add('hidden'); $('#pin').focus(); return; }
+    $('#lock').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    connect();
+  }
+
+  $('#pin').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); if (e.target.value.length === 6) $('#pinForm').requestSubmit(); });
+  $('#pinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('#pinErr').textContent = '';
+    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) });
+    if (r.ok) return boot();
+    $('#pinErr').textContent = (await r.json().catch(() => ({}))).error || 'Could not connect';
+    $('#pin').value = ''; $('#pin').focus();
+  });
+
+  function connect() {
+    if (es) es.close();
+    const name = store.get('ld_name') || '';
+    es = new EventSource(`/api/events?id=${encodeURIComponent(myId)}&name=${encodeURIComponent(name)}`);
+    es.addEventListener('hello', (m) => {
+      const d = JSON.parse(m.data);
+      $('#meName').textContent = d.you.name;
+      setConn(true);
+    });
+    es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); });
+    es.addEventListener('offer', (m) => addOffer(JSON.parse(m.data)));
+    es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); toast('The sender cancelled'); });
+    es.onerror = () => {
+      setConn(false);
+      // A locked response (PIN changed) also lands here: re-check.
+      fetch('/api/hello').then((x) => x.json()).then((r) => { if (!r.authed) { es.close(); boot(); } }).catch(() => {});
+    };
+  }
+
+  function setConn(on) {
+    $('#conn .dot').classList.toggle('off', !on);
+    $('#connText').textContent = on ? `Connected to ${pc.name}` : 'Reconnecting…';
+  }
+
+  $('#meBtn').addEventListener('click', async () => {
+    const n = prompt('Name this device', $('#meName').textContent);
+    if (!n || !n.trim()) return;
+    store.set('ld_name', n.trim());
+    $('#meName').textContent = n.trim();
+    await fetch('/api/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId, name: n.trim() }) });
+  });
+
+  // ---------- targets ----------
+  function renderTargets() {
+    if (!target || !peers.some((p) => p.id === target)) target = peers[0]?.id;
+    const box = $('#targets');
+    box.innerHTML = '';
+    for (const p of peers) {
+      const h = hue(p.id);
+      const b = el('button', 'target' + (p.id === target ? ' on' : ''),
+        `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${svg(p.kind in ICON ? p.kind : 'computer', 'style="width:18px;height:18px"')}</span>${esc(p.name)}`);
+      b.addEventListener('click', () => { target = p.id; renderTargets(); });
+      box.appendChild(b);
+    }
+  }
+
+  // ---------- sending ----------
+  const drop = $('#drop');
+  $('#file').addEventListener('change', (e) => { if (e.target.files.length) send([...e.target.files]); e.target.value = ''; });
+  drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#file').click(); } });
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, () => drop.classList.remove('over')));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) send([...e.dataTransfer.files]); });
+
+  async function send(files) {
+    const to = peers.find((p) => p.id === target) || peers[0];
+    if (!to) return toast('No device to send to');
+    const list = files.map((f) => ({ name: f.webkitRelativePath || f.name, size: f.size }));
+    const r = await fetch('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, files: list }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(j.error || 'Could not start the transfer');
+
+    const total = files.reduce((a, f) => a + f.size, 0);
+    const label = files.length === 1 ? files[0].name : `${files.length} files`;
+    const row = activityRow(j.id, `↑ ${label}`, `to ${to.name} · ${fmt(total)}`, true);
+    const u = { id: j.id, xhr: null, cancelled: false };
+    uploads.set(j.id, u);
+    row.querySelector('[data-cancel]').onclick = () => { u.cancelled = true; u.xhr?.abort(); fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: j.id }) }); };
+
+    let done = 0;
+    const t0 = Date.now();
+    try {
+      for (let i = 0; i < files.length; i++) {
+        await new Promise((resolve, reject) => {
+          const x = new XMLHttpRequest();
+          u.xhr = x;
+          x.open('POST', `/api/upload?batch=${j.id}&i=${i}`);
+          x.upload.onprogress = (e) => {
+            const cur = done + e.loaded;
+            const secs = (Date.now() - t0) / 1000;
+            setProgress(row, cur / total, `${fmt(cur)} of ${fmt(total)} · ${fmt(cur / Math.max(secs, .001))}/s`);
+          };
+          x.onload = () => (x.status === 200 ? resolve() : reject(new Error(JSON.parse(x.responseText || '{}').error || 'Upload failed')));
+          x.onerror = () => reject(new Error('Connection lost'));
+          x.onabort = () => reject(new Error('Cancelled'));
+          x.send(files[i]);
+        });
+        done += files[i].size;
+      }
+      finishRow(row, true, `Sent to ${to.name} · ${fmt(total)}`);
+    } catch (e) {
+      finishRow(row, false, u.cancelled ? 'Cancelled' : e.message);
+    } finally { uploads.delete(j.id); }
+  }
+
+  function activityRow(id, title, sub, cancellable) {
+    $('#actTitle').classList.remove('hidden');
+    const r = el('div', 'item', `
+      <div class="row"><div style="flex:1;min-width:0"><div class="name">${esc(title)}</div><div class="sub" data-sub>${esc(sub)}</div></div>
+      ${cancellable ? `<button class="btn ghost small" data-cancel aria-label="Cancel">${svg('x')}</button>` : ''}</div>
+      <div class="bar"><i></i></div>`);
+    $('#activity').prepend(r);
+    return r;
+  }
+  function setProgress(row, f, text) { row.querySelector('.bar > i').style.width = `${Math.min(100, f * 100)}%`; row.querySelector('[data-sub]').textContent = text; }
+  function finishRow(row, ok, text) {
+    row.querySelector('.bar')?.remove();
+    row.querySelector('[data-cancel]')?.remove();
+    const s = row.querySelector('[data-sub]');
+    s.innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✕'}</span> ${esc(text)}`;
+  }
+
+  // ---------- receiving ----------
+  function addOffer(o) {
+    if (document.getElementById('o-' + o.id)) return;
+    const card = el('div', 'offer');
+    card.id = 'o-' + o.id;
+    const many = o.files.length > 1;
+    card.innerHTML = `
+      <div class="row"><div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:16px">${esc(o.from.name)} sent you ${many ? o.files.length + ' files' : 'a file'}</div>
+        <div class="sub faint" style="font-size:13px">${fmt(o.total)}</div></div>
+        <button class="btn ghost small" data-decline>Decline</button></div>
+      <div class="files"></div>
+      ${many ? `<button class="btn primary" style="width:100%" data-all>${svg('down')} Download all</button>` : ''}`;
+    const list = card.querySelector('.files');
+    o.files.forEach((f) => {
+      const viewable = /^(image|video|audio)\//.test(f.type);
+      const r = el('div', 'frow', `
+        <div class="thumb">${f.type.startsWith('image/') ? `<img loading="lazy" src="${f.url}?view" alt="">` : svg(f.type.startsWith('video/') ? 'play' : 'file')}</div>
+        <div class="meta"><div class="name" style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name.split('/').pop())}</div><div class="faint" style="font-size:12.5px">${fmt(f.size)}</div></div>
+        ${viewable ? `<button class="btn soft small" data-view>${svg('play', 'style="width:16px;height:16px"')} Open</button>` : ''}
+        <a class="btn soft small" href="${f.url}" download data-dl aria-label="Download">${svg('down', 'style="width:16px;height:16px"')}</a>`);
+      r.querySelector('[data-view]')?.addEventListener('click', () => view(f));
+      r.querySelector('[data-dl]').addEventListener('click', () => markDone(r));
+      list.appendChild(r);
+    });
+    card.querySelector('[data-decline]').onclick = async () => {
+      await fetch('/api/decline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) });
+      card.remove();
+    };
+    card.querySelector('[data-all]')?.addEventListener('click', async () => {
+      // Browsers allow one download per click on some phones, so space them out.
+      for (const a of list.querySelectorAll('[data-dl]')) { a.click(); await new Promise((r) => setTimeout(r, 700)); }
+    });
+    $('#offers').prepend(card);
+    if (navigator.vibrate) navigator.vibrate(60);
+    toast(`${o.from.name} sent you ${many ? o.files.length + ' files' : 'a file'}`);
+  }
+  function markDone(row) { const a = row.querySelector('[data-dl]'); a.innerHTML = svg('check', 'style="width:16px;height:16px"'); a.classList.add('ok'); }
+
+  function view(f) {
+    const body = $('#vBody');
+    const src = f.url + '?view';
+    body.innerHTML = f.type.startsWith('image/') ? `<img src="${src}" alt="">`
+      : f.type.startsWith('video/') ? `<video src="${src}" controls autoplay playsinline></video>`
+      : `<audio src="${src}" controls autoplay></audio>`;
+    $('#viewer').classList.remove('hidden');
+    $('#vClose').focus();
+  }
+  const closeViewer = () => { $('#viewer').classList.add('hidden'); $('#vBody').innerHTML = ''; };
+  $('#vClose').addEventListener('click', closeViewer);
+  document.addEventListener('keydown', (e) => { if ((e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack') && !$('#viewer').classList.contains('hidden')) { e.preventDefault(); closeViewer(); } });
+
+  boot();
+})();
+</script>
+</body>
+</html>

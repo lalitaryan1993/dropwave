@@ -94,6 +94,15 @@
   .empty { text-align:center; padding:26px 10px; color:var(--faint); font-size:13.5px; }
   .textbox { margin-top:12px; display:flex; gap:10px; align-items:flex-end; padding:10px; border-radius:18px; background:var(--panel); border:1px solid var(--line); }
   .textbox textarea { flex:1; resize:none; border:0; outline:none; background:transparent; font:inherit; color:inherit; padding:8px 6px; max-height:140px; }
+  .thread { display:flex; flex-direction:column; gap:8px; max-height:380px; overflow-y:auto; padding:4px 2px; }
+  .thread .none { text-align:center; color:var(--faint); font-size:13px; padding:14px 0; }
+  .bub { max-width:82%; padding:9px 13px; border-radius:18px; font-size:14.5px; line-height:1.45; white-space:pre-wrap; word-break:break-word; user-select:text; -webkit-user-select:text; }
+  .bub.in { align-self:flex-start; background:var(--raised); border:1px solid var(--line); border-bottom-left-radius:6px; }
+  .bub.out { align-self:flex-end; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); border-bottom-right-radius:6px; }
+  .bub a { color:inherit; text-decoration:underline; }
+  .bub .meta { display:flex; justify-content:flex-end; gap:8px; align-items:center; font-size:11px; opacity:.75; margin-top:3px; }
+  .bub .meta button { font-size:11px; padding:0; text-decoration:underline; color:inherit; }
+  .badge { min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--accent); color:#fff; font-size:11px; display:inline-grid; place-items:center; }
   .msg { white-space:pre-wrap; word-break:break-word; background:var(--raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin:12px 0; font-size:14.5px; max-height:220px; overflow:auto; user-select:text; -webkit-user-select:text; }
 
   /* viewer (TV friendly) */
@@ -141,9 +150,11 @@
       <span class="muted" style="font-size:13.5px">Photos, videos, documents — any size</span>
       <input id="file" type="file" multiple class="hidden" />
     </label>
+    <h2 id="chatTitle">Chat</h2>
+    <div id="thread" class="thread"></div>
     <form id="textForm" class="textbox">
-      <textarea id="textIn" rows="1" placeholder="Send a link or text…" aria-label="Text to send"></textarea>
-      <button class="btn primary small" type="submit" aria-label="Send text">Send</button>
+      <textarea id="textIn" rows="1" placeholder="Message or link…" aria-label="Message"></textarea>
+      <button class="btn primary small" type="submit" aria-label="Send message">Send</button>
     </form>
 
     <h2 id="actTitle" class="hidden">Activity</h2>
@@ -246,16 +257,19 @@
 
   // ---------- targets ----------
   function renderTargets() {
+    const before = target;
     if (!target || !peers.some((p) => p.id === target)) target = peers[0]?.id;
     const box = $('#targets');
     box.innerHTML = '';
     for (const p of peers) {
       const h = hue(p.id);
+      const n = unread.get(p.id) || 0;
       const b = el('button', 'target' + (p.id === target ? ' on' : ''),
-        `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${svg(p.kind in ICON ? p.kind : 'computer', 'style="width:18px;height:18px"')}</span>${esc(p.name)}`);
-      b.addEventListener('click', () => { target = p.id; renderTargets(); });
+        `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${svg(p.kind in ICON ? p.kind : 'computer', 'style="width:18px;height:18px"')}</span>${esc(p.name)}${n ? ` <span class="badge">${n}</span>` : ''}`);
+      b.addEventListener('click', () => { target = p.id; renderTargets(); renderThread(); });
       box.appendChild(b);
     }
+    if (target !== before) renderThread();
   }
 
   // ---------- sending ----------
@@ -326,7 +340,31 @@
     s.innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✕'}</span> ${esc(text)}`;
   }
 
-  // ---------- text / clipboard ----------
+  // ---------- chat ----------
+  // Conversations live on this phone (localStorage), one thread per device.
+  const MSG_KEY = 'ld_msgs';
+  let msgs = [];
+  try { msgs = JSON.parse(store.get(MSG_KEY) || '[]'); } catch { msgs = []; }
+  const unread = new Map();
+  const saveMsgs = () => { msgs = msgs.slice(-400); store.set(MSG_KEY, JSON.stringify(msgs)); };
+  const linkify = (s) => esc(s).replace(/(https?:\/\/[^\s<>"']+)/gi, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+  const hhmm = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  function renderThread() {
+    const to = peers.find((p) => p.id === target);
+    $('#chatTitle').textContent = to ? `Chat with ${to.name}` : 'Chat';
+    const box = $('#thread');
+    const list = msgs.filter((m) => m.peer === target);
+    box.innerHTML = list.length ? '' : `<div class="none">No messages with ${esc(to?.name || 'this device')} yet. Send a link or a note.</div>`;
+    for (const m of list) {
+      const b = el('div', `bub ${m.dir}`, `${linkify(m.text)}<div class="meta">${m.dir === 'in' ? '<button data-copy>Copy</button>' : ''}<span>${hhmm(m.at)}${m.dir === 'out' ? (m.status === 'failed' ? ' · not sent' : m.status === 'sending' ? ' · …' : ' ✓') : ''}</span></div>`);
+      b.querySelector('[data-copy]')?.addEventListener('click', async (e) => { e.currentTarget.textContent = (await copyText(m.text)) ? 'Copied ✓' : 'Hold text to copy'; });
+      box.appendChild(b);
+    }
+    box.scrollTop = box.scrollHeight;
+    unread.delete(target);
+  }
+
   const textIn = $('#textIn');
   textIn.addEventListener('input', () => { textIn.style.height = 'auto'; textIn.style.height = textIn.scrollHeight + 'px'; });
   $('#textForm').addEventListener('submit', async (e) => {
@@ -334,10 +372,13 @@
     const text = textIn.value.trim();
     const to = peers.find((p) => p.id === target) || peers[0];
     if (!text || !to) return;
-    const r = await fetch('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) });
-    if (!r.ok) return toast((await r.json().catch(() => ({}))).error || 'Could not send');
+    const m = { id: String(Date.now()) + Math.random().toString(36).slice(2, 6), peer: to.id, name: to.name, dir: 'out', text, at: Date.now(), status: 'sending' };
+    msgs.push(m); saveMsgs(); renderThread();
     textIn.value = ''; textIn.style.height = 'auto';
-    toast(`Sent to ${to.name}`);
+    const r = await fetch('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) }).catch(() => null);
+    m.status = r && r.ok ? 'sent' : 'failed';
+    if (m.status === 'failed') toast((r && (await r.json().catch(() => ({}))).error) || 'Could not send — check the connection');
+    saveMsgs(); renderThread();
   });
 
   // Clipboard API needs HTTPS; on plain-HTTP LAN pages fall back to a hidden textarea + execCommand.
@@ -352,19 +393,15 @@
   }
 
   function addText(m) {
-    const url = (m.text.match(/https?:\/\/[^\s<>"']+/i) || [])[0];
-    const card = el('div', 'offer', `
-      <div class="row"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:16px">${esc(m.from.name)} sent you text</div></div>
-        <button class="btn ghost small" data-close aria-label="Dismiss">${svg('x')}</button></div>
-      <div class="msg"></div>
-      <div class="row" style="gap:10px">
-        <button class="btn primary" style="flex:1" data-copy>Copy</button>
-        ${url ? `<a class="btn soft" style="flex:1" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open link</a>` : ''}
-      </div>`);
-    card.querySelector('.msg').textContent = m.text;
-    card.querySelector('[data-close]').onclick = () => card.remove();
-    card.querySelector('[data-copy]').onclick = async (e) => { e.currentTarget.textContent = (await copyText(m.text)) ? 'Copied ✓' : 'Select and copy above'; };
-    $('#offers').prepend(card);
+    if (msgs.some((x) => x.id === m.id)) return;
+    msgs.push({ id: m.id, peer: m.from.id, name: m.from.name, dir: 'in', text: m.text, at: Date.now() });
+    saveMsgs();
+    if (m.from.id === target) renderThread();
+    else {
+      unread.set(m.from.id, (unread.get(m.from.id) || 0) + 1);
+      renderTargets();
+      toast(`💬 ${m.from.name}: ${m.text.length > 50 ? m.text.slice(0, 47) + '…' : m.text}`);
+    }
     if (navigator.vibrate) navigator.vibrate(60);
   }
 
@@ -419,6 +456,27 @@
   const closeViewer = () => { $('#viewer').classList.add('hidden'); $('#vBody').innerHTML = ''; };
   $('#vClose').addEventListener('click', closeViewer);
   document.addEventListener('keydown', (e) => { if ((e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack') && !$('#viewer').classList.contains('hidden')) { e.preventDefault(); closeViewer(); } });
+
+  // ---------- don't lose the connection to an accidental Back press ----------
+  // Keep an extra history entry: Back first closes the viewer, then asks for a second press.
+  history.replaceState({ dw: 'base' }, '');
+  history.pushState({ dw: 'guard' }, '');
+  let lastBack = 0;
+  window.addEventListener('popstate', () => {
+    if (!$('#viewer').classList.contains('hidden')) { closeViewer(); history.pushState({ dw: 'guard' }, ''); return; }
+    const now = Date.now();
+    if (now - lastBack < 2000) { history.back(); return; } // second press within 2 s: really leave
+    lastBack = now;
+    history.pushState({ dw: 'guard' }, '');
+    toast(uploads.size ? 'A transfer is running — press Back again to leave anyway' : 'Press Back again to leave DropWave');
+  });
+  // Closing the tab or reloading during an upload asks first.
+  window.addEventListener('beforeunload', (e) => { if (uploads.size) { e.preventDefault(); e.returnValue = ''; } });
+  // Coming back to the tab (phone was locked, app switched): reconnect if the link dropped.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && pc && (!es || es.readyState === 2)) connect();
+  });
+  window.addEventListener('online', () => { if (pc && (!es || es.readyState === 2)) connect(); });
 
   boot();
 })();

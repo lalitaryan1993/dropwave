@@ -8,7 +8,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.2.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.3.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
 [![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
 [![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
@@ -74,8 +74,9 @@ Wi-Fi dropped? Transfers **resume where they stopped**. SHA-256 verified, no ove
 <tr>
 <td width="50%" valign="top">
 
-### 📋 Send text & links
-Share your clipboard, a link or a note with any PC, phone or TV. One click to **Copy** or **Open link**.
+### 💬 Chat with any device
+A conversation per device, between PCs, phones and TVs. Send links, notes or your clipboard;
+links open with one click, messages are kept, and unread badges show what's new.
 
 ### 🖱️ Right-click → Send with DropWave
 Send files and folders straight from File Explorer, without opening the app first.
@@ -193,6 +194,12 @@ WebM, MP3, M4A, WAV, common images. HEVC/H.265 videos may need to be accepted an
 </details>
 
 <details>
+<summary><b>I pressed Back on my phone by mistake. Did it disconnect?</b></summary>
+No. The first Back press only shows "Press Back again to leave". If you do leave, just open the address again:
+you're reconnected without the PIN, and your chat is still there. Offers that were waiting for you come back too.
+</details>
+
+<details>
 <summary><b>Where do received files go?</b></summary>
 <code>Downloads\DropWave</code> by default. You can change it in Settings.
 </details>
@@ -248,7 +255,7 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 
 ## Roadmap
 
-- [x] Clipboard / text sharing
+- [x] Chat and clipboard / link sharing
 - [x] Auto-update
 - [x] Encrypted, resumable PC-to-PC transfers
 - [x] Explorer right-click "Send with DropWave"

@@ -6,7 +6,7 @@ import {
   Smartphone, Tablet, Tv, QrCode, RefreshCw, Copy,
 } from 'lucide-react';
 import { api, fmtSize, fmtSpeed, fmtEta, timeAgo, hueFor, initials, label, peerOf, isPlayable, playStream } from './lib.js';
-import { Play, ClipboardType, ExternalLink, Send } from 'lucide-react';
+import { Play, MessageCircle } from 'lucide-react';
 
 const spring = { type: 'spring', stiffness: 420, damping: 32 };
 
@@ -120,7 +120,7 @@ export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick, onText }
             <motion.div key="btns" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex gap-2">
               <Button variant="soft" className="flex-1" onClick={() => onPick(peer, 'files')}><FileUp className="h-4 w-4" /> Files</Button>
               <Button variant="soft" className="flex-1" onClick={() => onPick(peer, 'folder')}><FolderUp className="h-4 w-4" /> Folder</Button>
-              <Button variant="soft" className="w-9 shrink-0 px-0" onClick={() => onText(peer)} title="Send text or clipboard"><ClipboardType className="h-4 w-4" /></Button>
+              <Button variant="soft" className="w-9 shrink-0 px-0" onClick={() => onText(peer)} title={`Chat with ${peer.name}`}><MessageCircle className="h-4 w-4" /></Button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -437,70 +437,6 @@ export function PhoneModal({ onClose, onOpenSettings }) {
           </div>
         </>
       )}
-    </Modal>
-  );
-}
-
-// ---------- text / clipboard ----------
-
-const firstUrl = (s) => (String(s).match(/https?:\/\/[^\s<>"']+/i) || [])[0];
-
-export function SendTextModal({ peer, onClose, onSent }) {
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  useEffect(() => { api.readClipboard().then((t) => setText((cur) => cur || t || '')); }, []);
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true); setErr('');
-    try { await api.sendText(peer.id, text); onSent(peer); onClose(); }
-    catch (e2) { setErr(String(e2.message || e2).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
-    finally { setBusy(false); }
-  };
-  return (
-    <Modal onClose={onClose}>
-      <form onSubmit={submit}>
-        <div className="flex items-center gap-3">
-          <Avatar id={peer.id} name={peer.name} size={40} />
-          <div>
-            <div className="font-display text-[18px] font-semibold">Send text</div>
-            <div className="text-[13px] text-muted">to {peer.name}. Your clipboard is already pasted.</div>
-          </div>
-        </div>
-        <textarea
-          autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={6} maxLength={100000}
-          placeholder="Paste a link, a note, a password-free message…"
-          className="mt-4 w-full resize-none rounded-xl border border-line-strong bg-bg-2 px-3.5 py-3 text-[13.5px] outline-none transition focus:border-accent focus:shadow-[0_0_0_4px_var(--glow)]"
-        />
-        {err && <div className="mt-2 flex items-center gap-1.5 text-[12.5px] text-bad"><AlertCircle className="h-3.5 w-3.5" /> {err}</div>}
-        <div className="mt-4 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={!text.trim() || busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send</Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-export function TextReceivedModal({ msg, onClose }) {
-  const [copied, setCopied] = useState(false);
-  const url = firstUrl(msg.text);
-  const copy = async () => { await api.writeClipboard(msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); };
-  return (
-    <Modal onClose={onClose}>
-      <div className="flex items-center gap-3">
-        <Avatar id={msg.from.id || msg.from.name} name={msg.from.name} size={40} />
-        <div className="min-w-0">
-          <div className="truncate font-display text-[18px] font-semibold">{msg.from.name}</div>
-          <div className="text-[13px] text-muted">sent you text</div>
-        </div>
-      </div>
-      <div className="mt-4 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-line bg-bg-2/60 px-3.5 py-3 text-[13.5px] select-text">{msg.text}</div>
-      <div className="mt-4 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>Close</Button>
-        {url && <Button variant="soft" onClick={() => api.openLink(url)}><ExternalLink className="h-4 w-4" /> Open link</Button>}
-        <Button variant="primary" onClick={copy} autoFocus>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy'}</Button>
-      </div>
     </Modal>
   );
 }

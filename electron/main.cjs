@@ -213,10 +213,44 @@ function updateTaskbarProgress() {
 }
 
 // Text (clipboard) received from a PC or a browser: show it, never act on it automatically.
+// ---- chat: one conversation per device, saved to chats.json ----
+let chats; // { threads: { [peerId]: { peer:{id,name,kind,web}, messages:[], unread } } }
+let openChat = null; // peer id whose conversation is on screen (no unread / notification for it)
+const MAX_MESSAGES = 500;
+let chatSaveTimer = null;
+function saveChats() { clearTimeout(chatSaveTimer); chatSaveTimer = setTimeout(() => save('chats.json', chats), 300); }
+function thread(peer) {
+  const t = chats.threads[peer.id] || (chats.threads[peer.id] = { peer: {}, messages: [], unread: 0 });
+  t.peer = { id: peer.id, name: peer.name || t.peer.name || 'Unknown', kind: peer.kind || peer.platform || t.peer.kind, web: !!peer.web || !!t.peer.web };
+  return t;
+}
+function addMessage(peer, msg) {
+  const t = thread(peer);
+  t.messages.push(msg);
+  if (t.messages.length > MAX_MESSAGES) t.messages.splice(0, t.messages.length - MAX_MESSAGES);
+  if (msg.dir === 'in' && openChat !== peer.id) t.unread++;
+  t.updatedAt = msg.at;
+  saveChats();
+  push('chat', { peerId: peer.id, peer: t.peer, message: msg, unread: t.unread });
+  return t;
+}
+function updateMessage(peerId, msgId, patch) {
+  const m = chats.threads[peerId]?.messages.find((x) => x.id === msgId);
+  if (!m) return;
+  Object.assign(m, patch);
+  saveChats();
+  push('chat', { peerId, peer: chats.threads[peerId].peer, message: m, unread: chats.threads[peerId].unread, update: true });
+}
+const chatSummaries = () => Object.values(chats.threads)
+  .map((t) => ({ peer: t.peer, unread: t.unread, last: t.messages.at(-1) || null, updatedAt: t.updatedAt || 0 }))
+  .sort((a, b) => b.updatedAt - a.updatedAt);
+
+// Text from a PC or a browser lands in that device's conversation.
 function handleText(m) {
-  push('text', m);
-  if (!win || !win.isVisible() || !win.isFocused()) {
-    notify(`Text from ${m.from.name}`, m.text.length > 120 ? `${m.text.slice(0, 117)}…` : m.text);
+  const t = addMessage({ ...m.from, kind: m.from.kind }, { id: m.id || crypto.randomUUID(), dir: 'in', text: m.text, at: m.at || Date.now() });
+  const watching = openChat === m.from.id && win?.isVisible() && win?.isFocused();
+  if (!watching) {
+    notify(`Message from ${t.peer.name}`, m.text.length > 120 ? `${m.text.slice(0, 117)}…` : m.text, () => push('open-chat', m.from.id));
   }
 }
 
@@ -425,6 +459,32 @@ function registerIpc() {
     if (peer.web) { if (!web?.sendText(peer.id, text)) throw new Error('That device is no longer connected'); return; }
     return engine.sendText(peer, text);
   });
+
+  // Chat
+  ipcMain.handle('chat:list', () => chatSummaries());
+  ipcMain.handle('chat:get', (_e, peerId) => chats.threads[peerId]?.messages || []);
+  ipcMain.handle('chat:open', (_e, peerId) => {
+    openChat = peerId || null;
+    const t = peerId && chats.threads[peerId];
+    if (t && t.unread) { t.unread = 0; saveChats(); push('chat-read', peerId); }
+  });
+  ipcMain.handle('chat:clear', (_e, peerId) => { delete chats.threads[peerId]; saveChats(); return chatSummaries(); });
+  ipcMain.handle('chat:send', async (_e, peerId, text) => {
+    const body = String(text || '').trim().slice(0, 100 * 1024);
+    if (!body) throw new Error('Nothing to send');
+    const known = allPeers().find((x) => x.id === peerId) || chats.threads[peerId]?.peer || { id: peerId, name: 'Unknown' };
+    const msg = { id: crypto.randomUUID(), dir: 'out', text: body, at: Date.now(), status: 'sending' };
+    addMessage(known, msg);
+    try {
+      const peer = findPeer(peerId);
+      if (peer.web) { if (!web?.sendText(peer.id, body)) throw new Error('That device is no longer connected'); }
+      else await engine.sendText(peer, body);
+      updateMessage(peerId, msg.id, { status: 'sent' });
+    } catch (e) {
+      updateMessage(peerId, msg.id, { status: 'failed', error: String(e.message || e).slice(0, 160) });
+    }
+    return msg.id;
+  });
   ipcMain.handle('link:open', (_e, url) => { if (/^https?:\/\//i.test(String(url))) shell.openExternal(String(url)); });
 
   ipcMain.handle('transfer:cancel', (_e, id) => { if (!web?.cancel(id)) engine.cancel(id); });
@@ -558,6 +618,7 @@ app.whenReady().then(async () => {
   // Always write back, so settings added in a newer version (e.g. the identity key) persist.
   save('settings.json', settings);
   history = load('history.json', { items: [] });
+  chats = load('chats.json', { threads: {} });
   nativeTheme.themeSource = settings.theme;
   nativeTheme.on('updated', () => { applyTheme(); push('state', publicState()); });
 

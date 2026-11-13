@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Radar as RadarIcon, History, Settings as SettingsIcon, FolderOpen, Plus, Trash2, Sun, Moon, MonitorSmartphone,
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
-  Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw,
+  Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
-import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, SendTextModal, TextReceivedModal, Toasts } from './components.jsx';
+import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, Toasts } from './components.jsx';
+import { ChatsView } from './chat.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -37,9 +38,11 @@ export default function App() {
     api.updateState().then(setUpdate);
     return api.onUpdate((u) => setUpdate((prev) => ({ ...prev, ...u })));
   }, []);
-  const [textTo, setTextTo] = useState(null);   // peer we're composing text for
-  const [texts, setTexts] = useState([]);       // received texts, shown one at a time
-  useEffect(() => api.onText((m) => setTexts((q) => [...q, m])), []);
+  // Chats
+  const [chatList, setChatList] = useState([]);
+  const [chatPeer, setChatPeer] = useState(null);
+  const where = useRef({ view: 'nearby', chatPeer: null });
+  const openChatWith = useCallback((id) => { setChatPeer(id); setView('chats'); }, []);
   const [toSend, setToSend] = useState(null); // paths from Explorer's "Send with DropWave"
   useEffect(() => {
     api.pendingSend().then((p) => p?.length && setToSend(p));
@@ -83,6 +86,25 @@ export default function App() {
 
   useTheme(state?.settings.theme || 'system');
 
+  // Chat list + "message arrived" toast when that conversation isn't on screen.
+  where.current = { view, chatPeer };
+  useEffect(() => {
+    const refresh = () => api.chatList().then(setChatList);
+    refresh();
+    const offs = [
+      api.onChat((e) => {
+        refresh();
+        const w = where.current;
+        if (!e.update && e.message.dir === 'in' && !(w.view === 'chats' && w.chatPeer === e.peerId)) {
+          toast(`💬 ${e.peer.name}: ${e.message.text.length > 60 ? `${e.message.text.slice(0, 57)}…` : e.message.text}`);
+        }
+      }),
+      api.onChatRead(refresh),
+      api.onOpenChat(openChatWith),
+    ];
+    return () => offs.forEach((f) => f());
+  }, [toast, openChatWith]);
+
   // Window-wide drag tracking so every card can show its drop state.
   useEffect(() => {
     const isFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
@@ -121,6 +143,7 @@ export default function App() {
   const busyPeers = new Set(activeList.map((t) => (t.direction === 'out' ? t.to.id : t.from.id)));
   const nav = [
     { id: 'nearby', label: 'Nearby', Icon: RadarIcon, badge: peers.length || null },
+    { id: 'chats', label: 'Chats', Icon: MessagesSquare, badge: chatList.reduce((a, c) => a + (c.unread || 0), 0) || null },
     { id: 'activity', label: 'Activity', Icon: History, badge: activeList.length || null },
     { id: 'settings', label: 'Settings', Icon: SettingsIcon },
   ];
@@ -205,9 +228,10 @@ export default function App() {
                     activeList={activeList} recent={history.slice(0, 4)}
                     onDropPaths={sendPaths} onPick={pick} onAdd={() => setShowAdd(true)} onPhone={() => setShowPhone(true)} onSeeAll={() => setView('activity')}
                     onCheck={() => { setView('settings'); setCheckSignal((n) => n + 1); }}
-                    onText={setTextTo}
+                    onText={(p) => openChatWith(p.id)}
                   />
                 )}
+                {view === 'chats' && <ChatsView peers={peers} list={chatList} selected={chatPeer} onSelect={setChatPeer} />}
                 {view === 'activity' && <Activity activeList={activeList} history={history} onClear={async () => setHistory(await api.clearHistory())} />}
                 {view === 'settings' && <Settings state={state} update={updateSettings} chooseDir={async () => setState(await api.chooseSaveDir())} checkSignal={checkSignal} appUpdate={update} setAppUpdate={setUpdate} />}
               </motion.div>
@@ -219,8 +243,6 @@ export default function App() {
       <AnimatePresence>
         {pending[0] && <IncomingModal key={pending[0].id} req={pending[0]} onRespond={respond} />}
         {showAdd && <AddDeviceModal onClose={() => setShowAdd(false)} onAdded={(p) => toast(`Connected to ${p.name}`)} />}
-        {textTo && <SendTextModal key="send-text" peer={textTo} onClose={() => setTextTo(null)} onSent={(p) => toast(`Text sent to ${p.name}`)} />}
-        {texts[0] && !pending[0] && <TextReceivedModal key={texts[0].id} msg={texts[0]} onClose={() => setTexts((q) => q.slice(1))} />}
         {toSend && !pending[0] && (
           <SendToModal
             key="send-to" paths={toSend} peers={peers}

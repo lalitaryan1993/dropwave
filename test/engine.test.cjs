@@ -96,7 +96,8 @@ function waitFor(engine, id, statuses = ['completed', 'failed', 'rejected', 'can
   const cancelled = waitFor(A, id);
   A.cancel(id);
   assert.equal((await cancelled).status, 'cancelled');
-  await new Promise((r) => setTimeout(r, 300));
+  // The receiver deletes the partial file once the "cancel" message arrives (allow for a busy CPU).
+  for (let i = 0; i < 30 && fs.existsSync(path.join(inboxB, 'big (2).bin')); i++) await new Promise((r) => setTimeout(r, 100));
   assert.ok(!fs.existsSync(path.join(inboxB, 'big (2).bin')), 'partial file should be removed');
   console.log('ok  cancel (partial file cleaned up)');
 

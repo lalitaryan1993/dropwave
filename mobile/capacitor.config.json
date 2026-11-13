@@ -1,0 +1,12 @@
+{
+  "appId": "com.dropwave.app",
+  "appName": "DropWave",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

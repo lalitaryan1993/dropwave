@@ -75,6 +75,19 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   assert.match(await page.text(), /DropWave/);
   console.log('ok  PIN login + page served');
 
+  // 1b. Android app: key in a header / query, CORS only for the app's origin
+  const key = (await (await post('/api/login', '', { pin: '123456' })).json()).key;
+  assert.equal(key.length, 32);
+  assert.equal((await (await fetch(`${base}/api/hello`, { headers: { 'X-DropWave-Key': key } })).json()).authed, true);
+  assert.equal((await (await fetch(`${base}/api/hello?key=${key}`)).json()).authed, true);
+  assert.equal((await (await fetch(`${base}/api/hello`, { headers: { 'X-DropWave-Key': 'x'.repeat(32) } })).json()).authed, false);
+  const pre = await fetch(`${base}/api/batch`, { method: 'OPTIONS', headers: { Origin: 'http://localhost', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), 'http://localhost');
+  const evil = await fetch(`${base}/api/hello`, { headers: { Origin: 'http://evil.example' } });
+  assert.equal(evil.headers.get('access-control-allow-origin'), null);
+  console.log('ok  app key login + CORS limited to the app origin');
+
   // 2. Two browsers connect
   const phone = sse(cookie, 'phone1', 'Riya iPhone');
   const tv = sse(cookie, 'tv1', 'Living room TV');

@@ -136,6 +136,7 @@
         <div class="t">DropWave</div>
         <div class="faint" style="font-size:12.5px"><span id="conn" class="row" style="gap:6px;display:flex;min-width:0"><span class="dot" style="flex:none"></span><span id="connText" class="ellipsis">Connected</span></span></div>
       </div>
+      <button id="switchBtn" class="pill hidden" style="flex:none" title="Connect to a different PC">PCs</button>
       <button id="meBtn" class="pill" style="flex:none;max-width:45%" title="Rename this device"><span id="meName" class="ellipsis">This device</span>
         <svg class="i" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
     </header>
@@ -169,6 +170,13 @@
 
 <script>
 (() => {
+  // Inside the DropWave Android app, window.DW_APP = { base, key, download(url, name), saveKey(key),
+  // logout(), sharedFiles, sharedText, minimize() }. In a phone/TV browser it's undefined and the page
+  // talks to the server it was loaded from, authenticated by cookie.
+  const APP = window.DW_APP || null;
+  const BASE = APP ? APP.base : '';
+  const withKey = (u) => (APP ? `${BASE}${u}${u.includes('?') ? '&' : '?'}key=${APP.key}` : u);
+  const api = (path, opts = {}) => fetch(BASE + path, { ...opts, headers: { ...(opts.headers || {}), ...(APP ? { 'X-DropWave-Key': APP.key } : {}) } });
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -199,9 +207,10 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3200);
   }
+  window.dwToast = toast; // used by the Android app bridge
 
   async function boot() {
-    const r = await fetch('/api/hello').then((x) => x.json()).catch(() => null);
+    const r = await api('/api/hello').then((x) => x.json()).catch(() => null);
     if (!r) { $('#lock').classList.remove('hidden'); $('#pinErr').textContent = 'Can’t reach the PC. Is DropWave open?'; return; }
     pc = r.pc;
     document.title = `DropWave · ${pc.name}`;
@@ -216,8 +225,11 @@
   $('#pinForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     $('#pinErr').textContent = '';
-    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) });
-    if (r.ok) return boot();
+    const r = await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) });
+    if (r.ok) {
+      if (APP) APP.saveKey((await r.json()).key); // the app keeps the key instead of a cookie
+      return boot();
+    }
     $('#pinErr').textContent = (await r.json().catch(() => ({}))).error || 'Could not connect';
     $('#pin').value = ''; $('#pin').focus();
   });
@@ -225,7 +237,7 @@
   function connect() {
     if (es) es.close();
     const name = store.get('ld_name') || '';
-    es = new EventSource(`/api/events?id=${encodeURIComponent(myId)}&name=${encodeURIComponent(name)}`);
+    es = new EventSource(withKey(`/api/events?id=${encodeURIComponent(myId)}&name=${encodeURIComponent(name)}`));
     es.addEventListener('hello', (m) => {
       const d = JSON.parse(m.data);
       $('#meName').textContent = d.you.name;
@@ -238,7 +250,7 @@
     es.onerror = () => {
       setConn(false);
       // A locked response (PIN changed) also lands here: re-check.
-      fetch('/api/hello').then((x) => x.json()).then((r) => { if (!r.authed) { es.close(); boot(); } }).catch(() => {});
+      api('/api/hello').then((x) => x.json()).then((r) => { if (!r.authed) { es.close(); boot(); } }).catch(() => {});
     };
   }
 
@@ -247,12 +259,14 @@
     $('#connText').textContent = on ? `Connected to ${pc.name}` : 'Reconnecting…';
   }
 
+  if (APP) { $('#switchBtn').classList.remove('hidden'); $('#switchBtn').addEventListener('click', () => APP.switchPC()); }
+
   $('#meBtn').addEventListener('click', async () => {
     const n = prompt('Name this device', $('#meName').textContent);
     if (!n || !n.trim()) return;
     store.set('ld_name', n.trim());
     $('#meName').textContent = n.trim();
-    await fetch('/api/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId, name: n.trim() }) });
+    await api('/api/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId, name: n.trim() }) });
   });
 
   // ---------- targets ----------
@@ -288,14 +302,14 @@
     const label = files.length === 1 ? files[0].name : `${files.length} files`;
     // A PC asks its user first, so show that we're waiting.
     const row = activityRow('pending', `↑ ${label}`, to.pc ? `Waiting for ${to.name} to accept…` : `to ${to.name} · ${fmt(total)}`, false);
-    const r = await fetch('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, files: list }) });
+    const r = await api('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, files: list }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return finishRow(row, false, j.error || 'Could not start the transfer');
     row.querySelector('.row').insertAdjacentHTML('beforeend', `<button class="btn ghost small" data-cancel aria-label="Cancel">${svg('x')}</button>`);
     row.querySelector('[data-sub]').textContent = `to ${to.name} · ${fmt(total)}`;
     const u = { id: j.id, xhr: null, cancelled: false };
     uploads.set(j.id, u);
-    row.querySelector('[data-cancel]').onclick = () => { u.cancelled = true; u.xhr?.abort(); fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: j.id }) }); };
+    row.querySelector('[data-cancel]').onclick = () => { u.cancelled = true; u.xhr?.abort(); api('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: j.id }) }); };
 
     let done = 0;
     const t0 = Date.now();
@@ -304,7 +318,8 @@
         await new Promise((resolve, reject) => {
           const x = new XMLHttpRequest();
           u.xhr = x;
-          x.open('POST', `/api/upload?batch=${j.id}&i=${i}`);
+          x.open('POST', BASE + `/api/upload?batch=${j.id}&i=${i}`);
+          if (APP) x.setRequestHeader('X-DropWave-Key', APP.key);
           x.upload.onprogress = (e) => {
             const cur = done + e.loaded;
             const secs = (Date.now() - t0) / 1000;
@@ -375,7 +390,7 @@
     const m = { id: String(Date.now()) + Math.random().toString(36).slice(2, 6), peer: to.id, name: to.name, dir: 'out', text, at: Date.now(), status: 'sending' };
     msgs.push(m); saveMsgs(); renderThread();
     textIn.value = ''; textIn.style.height = 'auto';
-    const r = await fetch('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) }).catch(() => null);
+    const r = await api('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) }).catch(() => null);
     m.status = r && r.ok ? 'sent' : 'failed';
     if (m.status === 'failed') toast((r && (await r.json().catch(() => ({}))).error) || 'Could not send — check the connection');
     saveMsgs(); renderThread();
@@ -422,16 +437,20 @@
     o.files.forEach((f) => {
       const viewable = /^(image|video|audio)\//.test(f.type);
       const r = el('div', 'frow', `
-        <div class="thumb">${f.type.startsWith('image/') ? `<img loading="lazy" src="${f.url}?thumb" alt="">` : svg(f.type.startsWith('video/') ? 'play' : 'file')}</div>
+        <div class="thumb">${f.type.startsWith('image/') ? `<img loading="lazy" src="${withKey(f.url + '?thumb')}" alt="">` : svg(f.type.startsWith('video/') ? 'play' : 'file')}</div>
         <div class="meta"><div class="name" style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name.split('/').pop())}</div><div class="faint" style="font-size:12.5px">${fmt(f.size)}</div></div>
         ${viewable ? `<button class="btn soft small" data-view>${svg('play', 'style="width:16px;height:16px"')} Open</button>` : ''}
-        <a class="btn soft small" href="${f.url}" download data-dl aria-label="Download">${svg('down', 'style="width:16px;height:16px"')}</a>`);
+        <a class="btn soft small" href="${withKey(f.url)}" download data-dl aria-label="Download">${svg('down', 'style="width:16px;height:16px"')}</a>`);
       r.querySelector('[data-view]')?.addEventListener('click', () => view(f));
-      r.querySelector('[data-dl]').addEventListener('click', () => markDone(r));
+      r.querySelector('[data-dl]').addEventListener('click', (e) => {
+        // In the app, save straight to Download/DropWave instead of the WebView's download.
+        if (APP) { e.preventDefault(); APP.download(withKey(f.url), f.name.split('/').pop()); }
+        markDone(r);
+      });
       list.appendChild(r);
     });
     card.querySelector('[data-decline]').onclick = async () => {
-      await fetch('/api/decline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) });
+      await api('/api/decline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) });
       card.remove();
     };
     card.querySelector('[data-all]')?.addEventListener('click', async () => {
@@ -446,7 +465,7 @@
 
   function view(f) {
     const body = $('#vBody');
-    const src = f.url + '?view';
+    const src = withKey(f.url + '?view');
     body.innerHTML = f.type.startsWith('image/') ? `<img src="${src}" alt="">`
       : f.type.startsWith('video/') ? `<video src="${src}" controls autoplay playsinline></video>`
       : `<audio src="${src}" controls autoplay></audio>`;
@@ -459,10 +478,15 @@
 
   // ---------- don't lose the connection to an accidental Back press ----------
   // Keep an extra history entry: Back first closes the viewer, then asks for a second press.
-  history.replaceState({ dw: 'base' }, '');
-  history.pushState({ dw: 'guard' }, '');
+  // In the app, the hardware Back button is handled natively (it sends the app to the background).
+  window.dwBack = () => {
+    if (!$('#viewer').classList.contains('hidden')) { closeViewer(); return true; }
+    return false;
+  };
+  if (!APP) history.replaceState({ dw: 'base' }, '');
+  if (!APP) history.pushState({ dw: 'guard' }, '');
   let lastBack = 0;
-  window.addEventListener('popstate', () => {
+  if (!APP) window.addEventListener('popstate', () => {
     if (!$('#viewer').classList.contains('hidden')) { closeViewer(); history.pushState({ dw: 'guard' }, ''); return; }
     const now = Date.now();
     if (now - lastBack < 2000) { history.back(); return; } // second press within 2 s: really leave
@@ -472,6 +496,35 @@
   });
   // Closing the tab or reloading during an upload asks first.
   window.addEventListener('beforeunload', (e) => { if (uploads.size) { e.preventDefault(); e.returnValue = ''; } });
+
+  // ---------- items shared into the app from other apps (Android "Share → DropWave") ----------
+  let shared = null;
+  window.dwShare = (files, text) => {
+    shared = { files: files || [], text: text || '' };
+    document.getElementById('share-card')?.remove();
+    if (!shared.files.length && !shared.text) return;
+    const n = shared.files.length;
+    const what = [n ? `${n} file${n > 1 ? 's' : ''}` : '', shared.text ? 'a message' : ''].filter(Boolean).join(' and ');
+    const card = el('div', 'offer', `
+      <div style="font-weight:700;font-size:16px">Send ${what}</div>
+      <div class="faint" style="font-size:13px;margin-top:2px">Pick a device under “Send to”, then tap Send.</div>
+      ${shared.text ? `<div class="msg"></div>` : ''}
+      <div class="row" style="gap:10px;margin-top:12px">
+        <button class="btn ghost" data-x style="flex:1">Cancel</button>
+        <button class="btn primary" data-go style="flex:2">Send</button>
+      </div>`);
+    card.id = 'share-card';
+    if (shared.text) card.querySelector('.msg').textContent = shared.text;
+    card.querySelector('[data-x]').onclick = () => { shared = null; card.remove(); };
+    card.querySelector('[data-go]').onclick = async () => {
+      const s = shared; shared = null; card.remove();
+      if (s.text) { textIn.value = s.text; $('#textForm').requestSubmit(); }
+      if (s.files.length) await send(s.files);
+    };
+    $('#offers').prepend(card);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  if (APP?.sharedFiles?.length || APP?.sharedText) window.dwShare(APP.sharedFiles, APP.sharedText);
   // Coming back to the tab (phone was locked, app switched): reconnect if the link dropped.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && pc && (!es || es.readyState === 2)) connect();

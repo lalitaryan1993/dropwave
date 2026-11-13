@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d14" />
+<title>DropWave</title>
+<style>
+  :root { --bg:#f5f6fa; --panel:#ffffffd9; --raised:#fff; --line:rgba(20,24,40,.09); --line2:rgba(20,24,40,.16); --fg:#151827; --muted:#5f6478; --faint:#8a8fa3;
+    --accent:#6d5dfc; --accent2:#19b5d8; --good:#12a36b; --bad:#e5484d; --glow:rgba(109,93,252,.28); --a1:rgba(109,93,252,.16); --a2:rgba(25,181,216,.14); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b0d14; --panel:#161a27cc; --raised:#1b2031; --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.14); --fg:#e8eaf3; --muted:#a0a6bd; --faint:#6e7590;
+    --accent:#8b7dff; --accent2:#2cc8ea; --good:#3ddc97; --bad:#ff6369; --glow:rgba(139,125,255,.35); --a1:rgba(139,125,255,.18); --a2:rgba(44,200,234,.1); } }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; }
+  body { font-family:system-ui,-apple-system,Roboto,"Segoe UI",sans-serif; color:var(--fg); font-size:15px;
+    background:radial-gradient(700px 420px at 100% -10%,var(--a1),transparent 60%),radial-gradient(600px 420px at -10% 110%,var(--a2),transparent 60%),var(--bg); background-attachment:fixed; }
+  button,input { font:inherit; color:inherit; }
+  button { cursor:pointer; border:0; background:none; }
+  .wrap { max-width:560px; margin:0 auto; padding:max(22px, env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom)); }
+  header { display:flex; align-items:center; gap:12px; margin:8px 0 22px; }
+  header img { width:44px; height:44px; border-radius:13px; box-shadow:0 12px 30px -12px var(--glow); }
+  header b { font-size:22px; letter-spacing:-.02em; }
+  h2 { font-size:12.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); margin:24px 4px 10px; font-weight:700; }
+  .card { display:flex; align-items:center; gap:12px; padding:14px; border-radius:18px; background:var(--raised); border:1px solid var(--line); margin-bottom:10px; width:100%; text-align:left; }
+  .card:active { transform:scale(.99); }
+  .av { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; flex:none; }
+  .meta { flex:1; min-width:0; }
+  .meta .n { font-weight:600; font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .meta .s { font-size:12.5px; color:var(--faint); margin-top:2px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--line2); flex:none; }
+  .dot.on { background:var(--good); box-shadow:0 0 8px var(--good); }
+  .x { color:var(--faint); padding:8px; font-size:18px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:48px; padding:0 18px; border-radius:14px; font-weight:600; width:100%; }
+  .btn.primary { color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 10px 26px -10px var(--glow); }
+  .btn.soft { background:var(--raised); border:1px solid var(--line2); }
+  .btn[disabled] { opacity:.55; }
+  .row { display:flex; gap:10px; }
+  input { width:100%; height:48px; padding:0 14px; border-radius:14px; border:1px solid var(--line2); background:var(--raised); outline:none; }
+  input:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--glow); }
+  .hint { color:var(--faint); font-size:13px; margin:8px 4px; line-height:1.5; }
+  .bar { height:4px; border-radius:4px; background:var(--line); overflow:hidden; margin:10px 2px 0; }
+  .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .2s; }
+  .sheet { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-end; justify-content:center; z-index:20; }
+  .sheet > div { width:100%; max-width:560px; background:var(--bg); border-radius:24px 24px 0 0; padding:22px 18px calc(22px + env(safe-area-inset-bottom)); }
+  .pin { text-align:center; font-size:28px; letter-spacing:.4em; padding-left:.4em; height:60px; margin:14px 0 6px; }
+  .err { color:var(--bad); font-size:13.5px; min-height:20px; text-align:center; }
+  .hidden { display:none !important; }
+  .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:30; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><img src="icon-192.png" alt="" /><b>DropWave</b></header>
+
+  <div id="mine-box">
+    <h2>Your PCs</h2>
+    <div id="mine"></div>
+  </div>
+
+  <h2>Find PCs on this Wi-Fi</h2>
+  <button id="scan" class="btn primary">Scan for PCs</button>
+  <div id="scanbar" class="bar hidden"><i></i></div>
+  <div id="scanhint" class="hint">Open DropWave on your PC first. Your phone and PC must be on the same Wi-Fi.</div>
+  <div id="found"></div>
+
+  <h2>Or add by address</h2>
+  <form id="addForm" class="row">
+    <input id="addr" inputmode="url" placeholder="192.168.1.8:47823" autocomplete="off" />
+    <button class="btn soft" style="width:auto" type="submit">Add</button>
+  </form>
+  <div class="hint">The address and PIN are shown on the PC under <b>Phone or TV</b>.</div>
+</div>
+
+<div id="pinSheet" class="sheet hidden"><div>
+  <div style="font-weight:700;font-size:18px;text-align:center">Connect to <span id="pinName"></span></div>
+  <div class="hint" style="text-align:center">Enter the 6-digit PIN shown on the PC (Nearby → Phone or TV)</div>
+  <form id="pinForm">
+    <input id="pin" class="pin" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code" />
+    <div id="pinErr" class="err"></div>
+    <div class="row" style="margin-top:8px"><button type="button" id="pinCancel" class="btn soft">Cancel</button><button class="btn primary">Connect</button></div>
+  </form>
+</div></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const hue = (id = '') => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+  const DW = window.Capacitor?.Plugins?.DropWave;
+  const AppP = window.Capacitor?.Plugins?.App;
+  const PORT = 47823;
+  let pcs = []; try { pcs = JSON.parse(localStorage.getItem('dw_pcs') || '[]'); } catch {}
+  const savePcs = () => localStorage.setItem('dw_pcs', JSON.stringify(pcs));
+  const toast = (t) => { const e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3000); };
+
+  AppP?.addListener('backButton', () => { if (!$('#pinSheet').classList.contains('hidden')) return closePin(); DW?.minimize(); });
+
+  // GET /api/hello with a timeout; resolves null if nothing answers.
+  async function hello(base, key, ms = 1500) {
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+    try {
+      const r = await fetch(`${base}/api/hello`, { signal: c.signal, headers: key ? { 'X-DropWave-Key': key } : {} });
+      const j = await r.json();
+      return j.app === 'dropwave' ? j : null;
+    } catch { return null; } finally { clearTimeout(t); }
+  }
+
+  function open(pc) {
+    pc.lastUsed = Date.now(); savePcs();
+    localStorage.setItem('dw_current', pc.id);
+    location.href = 'client.html';
+  }
+
+  function card(pc, { online, onClick, onRemove }) {
+    const h = hue(pc.id);
+    const b = document.createElement('button');
+    b.className = 'card';
+    b.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${esc((pc.name || '?').slice(0, 2).toUpperCase())}</span>
+      <span class="meta"><div class="n">${esc(pc.name)}</div><div class="s">${esc(pc.base.replace('http://', ''))}</div></span>
+      <span class="dot ${online ? 'on' : ''}"></span>${onRemove ? '<span class="x" data-x>×</span>' : ''}`;
+    b.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) { e.stopPropagation(); onRemove(); } else onClick(); });
+    return b;
+  }
+
+  const online = new Set();
+  function renderMine() {
+    $('#mine-box').classList.toggle('hidden', !pcs.length);
+    const box = $('#mine'); box.innerHTML = '';
+    for (const pc of [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))) {
+      box.appendChild(card(pc, {
+        online: online.has(pc.id),
+        onClick: () => connect(pc.base),
+        onRemove: () => { if (confirm(`Forget ${pc.name}?`)) { pcs = pcs.filter((x) => x.id !== pc.id); savePcs(); renderMine(); } },
+      }));
+    }
+  }
+
+  // Connect: reuse the saved key if it still works, otherwise ask for the PIN.
+  async function connect(base) {
+    const h = await hello(base, pcs.find((p) => p.base === base)?.key, 2500);
+    if (!h) return toast('Can’t reach that PC. Is DropWave open on it, on this Wi-Fi?');
+    let pc = pcs.find((p) => p.id === h.pc.id);
+    if (!pc) { pc = { id: h.pc.id, name: h.pc.name, base }; pcs.push(pc); }
+    pc.name = h.pc.name; pc.base = base; savePcs();
+    if (h.authed) return open(pc);
+    askPin(pc);
+  }
+
+  let pinFor = null;
+  function askPin(pc) { pinFor = pc; $('#pinName').textContent = pc.name; $('#pin').value = ''; $('#pinErr').textContent = ''; $('#pinSheet').classList.remove('hidden'); setTimeout(() => $('#pin').focus(), 100); }
+  function closePin() { $('#pinSheet').classList.add('hidden'); pinFor = null; }
+  $('#pinCancel').onclick = closePin;
+  $('#pin').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); if (e.target.value.length === 6) $('#pinForm').requestSubmit(); });
+  $('#pinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pc = pinFor; if (!pc) return;
+    const r = await fetch(`${pc.base}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if (!r || !r.ok) { $('#pinErr').textContent = j.error || 'Could not connect'; $('#pin').value = ''; return; }
+    pc.key = j.key; savePcs(); closePin(); open(pc);
+  });
+
+  $('#addForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    let a = $('#addr').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!a) return;
+    if (!a.includes(':')) a += ':' + PORT;
+    connect('http://' + a);
+  });
+
+  // Scan the phone's /24 subnet(s) for DropWave PCs (port 47823 answers /api/hello).
+  $('#scan').addEventListener('click', async () => {
+    const btn = $('#scan'); btn.disabled = true; btn.textContent = 'Scanning…';
+    $('#found').innerHTML = ''; $('#scanbar').classList.remove('hidden');
+    const ips = ((await DW?.localIps().catch(() => null))?.ips || []).map((x) => x.address).filter((a) => /^(10|172|192)\./.test(a));
+    if (!ips.length) { $('#scanhint').textContent = 'This phone isn’t on a Wi-Fi network.'; btn.disabled = false; btn.textContent = 'Scan for PCs'; $('#scanbar').classList.add('hidden'); return; }
+    const hosts = [];
+    for (const ip of ips) { const p = ip.split('.').slice(0, 3).join('.'); for (let i = 1; i < 255; i++) if (`${p}.${i}` !== ip) hosts.push(`${p}.${i}`); }
+    let done = 0, found = 0;
+    $('#scanhint').textContent = `Looking on ${ips.map((ip) => ip.split('.').slice(0, 3).join('.') + '.x').join(', ')}…`;
+    const queue = [...hosts];
+    const worker = async () => {
+      while (queue.length) {
+        const host = queue.shift();
+        const base = `http://${host}:${PORT}`;
+        const h = await hello(base, pcs.find((p) => p.base === base)?.key, 1200);
+        done++; $('#scanbar i').style.width = `${(done / hosts.length) * 100}%`;
+        if (h) {
+          found++;
+          online.add(h.pc.id);
+          const known = pcs.find((p) => p.id === h.pc.id);
+          if (known) { known.base = base; known.name = h.pc.name; savePcs(); renderMine(); }
+          else $('#found').appendChild(card({ id: h.pc.id, name: h.pc.name, base }, { online: true, onClick: () => connect(base) }));
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: 48 }, worker));
+    $('#scanbar').classList.add('hidden');
+    $('#scanhint').textContent = found ? `Found ${found} PC${found > 1 ? 's' : ''}. Tap one to connect.` : 'No PCs found. Make sure DropWave is open on the PC, “Phones & TVs” is on in its Settings, and both are on the same Wi-Fi. You can also add it by address below.';
+    btn.disabled = false; btn.textContent = 'Scan again';
+  });
+
+  // Start: go straight to the last PC if it's reachable and still unlocked.
+  (async () => {
+    renderMine();
+    const pick = new URLSearchParams(location.search).has('pick');
+    await Promise.all(pcs.map(async (pc) => { const h = await hello(pc.base, pc.key); if (h) { online.add(pc.id); if (h.authed) pc.ok = true; } }));
+    renderMine();
+    const last = [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
+    if (!pick && last && last.ok) return open(last);
+    if (!pcs.length) $('#scan').click();
+  })();
+})();
+</script>
+</body>
+</html>

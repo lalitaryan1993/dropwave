@@ -8,13 +8,14 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.3.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.4.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
 [![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
 [![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3ddc97)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)
 ![Works with](https://img.shields.io/badge/works%20with-Android%20%C2%B7%20iPhone%20%C2%B7%20Smart%20TV-ff6b6b)
+![Android app](https://img.shields.io/badge/Android%20app-APK-3ddc84?logo=android&logoColor=white)
 
 </div>
 
@@ -100,7 +101,19 @@ New versions download in the background. Restart when you like.
   <br /><sub>Nearby devices: PCs, a phone and a TV, with live transfers on the right</sub>
 </div>
 
-## Phones & TVs
+## Android app
+
+Prefer an app over the browser? Install **`DropWave-Android-x.y.z.apk`** from the [latest release](https://github.com/lalitaryan1993/dropwave/releases/latest) (Android 10+).
+
+- **Finds your PCs by itself.** It scans your Wi-Fi; enter the PC's PIN once and it's remembered.
+- **Share → DropWave** from Gallery, Files, WhatsApp or Chrome sends photos, videos, files and links straight to a PC.
+- Received files are saved to **Download/DropWave**, with the usual download notification.
+- **Back** never disconnects: DropWave keeps running in the background.
+- Same features as the browser version: chat, Play now for photos and videos, phone ↔ phone / TV.
+
+> Android shows *"Install unknown apps"* the first time. Allow it for your browser or file manager, then open the APK.
+
+## Phones & TVs (browser, no install)
 
 <div align="center">
   <img src="docs/screenshots/phones.png" alt="DropWave in a phone browser, light and dark" width="70%" />
@@ -252,6 +265,9 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 | `electron/main.cjs` | Window, tray, notifications, settings |
 | `src/` | Desktop UI (React, Tailwind, Motion) |
 | `test/` | `engine.test.cjs`, `web.test.cjs` |
+| `mobile/` | Android app (Capacitor). `www/index.html` = PC picker, `www/bridge.js` = native hooks, `android/.../DropWavePlugin.java` = downloads, share target, Back button. The phone page is copied in from `electron/web` at build time |
+
+**Android build** (JDK 21 + Android SDK): `cd mobile && npm install && npm run apk` → `mobile/android/app/build/outputs/apk/release/`. Release signing reads `%USERPROFILE%\.dropwave\keystore.properties`.
 
 ## Roadmap
 
@@ -259,7 +275,8 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Auto-update
 - [x] Encrypted, resumable PC-to-PC transfers
 - [x] Explorer right-click "Send with DropWave"
-- [ ] Android app (receive in the background, share-sheet integration)
+- [x] Android app with Share → DropWave
+- [ ] Android: receive in the background (foreground service) and auto-discovery without scanning
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)
 - [ ] Hindi and other languages

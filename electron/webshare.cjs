@@ -22,6 +22,7 @@ const CLIENT_GRACE_MS = 6000;
 const SHARE_TTL_MS = 2 * 60 * 60 * 1000;
 const STREAM_TTL_MS = 3 * 60 * 60 * 1000;
 const DECISION_TIMEOUT_MS = 60000;
+const APP_ORIGINS = new Set(['http://localhost', 'https://localhost', 'capacitor://localhost']);
 const PROGRESS_EVERY_MS = 200;
 
 const MIME = {
@@ -183,9 +184,13 @@ class WebShare extends EventEmitter {
 
   // ---------- auth ----------
 
+  // Browsers authenticate with the cookie; the Android app sends the same key in a header
+  // (or ?key= for EventSource / media URLs, which can't set headers).
   #authed(req) {
-    const k = parseCookies(req.headers.cookie)[COOKIE];
-    return !!k && k === this.#cookieValue();
+    const k = parseCookies(req.headers.cookie)[COOKIE] || req.headers['x-dropwave-key'] || new URL(req.url, 'http://x').searchParams.get('key');
+    if (!k) return false;
+    const a = Buffer.from(String(k)), b = Buffer.from(this.#cookieValue());
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
   // Cookie is derived from the PIN, so changing the PIN logs every browser out.
   #cookieValue() { return crypto.createHash('sha256').update(`dropwave:${this.o.pin()}:${this.o.me().id}`).digest('hex').slice(0, 32); }
@@ -208,6 +213,19 @@ class WebShare extends EventEmitter {
     const p = url.pathname;
     const ip = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
 
+    // The DropWave Android app runs its UI from its own origin (http://localhost) and calls this
+    // server directly, so allow exactly that origin.
+    const origin = req.headers.origin;
+    if (origin && APP_ORIGINS.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-DropWave-Key');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+      res.setHeader('Access-Control-Max-Age', '600');
+      if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    }
+
     // QR code link: /?k=PIN unlocks and redirects to a clean URL.
     if (p === '/' && url.searchParams.has('k')) {
       const r = this.#tryPin(req, url.searchParams.get('k'));
@@ -222,14 +240,15 @@ class WebShare extends EventEmitter {
 
     if (p === '/api/hello') {
       const me = this.o.me();
-      return json(res, 200, { pc: { id: me.id, name: me.name }, authed: this.#authed(req) });
+      return json(res, 200, { app: 'dropwave', pc: { id: me.id, name: me.name }, authed: this.#authed(req) });
     }
     if (p === '/api/login' && req.method === 'POST') {
       const body = await readJson(req, 1024);
       const r = this.#tryPin(req, body.pin);
       if (r === 'locked') return json(res, 429, { error: 'Too many wrong PINs. Wait a minute and try again.' });
       if (r === 'bad') return json(res, 401, { error: 'Wrong PIN' });
-      return json(res, 200, { ok: true }, { 'Set-Cookie': this.#setCookie() });
+      // The key is what the cookie holds; the app stores it and sends it as X-DropWave-Key.
+      return json(res, 200, { ok: true, key: this.#cookieValue() }, { 'Set-Cookie': this.#setCookie() });
     }
 
     if (!this.#authed(req)) return json(res, 401, { error: 'Locked' });

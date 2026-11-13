@@ -17,7 +17,7 @@ function waitFor(engine, id, statuses = ['completed', 'failed', 'rejected', 'can
 }
 
 (async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'landrop-test-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'dropwave-test-'));
   const src = path.join(root, 'src');
   const inboxB = path.join(root, 'inboxB');
   await fsp.mkdir(path.join(src, 'Album', 'Nested'), { recursive: true });

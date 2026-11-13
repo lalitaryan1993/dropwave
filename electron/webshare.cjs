@@ -17,7 +17,7 @@ const crypto = require('node:crypto');
 const { EventEmitter } = require('node:events');
 
 const DEFAULT_WEB_PORT = 47823;
-const COOKIE = 'landrop_key';
+const COOKIE = 'dropwave_key';
 const CLIENT_GRACE_MS = 6000;
 const SHARE_TTL_MS = 2 * 60 * 60 * 1000;
 const PROGRESS_EVERY_MS = 200;
@@ -83,7 +83,7 @@ class WebShare extends EventEmitter {
     this.shares = new Map();   // id -> share (files offered to a browser)
     this.uploads = new Map();  // batchId -> upload batch
     this.failedLogins = new Map(); // ip -> { n, until }
-    this.relayDir = path.join(os.tmpdir(), 'landrop-relay');
+    this.relayDir = path.join(os.tmpdir(), 'dropwave-relay');
     this.server = null;
     this.timer = null;
   }
@@ -145,7 +145,7 @@ class WebShare extends EventEmitter {
     return !!k && k === this.#cookieValue();
   }
   // Cookie is derived from the PIN, so changing the PIN logs every browser out.
-  #cookieValue() { return crypto.createHash('sha256').update(`landrop:${this.o.pin()}:${this.o.me().id}`).digest('hex').slice(0, 32); }
+  #cookieValue() { return crypto.createHash('sha256').update(`dropwave:${this.o.pin()}:${this.o.me().id}`).digest('hex').slice(0, 32); }
   #setCookie() { return `${COOKIE}=${this.#cookieValue()}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`; }
 
   #tryPin(req, pin) {
@@ -426,7 +426,10 @@ class WebShare extends EventEmitter {
     let st;
     try { st = await fsp.stat(f.abs); } catch { return json(res, 410, { error: 'File was moved or deleted on the PC' }); }
 
-    const inline = url.searchParams.has('view');
+    // ?thumb = list thumbnail (never counts as delivered), ?view = opened in the browser
+    // (counts as delivered), neither = real download.
+    const thumb = url.searchParams.has('thumb');
+    const inline = thumb || url.searchParams.has('view');
     const headers = {
       'Content-Type': mimeOf(f.name),
       'Accept-Ranges': 'bytes',
@@ -446,9 +449,11 @@ class WebShare extends EventEmitter {
     }
     if (req.method === 'HEAD') return res.end();
 
+    const rs = fs.createReadStream(f.abs, { start, end, highWaterMark: 1024 * 1024 });
+    if (thumb) { rs.pipe(res); res.on('close', () => rs.destroy()); return; }
+
     if (s.status === 'waiting') { s.status = 'active'; s.t.startedAt = Date.now(); }
     const full = !range && !inline;
-    const rs = fs.createReadStream(f.abs, { start, end, highWaterMark: 1024 * 1024 });
     let sent = 0;
     rs.on('data', (chunk) => {
       sent += chunk.length;
@@ -458,13 +463,13 @@ class WebShare extends EventEmitter {
     rs.pipe(res);
     res.on('close', () => {
       rs.destroy();
-      if (!(range || inline) && sent === st.size) f.done = true;
-      if (range || inline) { f.done = true; } // streamed/viewed counts as delivered
+      // A full download, or playing/viewing it in the browser, counts as delivered.
+      if ((full && sent === st.size) || !full) f.done = true;
       if (s.files.every((x) => x.done) && s.status !== 'completed') {
         s.status = 'completed';
         s.t.finishedAt = Date.now();
-        this.#emitShare(s, true);
-      } else this.#emitShare(s, true);
+      }
+      this.#emitShare(s, true);
     });
   }
 

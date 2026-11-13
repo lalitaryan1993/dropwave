@@ -1,6 +1,6 @@
 {
-  "name": "LANDrop",
-  "short_name": "LANDrop",
+  "name": "DropWave",
+  "short_name": "DropWave",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0d14",

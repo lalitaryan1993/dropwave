@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // Strict CSP for the packaged app only (dev needs Vite's inline HMR preamble).
 const csp = {
-  name: 'landrop-csp',
+  name: 'dropwave-csp',
   apply: 'build',
   transformIndexHtml: () => [{
     tag: 'meta',

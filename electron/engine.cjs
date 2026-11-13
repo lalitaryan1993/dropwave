@@ -1,4 +1,4 @@
-// LANDrop transfer engine — pure Node (no Electron imports) so it can be tested headless.
+// DropWave transfer engine — pure Node (no Electron imports) so it can be tested headless.
 //
 // Discovery: UDP broadcast on DISCOVERY_PORT every 2 s.
 // Transfer protocol over TCP (one connection per batch):
@@ -130,7 +130,7 @@ class Engine extends EventEmitter {
   }
 
   info() {
-    return { app: 'landrop', v: 1, id: this.id, name: this.name, port: this.port, platform: process.platform };
+    return { app: 'dropwave', v: 1, id: this.id, name: this.name, port: this.port, platform: process.platform };
   }
 
   async start() {
@@ -166,7 +166,7 @@ class Engine extends EventEmitter {
     udp.on('message', (msg, rinfo) => {
       let m;
       try { m = JSON.parse(msg.toString('utf8')); } catch { return; }
-      if (m.app !== 'landrop' || !m.id || m.id === this.id) return;
+      if (m.app !== 'dropwave' || !m.id || m.id === this.id) return;
       if (m.bye) {
         const p = this.peers.get(m.id);
         if (p && !p.manual) { this.peers.delete(m.id); this.emit('peers', this.peerList()); }
@@ -229,7 +229,7 @@ class Engine extends EventEmitter {
     return new Promise((resolve, reject) => {
       const sock = net.connect({ host: ip, port });
       const reader = new LineReader();
-      const timer = setTimeout(() => { sock.destroy(); reject(new Error('No LANDrop device answered at that address')); }, timeoutMs);
+      const timer = setTimeout(() => { sock.destroy(); reject(new Error('No DropWave device answered at that address')); }, timeoutMs);
       sock.on('connect', () => send(sock, { type: 'info' }));
       sock.on('data', (c) => {
         reader.push(c);
@@ -238,14 +238,14 @@ class Engine extends EventEmitter {
         if (!m) return;
         clearTimeout(timer);
         sock.end();
-        if (m.type !== 'info' || m.app !== 'landrop') return reject(new Error('Not a LANDrop device'));
+        if (m.type !== 'info' || m.app !== 'dropwave') return reject(new Error('Not a DropWave device'));
         if (m.id === this.id) return reject(new Error("That's this computer"));
         const peer = { id: m.id, name: m.name, ip, port: m.port || port, platform: m.platform, manual: true, lastSeen: Date.now() };
         this.peers.set(m.id, peer);
         this.emit('peers', this.peerList());
         resolve(peer);
       });
-      sock.on('error', (e) => { clearTimeout(timer); reject(new Error(e.code === 'ECONNREFUSED' ? 'LANDrop is not running on that computer' : e.message)); });
+      sock.on('error', (e) => { clearTimeout(timer); reject(new Error(e.code === 'ECONNREFUSED' ? 'DropWave is not running on that computer' : e.message)); });
     });
   }
 

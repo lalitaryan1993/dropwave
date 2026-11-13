@@ -115,7 +115,7 @@ export default function App() {
       {/* title bar */}
       <header className="drag flex h-11 shrink-0 items-center gap-2.5 pl-4 pr-[150px]">
         <Logo />
-        <span className="font-display text-[14px] font-semibold tracking-tight">LANDrop</span>
+        <span className="font-display text-[14px] font-semibold tracking-tight">DropWave</span>
         <span className="ml-2 rounded-md border border-line px-1.5 py-px text-[10.5px] text-faint">v{state.version}</span>
       </header>
 
@@ -250,7 +250,7 @@ function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPath
               <div className="text-center">
                 <UploadCloud className="mx-auto h-10 w-10 text-faint" />
                 <div className="mt-3 font-display text-[17px] font-semibold">No devices to send to yet</div>
-                <div className="mt-1 text-[13px] text-muted">Open LANDrop on another computer first</div>
+                <div className="mt-1 text-[13px] text-muted">Open DropWave on another computer first</div>
               </div>
             </motion.div>
           )}
@@ -343,7 +343,7 @@ function Settings({ state, update, chooseDir }) {
 
   return (
     <div className="h-full overflow-auto p-7">
-      <SectionTitle title="Settings" sub="Personalise how LANDrop works on this computer" />
+      <SectionTitle title="Settings" sub="Personalise how DropWave works on this computer" />
 
       <div className="mt-6 max-w-[720px] space-y-4">
         <Card title="This device">
@@ -404,7 +404,7 @@ function Settings({ state, update, chooseDir }) {
           <Row label="Start with Windows" hint="Run quietly in the tray so others can always send to you">
             <Toggle on={s.autoStart} set={(v) => update({ autoStart: v })} />
           </Row>
-          <Row label="Keep running when closed" hint="Closing the window hides LANDrop to the system tray">
+          <Row label="Keep running when closed" hint="Closing the window hides DropWave to the system tray">
             <Toggle on={s.closeToTray} set={(v) => update({ closeToTray: v })} />
           </Row>
           <Row label="Notifications" hint="Show a Windows notification for incoming files">

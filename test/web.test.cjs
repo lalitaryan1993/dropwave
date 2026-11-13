@@ -53,7 +53,7 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
 });
 
 (async () => {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'landrop-web-'));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'dropwave-web-'));
   const saveDir = path.join(root, 'inbox');
   const pcEvents = [];
   const web = new WebShare({
@@ -70,7 +70,7 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie').split(';')[0];
   const page = await fetch(base + '/', { headers: { cookie } });
-  assert.match(await page.text(), /LANDrop/);
+  assert.match(await page.text(), /DropWave/);
   console.log('ok  PIN login + page served');
 
   // 2. Two browsers connect
@@ -116,7 +116,12 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
 
   // 6. Cancel an offer
   const sid = web.offer('phone1', [{ abs: vid, name: 'movie.mp4', size: 1024 * 1024 }]);
-  await phone.next('offer');
+  const o3 = await phone.next('offer');
+  // Loading a list thumbnail must not count as receiving the file.
+  await (await fetch(base + o3.files[0].url + '?thumb', { headers: { cookie } })).arrayBuffer();
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(pcEvents.filter((t) => t.id === sid).at(-1).status, 'waiting');
+  console.log('ok  thumbnail preview does not mark the file as delivered');
   web.cancel(sid);
   assert.equal((await phone.next('offer-closed')).id, sid);
   assert.equal((await fetch(`${base}/dl/${sid}/0/movie.mp4`, { headers: { cookie } })).status, 404);

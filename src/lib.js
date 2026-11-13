@@ -1,4 +1,4 @@
-export const api = window.landrop;
+export const api = window.dropwave;
 
 export function fmtSize(b = 0) {
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];

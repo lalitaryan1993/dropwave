@@ -8,7 +8,7 @@ const { Engine, localIPv4s, collectFiles, DEFAULT_TCP_PORT } = require('./engine
 const { WebShare, DEFAULT_WEB_PORT } = require('./webshare.cjs');
 
 // ---- profiles (lets two copies run on one PC for testing) ----
-const PROFILE = process.env.LANDROP_PROFILE;
+const PROFILE = process.env.DROPWAVE_PROFILE;
 if (PROFILE) app.setPath('userData', `${app.getPath('userData')}-${PROFILE}`);
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const START_HIDDEN = process.argv.includes('--hidden');
@@ -17,7 +17,9 @@ if (!PROFILE && !app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
 }
-app.setAppUserModelId('com.landrop.app');
+// Only the installed app has a Start-menu shortcut with this ID. Setting it in dev makes the
+// taskbar fall back to electron.exe's icon instead of the DropWave window icon.
+if (app.isPackaged) app.setAppUserModelId('com.dropwave.app');
 
 // ---- tiny JSON stores ----
 const dataFile = (n) => path.join(app.getPath('userData'), n);
@@ -44,7 +46,7 @@ function defaultSettings() {
   return {
     deviceId: crypto.randomUUID(),
     deviceName: os.hostname(),
-    saveDir: path.join(app.getPath('downloads'), 'LANDrop'),
+    saveDir: path.join(app.getPath('downloads'), 'DropWave'),
     theme: 'system',
     autoStart: false,
     closeToTray: true,
@@ -61,7 +63,7 @@ function newPin() { return String(crypto.randomInt(0, 1000000)).padStart(6, '0')
 const allPeers = () => [...(engine ? engine.peerList() : []), ...(web ? web.clientList() : [])];
 
 function webInfo() {
-  const port = web?.port || Number(process.env.LANDROP_WEB_PORT) || DEFAULT_WEB_PORT;
+  const port = web?.port || Number(process.env.DROPWAVE_WEB_PORT) || DEFAULT_WEB_PORT;
   const ips = localIPv4s();
   const urls = ips.map((i) => `http://${i.address}:${port}`);
   return { enabled: settings.webEnabled && !!web, error: webError, port, pin: settings.webPin, urls, primary: urls[0] || null };
@@ -95,7 +97,7 @@ function createWindow() {
     minHeight: 560,
     show: false,
     backgroundColor: c.bg,
-    title: 'LANDrop',
+    title: 'DropWave',
     icon: iconPath(),
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: c.bg, symbolColor: c.symbol, height: 44 },
@@ -104,6 +106,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // DropWave works while hidden in the tray; without this, Chromium pauses animation
+      // frames in background windows and dialogs could stay stuck mid-close.
+      backgroundThrottling: false,
     },
   });
   if (DEV_URL) win.loadURL(DEV_URL);
@@ -112,8 +117,8 @@ function createWindow() {
   win.once('ready-to-show', () => { if (!START_HIDDEN) win.show(); });
 
   // Dev-only: save window screenshots for visual checks.
-  if (process.env.LANDROP_SHOT_DIR) {
-    const dir = process.env.LANDROP_SHOT_DIR;
+  if (process.env.DROPWAVE_SHOT_DIR) {
+    const dir = process.env.DROPWAVE_SHOT_DIR;
     let n = 0;
     setInterval(async () => {
       if (!win) return;
@@ -155,9 +160,9 @@ function createTray() {
   const p = iconPath('tray.png') || iconPath('icon.png');
   const img = p ? nativeImage.createFromPath(p).resize({ width: 16, height: 16, quality: 'best' }) : nativeImage.createEmpty();
   tray = new Tray(img);
-  tray.setToolTip('LANDrop');
+  tray.setToolTip('DropWave');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open LANDrop', click: showWindow },
+    { label: 'Open DropWave', click: showWindow },
     { label: 'Open received files', click: () => { fs.mkdirSync(settings.saveDir, { recursive: true }); shell.openPath(settings.saveDir); } },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
@@ -214,7 +219,7 @@ function handleTransfer(t) {
 async function startWeb() {
   webError = null;
   if (!settings.webEnabled || web) return;
-  const port = Number(process.env.LANDROP_WEB_PORT) || DEFAULT_WEB_PORT;
+  const port = Number(process.env.DROPWAVE_WEB_PORT) || DEFAULT_WEB_PORT;
   const w = new WebShare({
     me: () => ({ id: settings.deviceId, name: settings.deviceName }),
     saveDir: () => settings.saveDir,
@@ -242,7 +247,7 @@ async function stopWeb() {
 
 // ---- engine wiring ----
 async function startEngine() {
-  const port = Number(process.env.LANDROP_PORT) || DEFAULT_TCP_PORT;
+  const port = Number(process.env.DROPWAVE_PORT) || DEFAULT_TCP_PORT;
   engine = new Engine({
     id: settings.deviceId,
     name: settings.deviceName,
@@ -270,9 +275,9 @@ async function startEngine() {
   try {
     await engine.start();
   } catch (e) {
-    dialog.showErrorBox('LANDrop could not start',
+    dialog.showErrorBox('DropWave could not start',
       e.code === 'EADDRINUSE'
-        ? `Port ${port} is already in use. Another copy of LANDrop may be running.`
+        ? `Port ${port} is already in use. Another copy of DropWave may be running.`
         : e.message);
     quitting = true;
     app.quit();
@@ -389,9 +394,11 @@ function registerIpc() {
 app.on('second-instance', showWindow);
 
 app.whenReady().then(async () => {
+  const firstRun = !fs.existsSync(dataFile('settings.json'));
   settings = load('settings.json', defaultSettings());
-  if (!fs.existsSync(dataFile('settings.json'))) save('settings.json', settings);
-  if (PROFILE && !settings.deviceName.endsWith(`(${PROFILE})`)) settings.deviceName = `${os.hostname()} (${PROFILE})`;
+  // Test profiles get a distinguishable default name, but never override a name the user chose.
+  if (firstRun && PROFILE) settings.deviceName = `${os.hostname()} (${PROFILE})`;
+  if (firstRun) save('settings.json', settings);
   history = load('history.json', { items: [] });
   nativeTheme.themeSource = settings.theme;
   nativeTheme.on('updated', () => { applyTheme(); push('state', publicState()); });

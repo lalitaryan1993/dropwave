@@ -140,7 +140,7 @@ export function Radar({ me, onAdd, onPhone }) {
       </div>
       <h2 className="mt-2 font-display text-[22px] font-semibold">Looking for nearby devices…</h2>
       <p className="mt-2 max-w-md text-[13.5px] leading-relaxed text-muted">
-        Open LANDrop on another computer on the same Wi-Fi or LAN and it shows up here. Phones and TVs can join from their browser.
+        Open DropWave on another computer on the same Wi-Fi or LAN and it shows up here. Phones and TVs can join from their browser.
       </p>
       <div className="mt-6 flex gap-2">
         <Button variant="primary" onClick={onPhone}><QrCode className="h-4 w-4" /> Connect phone or TV</Button>
@@ -173,9 +173,10 @@ export function TransferRow({ t, compact = false }) {
   const openable = t.direction === 'in' && t.status === 'completed' && t.savedTo?.length;
 
   return (
+    // No layout animation here: rows re-render on every progress tick, and animating
+    // their layout continuously made rows overlap.
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.12 } }}
       transition={spring}
       className={`group rounded-2xl border border-line bg-raised/70 ${compact ? 'p-3' : 'p-4'}`}
     >
@@ -207,7 +208,8 @@ export function TransferRow({ t, compact = false }) {
             <X className="h-4 w-4" />
           </button>
         ) : openable ? (
-          <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+          // Hidden (not just transparent) until hover, so it doesn't squeeze the file name.
+          <div className="hidden shrink-0 gap-1 group-hover:flex">
             {t.count === 1 && (
               <button onClick={() => api.openPath(t.savedTo[0])} className="h-8 rounded-lg px-2.5 text-[12px] text-muted hover:bg-[var(--line)] hover:text-fg">Open</button>
             )}
@@ -215,7 +217,7 @@ export function TransferRow({ t, compact = false }) {
           </div>
         ) : null}
         {!live && (
-          <span className="flex items-center gap-1 text-[12px] font-medium" style={{ color: meta.color }} title={t.error}>
+          <span className={`flex shrink-0 items-center gap-1 text-[12px] font-medium ${openable ? 'group-hover:hidden' : ''}`} style={{ color: meta.color }} title={t.error}>
             <meta.Icon className="h-3.5 w-3.5" /> {!compact && meta.text}
           </span>
         )}
@@ -323,7 +325,7 @@ export function AddDeviceModal({ onClose, onAdded }) {
       <form onSubmit={submit}>
         <div className="font-display text-[18px] font-semibold">Add device by IP</div>
         <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
-          Use this if a device doesn't appear automatically. You can find its IP at the bottom-left of LANDrop on that computer.
+          Use this if a device doesn't appear automatically. You can find its IP at the bottom-left of DropWave on that computer.
         </p>
         <input
           autoFocus value={value} onChange={(e) => setValue(e.target.value)} placeholder="192.168.1.20"

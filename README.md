@@ -1,42 +1,215 @@
-# LANDrop
+<div align="center">
 
-Send files between every device on your Wi-Fi: Windows PCs, phones, tablets and smart TVs.
+<img src="docs/hero.png" alt="DropWave: drop files to every device on your Wi-Fi" width="100%" />
+
+<br />
+
+**Send files between PCs, phones and smart TVs on your Wi-Fi.<br />Drag & drop on Windows. Scan a QR code on everything else. No cloud, no cables, no size limits.**
+
+<br />
+
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.0.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+
+[![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
+[![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-3ddc97)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4)
+![Works with](https://img.shields.io/badge/works%20with-Android%20%C2%B7%20iPhone%20%C2%B7%20Smart%20TV-ff6b6b)
+
+</div>
+
+---
+
+## Why DropWave?
+
+Moving a video from your laptop to the TV, or photos from your phone to the PC, still means
+cables, pen drives, WhatsApp-compressed copies or a slow upload to the cloud and back.
+
+**DropWave sends files straight across your own Wi-Fi.** Files never leave your home or office,
+they keep their full quality, and they move at network speed: tens of MB/s on a normal router.
+
+|  | DropWave | Cloud drives / chat apps | USB / pen drive |
+|---|:---:|:---:|:---:|
+| Works without internet | ✅ | ❌ | ✅ |
+| Original quality, any size | ✅ | ❌ compressed / size caps | ✅ |
+| Phones & TVs, no app install | ✅ | ⚠️ app needed | ❌ |
+| Files stay on your network | ✅ | ❌ | ✅ |
+| Speed | ⚡ LAN speed | 🐢 upload + download | 🚶 walk over |
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🖱️ Drag & drop between PCs
+PCs on the same network find each other automatically. Drop files **or whole folders**
+on a device card, and that's it.
+
+### ✋ You stay in control
+The receiver gets an **Accept / Decline** prompt with the file list. Tick
+*"Always accept"* for your own devices.
+
+### 📱 Phones, tablets & TVs, no app
+Click **Phone or TV**, scan the QR code, done. Runs in any modern browser, on phones,
+tablets and smart TVs alike.
+
+</td>
+<td width="50%" valign="top">
+
+### ▶️ Stream, don't just download
+Photos and videos open **right in the browser** with seeking support, which is perfect for showing
+holiday videos on the living-room TV.
+
+### 🔁 Phone ↔ phone, phone ↔ TV
+Any connected browser can send to any other (relayed through the PC).
+
+### 🛡️ Reliable & safe
+SHA-256 verified transfers · no overwrites (`photo (1).jpg`) · PIN-protected browser access ·
+works offline · runs quietly in the tray.
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+  <img src="docs/screenshots/desktop-dark.png" alt="DropWave desktop app with nearby PCs, a phone and a TV" width="88%" />
+  <br /><sub>Nearby devices: PCs, a phone and a TV, with live transfers on the right</sub>
+</div>
+
+## Phones & TVs
+
+<div align="center">
+  <img src="docs/screenshots/phones.png" alt="DropWave in a phone browser, light and dark" width="70%" />
+</div>
+
+<br />
+
+1. On the PC, click **Phone or TV**. A QR code and a 6-digit PIN appear.
+2. Scan the code with the phone camera (or type the address + PIN on a TV).
+3. The phone now shows up on the PC as a device. **Drag files onto it**, or send from the phone to the PC or to another phone or TV.
+
+<div align="center">
+  <img src="docs/screenshots/connect-phone.png" alt="Connect a phone or TV with a QR code" width="60%" />
+</div>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/tv.png" alt="DropWave on a smart TV" /><br /><sub>On a smart TV: big, remote-friendly buttons</sub></td>
+<td width="50%"><img src="docs/screenshots/tv-viewer.png" alt="Viewing a photo full-screen on the TV" /><br /><sub>Open plays photos and videos full-screen, no download needed</sub></td>
+</tr>
+</table>
+
+## More screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/incoming.png" alt="Accept or decline incoming files" /><br /><sub>Incoming files always ask first</sub></td>
+<td width="50%"><img src="docs/screenshots/activity.png" alt="Transfer activity and history" /><br /><sub>Live progress, speed, time left and history</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/desktop-light.png" alt="Light theme" /><br /><sub>Light theme</sub></td>
+<td width="50%"><img src="docs/screenshots/settings-light.png" alt="Settings" /><br /><sub>Settings: device name, PIN, save folder, theme, trusted devices</sub></td>
+</tr>
+</table>
 
 ## Install
-Run `release/LANDrop-Setup-1.0.0.exe` on every PC. The installer also allows LANDrop through Windows Firewall on private networks.
-Windows will say "Unknown publisher" because the app is not code-signed. Click **More info → Run anyway**.
 
-## Use
-**PC ↔ PC**
-- Open LANDrop on two PCs on the same network. They find each other automatically.
-- Drag files or folders onto a device card, or use the **Files** / **Folder** buttons.
-- The receiving PC sees Accept / Decline. Tick "Always accept" to trust a device.
-- If a PC doesn't show up, use **Add by IP**.
+1. Download **`DropWave-Setup-x.y.z.exe`** from the [latest release](https://github.com/lalitaryan1993/dropwave/releases/latest).
+2. Run it. Windows may say *"Windows protected your PC"* because the app isn't code-signed yet. Click **More info → Run anyway**.
+3. Install DropWave on every PC you want to send between. Phones and TVs don't need anything.
 
-**Phones, tablets, TVs (no app needed)**
-- On the PC, click **Phone or TV** and scan the QR code with the phone camera. You can also open the shown address (e.g. `192.168.1.8:47823`) in any browser and type the 6-digit PIN.
-- The phone then appears on the PC as a device. Drag files onto it, and the phone gets Download / Open buttons. Videos and photos can be played right in the browser, which is handy on a TV.
-- From the phone, choose files and pick where to send them: the PC, or any other connected phone or TV (relayed through the PC).
-- **New PIN** in the dialog or in Settings disconnects every browser.
+> All devices must be on the **same Wi-Fi / LAN**. The installer adds a Windows Firewall rule
+> for private networks, so devices can find each other.
 
-Received files go to `Downloads\LANDrop`. You can change this in Settings.
+## FAQ
 
-## Develop
-```bash
-npm install
-npm run dev            # app with hot reload
-npm run dev:second     # a second copy on the same PC (separate profile and port)
-npm test               # headless tests: PC transfers + phone/TV browser access
-npm run icon           # regenerate icons from build/icon-source.png and build/banner-source.png
-npm run dist           # build release/LANDrop-Setup-x.y.z.exe
-```
+<details>
+<summary><b>Do I need internet?</b></summary>
+No. DropWave only uses your local network. It works on a router with no internet, or on a phone hotspot.
+</details>
+
+<details>
+<summary><b>Is there a file-size limit?</b></summary>
+No. Files are streamed straight to disk, so 50 GB videos work the same as a 2 KB note.
+</details>
+
+<details>
+<summary><b>A device doesn't show up. What now?</b></summary>
+Check both devices are on the same Wi-Fi (guest networks often block devices from seeing each other), and that
+the network is set to <i>Private</i> in Windows. You can always use <b>Add by IP</b>; each PC's IP is shown bottom-left.
+</details>
+
+<details>
+<summary><b>Can someone on my Wi-Fi send me files without asking?</b></summary>
+No. PC-to-PC transfers need you to press <b>Accept</b> (unless you trusted that device). Browsers need the
+6-digit PIN, and <b>New PIN</b> instantly disconnects every phone and TV.
+</details>
+
+<details>
+<summary><b>Where do received files go?</b></summary>
+<code>Downloads\DropWave</code> by default. You can change it in Settings.
+</details>
+
+<details>
+<summary><b>Does it work on Mac or Linux?</b></summary>
+The desktop app is built and tested for Windows today. Macs and Linux PCs can already join as a
+<b>browser device</b> (Phone or TV → open the address). Native builds are on the roadmap.
+</details>
 
 ## How it works
-| Port | What |
-|---|---|
-| UDP 47821 | PC discovery (broadcast every 2 s) |
-| TCP 47822 | PC-to-PC transfers. The sender offers a file list, the receiver accepts, the bytes are streamed, and SHA-256 checksums are verified at the end |
-| HTTP 47823 | Phone/TV web page. PIN-protected (cookie), uploads stream to disk, downloads support range requests, and live updates use Server-Sent Events |
 
-Code: `electron/engine.cjs` (PC network), `electron/webshare.cjs` + `electron/web/` (phone/TV), `electron/main.cjs` (window, tray, settings), `src/` (desktop UI).
-The icon and installer artwork were generated with ChatGPT (`build/*-source.png`) and processed by `scripts/process-icons.cjs`.
+```mermaid
+flowchart LR
+  subgraph PC1[Windows PC]
+    A[DropWave app]
+  end
+  subgraph PC2[Windows PC]
+    B[DropWave app]
+  end
+  P[📱 Phone browser]
+  T[📺 TV browser]
+  A <-- "UDP 47821 · discovery" --> B
+  A -- "TCP 47822 · offer → accept → stream → SHA-256" --> B
+  P <-- "HTTP 47823 · PIN · uploads · live updates (SSE)" --> A
+  T <-- "HTTP 47823 · downloads · range requests (video seeking)" --> A
+```
+
+| Port | Used for |
+|---|---|
+| UDP **47821** | PCs announce themselves every 2 s, so they appear automatically |
+| TCP **47822** | PC-to-PC transfers: file list → accept → raw stream → SHA-256 check |
+| HTTP **47823** | The phone/TV page: PIN login (cookie), streaming uploads, downloads with range support, Server-Sent Events |
+
+## Build from source
+
+```bash
+git clone https://github.com/lalitaryan1993/dropwave.git
+cd dropwave
+npm install
+npm run dev        # run with hot reload
+npm test           # headless tests: PC transfers + phone/TV access
+npm run dist       # build release/DropWave-Setup-x.y.z.exe
+```
+
+| Path | What's inside |
+|---|---|
+| `electron/engine.cjs` | PC discovery and transfer protocol (pure Node, unit-tested) |
+| `electron/webshare.cjs` + `electron/web/` | Phone/TV server and the mobile web page |
+| `electron/main.cjs` | Window, tray, notifications, settings |
+| `src/` | Desktop UI (React, Tailwind, Motion) |
+| `test/` | `engine.test.cjs`, `web.test.cjs` |
+
+## Roadmap
+
+- [ ] Android app (receive in the background, share-sheet integration)
+- [ ] macOS & Linux builds
+- [ ] Auto-update
+- [ ] Code-signed installer (removes the SmartScreen warning)
+- [ ] Clipboard / text sharing
+
+Ideas and bug reports are welcome. [Open an issue](https://github.com/lalitaryan1993/dropwave/issues).
+
+## License
+
+[MIT](LICENSE) © LALIT ARYAN. App icon and installer artwork were generated with ChatGPT.

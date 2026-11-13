@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- README hero image. Render with:
+     SHOOT='{"url":"file:///<repo>/docs/art/hero.html","out":"docs/hero.png","w":1280,"h":640,"scale":2}' electron scripts/shoot.cjs -->
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; }
+  body {
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: #eef0f8;
+    background:
+      radial-gradient(700px 480px at 92% 8%, rgba(44,200,234,.28), transparent 60%),
+      radial-gradient(760px 520px at 6% 110%, rgba(139,125,255,.35), transparent 60%),
+      linear-gradient(135deg, #0b0d14, #121527 60%, #0d1220);
+    position: relative;
+  }
+  .rings { position: absolute; left: 330px; top: 470px; }
+  .rings span { position: absolute; border: 1.5px solid rgba(139,125,255,.16); border-radius: 50%; transform: translate(-50%, -50%); }
+  .copy { position: absolute; left: 72px; top: 92px; width: 470px; }
+  .brand { display: flex; align-items: center; gap: 18px; }
+  .brand img { width: 84px; height: 84px; filter: drop-shadow(0 18px 30px rgba(109,93,252,.45)); }
+  .brand b { font-size: 60px; letter-spacing: -.035em; font-weight: 700; }
+  h1 { margin: 34px 0 0; font-size: 40px; line-height: 1.12; letter-spacing: -.025em; font-weight: 700; }
+  h1 em { font-style: normal; background: linear-gradient(100deg, #9d8bff, #34d3f0); -webkit-background-clip: text; color: transparent; }
+  p { margin: 18px 0 0; font-size: 19px; line-height: 1.5; color: #a9afc6; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .chip { font-size: 15px; font-weight: 600; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+  .win { position: absolute; left: 560px; top: 70px; width: 660px; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 40px 90px -20px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.08); }
+  .win img { display: block; width: 100%; }
+  .phone { position: absolute; left: 1010px; top: 196px; width: 228px; padding: 9px; border-radius: 40px; background: #05060a;
+    box-shadow: 0 40px 80px -10px rgba(0,0,0,.75), 0 0 0 1.5px rgba(255,255,255,.14); }
+  .phone img { display: block; width: 100%; border-radius: 32px; }
+</style></head>
+<body>
+  <div class="rings"><span style="width:300px;height:300px"></span><span style="width:520px;height:520px"></span><span style="width:760px;height:760px"></span><span style="width:1000px;height:1000px"></span></div>
+  <div class="copy">
+    <div class="brand"><img src="../../build/icon.png" alt=""><b>DropWave</b></div>
+    <h1>Drop files to <em>every device</em> on your Wi-Fi.</h1>
+    <p>Drag &amp; drop between PCs. Phones and smart TVs join from the browser by scanning a QR code. No cloud, no cables, no size limits.</p>
+    <div class="chips"><span class="chip">🪟 Windows</span><span class="chip">🤖 Android</span><span class="chip">🍎 iPhone</span><span class="chip">📺 Smart TV</span></div>
+  </div>
+  <div class="win"><img src="../screenshots/desktop-dark.png" alt=""></div>
+  <div class="phone"><img src="../screenshots/phone-dark.png" alt=""></div>
+</body></html>

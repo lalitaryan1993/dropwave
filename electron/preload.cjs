@@ -6,7 +6,7 @@ const on = (channel) => (cb) => {
   return () => ipcRenderer.off(channel, fn);
 };
 
-contextBridge.exposeInMainWorld('landrop', {
+contextBridge.exposeInMainWorld('dropwave', {
   getState: () => ipcRenderer.invoke('state'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   chooseSaveDir: () => ipcRenderer.invoke('settings:chooseSaveDir'),

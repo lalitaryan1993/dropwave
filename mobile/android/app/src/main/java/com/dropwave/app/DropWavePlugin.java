@@ -63,6 +63,15 @@ public class DropWavePlugin extends Plugin {
         p.notifyListeners("notifAction", new JSObject().put("id", id).put("action", action), true);
     }
 
+    // ---------- encryption ----------
+
+    /** Trust this PC certificate fingerprint (hex SHA-256) from now on. */
+    @PluginMethod
+    public void pinCert(PluginCall call) {
+        Pins.add(getContext(), call.getString("fp", ""));
+        call.resolve();
+    }
+
     // ---------- notifications ----------
 
     // Whether DropWave is on screen. Tracked here because the page's visibilityState isn't reliable:
@@ -219,8 +228,14 @@ public class DropWavePlugin extends Plugin {
             call.reject("Bad URL");
             return;
         }
+        String safe = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (url.startsWith("https://")) {
+            // Encrypted, pinned connection to the PC: our own downloader (DownloadManager can't pin).
+            PinnedDownload.start(getContext(), url, safe);
+            call.resolve(new JSObject().put("id", -1));
+            return;
+        }
         try {
-            String safe = name.replaceAll("[\\\\/:*?\"<>|]", "_");
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url))
                     .setTitle(safe)
                     .setDescription("DropWave")

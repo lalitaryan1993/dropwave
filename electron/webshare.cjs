@@ -7,8 +7,14 @@
 //   - receives files the PC (or another browser) sends it, as download links pushed over
 //     Server-Sent Events.
 // Connected browsers show up in the desktop app as devices you can drop files on.
+//
+// The same server also listens with HTTPS on port + 1 (47824) using a self-signed certificate.
+// The Android app pins that certificate's fingerprint (from /api/hello) and talks to the PC only
+// over HTTPS, so its PIN, files and messages are encrypted. Plain browsers keep using HTTP.
 
 const http = require('node:http');
+const https = require('node:https');
+const { fingerprint } = require('./tls.cjs');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -77,12 +83,18 @@ class WebShare extends EventEmitter {
    * @param {() => string} o.pin            current 6-digit PIN
    * @param {string} o.webRoot              folder with the phone page
    * @param {number} [o.port]
+   * @param {{key:string, cert:string}} [o.tls]  enables HTTPS on o.tlsPort (the Android app pins the cert)
+   * @param {number} [o.tlsPort]               defaults to port + 1
    * @param {(request) => Promise<boolean>} [o.decide]  accept files a browser sends to this PC
    */
   constructor(o) {
     super();
     this.o = o;
     this.port = o.port || DEFAULT_WEB_PORT;
+    this.tlsPort = o.tlsPort || this.port + 1;
+    this.tlsInfo = null;       // { port, fp } once the HTTPS server is up
+    this.tlsServer = null;
+    this.tlsError = null;
     this.clients = new Map();  // id -> { id, name, kind, ip, streams:Set<res>, lastSeen }
     this.shares = new Map();   // id -> share (files offered to a browser)
     this.streamLinks = new Map(); // token -> { files:[{abs,name}], created } — PC-to-PC "Play now"
@@ -95,29 +107,44 @@ class WebShare extends EventEmitter {
 
   // ---------- lifecycle ----------
 
-  start() {
+  async start() {
+    this.server = await this.#listen(http.createServer(this.#handler()), this.port);
+    this.timer = setInterval(() => this.#sweep(), 2000);
+    // HTTPS for the Android app. Optional: if it can't start, plain HTTP keeps working.
+    if (this.o.tls) {
+      try {
+        this.tlsServer = await this.#listen(https.createServer({ key: this.o.tls.key, cert: this.o.tls.cert }, this.#handler()), this.tlsPort);
+        this.tlsInfo = { port: this.tlsPort, fp: fingerprint(this.o.tls.cert) };
+      } catch (e) {
+        this.tlsError = e.code === 'EADDRINUSE' ? `Port ${this.tlsPort} is used by another program` : e.message;
+      }
+    }
+  }
+
+  #handler() {
+    return (req, res) => this.#route(req, res).catch((e) => {
+      if (!res.headersSent) json(res, 500, { error: e.message });
+      else res.destroy();
+    });
+  }
+
+  #listen(server, port) {
+    server.requestTimeout = 0; // big uploads
+    server.headersTimeout = 30000;
     return new Promise((resolve, reject) => {
-      const server = http.createServer((req, res) => this.#route(req, res).catch((e) => {
-        if (!res.headersSent) json(res, 500, { error: e.message });
-        else res.destroy();
-      }));
-      server.requestTimeout = 0; // big uploads
-      server.headersTimeout = 30000;
       server.once('error', reject);
-      server.listen(this.port, '0.0.0.0', () => {
-        server.off('error', reject);
-        this.server = server;
-        this.timer = setInterval(() => this.#sweep(), 2000);
-        resolve();
-      });
+      server.listen(port, '0.0.0.0', () => { server.off('error', reject); resolve(server); });
     });
   }
 
   async stop() {
     clearInterval(this.timer);
     for (const c of this.clients.values()) for (const s of c.streams) s.end();
-    if (this.server) await new Promise((r) => { this.server.closeAllConnections?.(); this.server.close(() => r()); });
+    const close = (s) => s && new Promise((r) => { s.closeAllConnections?.(); s.close(() => r()); });
+    await Promise.all([close(this.server), close(this.tlsServer)]);
     this.server = null;
+    this.tlsServer = null;
+    this.tlsInfo = null;
   }
 
   // After a PIN change: drop every connected browser (their cookie no longer matches).
@@ -240,7 +267,8 @@ class WebShare extends EventEmitter {
 
     if (p === '/api/hello') {
       const me = this.o.me();
-      return json(res, 200, { app: 'dropwave', pc: { id: me.id, name: me.name }, authed: this.#authed(req) });
+      // tls: where the encrypted server is and the certificate fingerprint the app should pin.
+      return json(res, 200, { app: 'dropwave', pc: { id: me.id, name: me.name }, authed: this.#authed(req), tls: this.tlsInfo, secure: !!req.socket.encrypted });
     }
     if (p === '/api/login' && req.method === 'POST') {
       const body = await readJson(req, 1024);

@@ -257,7 +257,7 @@
 
   function setConn(on) {
     $('#conn .dot').classList.toggle('off', !on);
-    $('#connText').textContent = on ? `Connected to ${pc.name}` : 'Reconnecting…';
+    $('#connText').textContent = on ? `${APP?.secure ? '🔒 ' : ''}Connected to ${pc.name}` : 'Reconnecting…';
   }
 
   if (APP) { $('#switchBtn').classList.remove('hidden'); $('#switchBtn').addEventListener('click', () => APP.switchPC()); }

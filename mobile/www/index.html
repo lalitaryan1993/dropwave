@@ -116,7 +116,7 @@
     const b = document.createElement('button');
     b.className = 'card';
     b.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${esc((pc.name || '?').slice(0, 2).toUpperCase())}</span>
-      <span class="meta"><div class="n">${esc(pc.name)}</div><div class="s">${esc(pc.base.replace('http://', ''))}</div></span>
+      <span class="meta"><div class="n">${esc(pc.name)}</div><div class="s">${pc.fp ? '🔒 ' : ''}${esc(pc.base.replace('http://', ''))}</div></span>
       <span class="dot ${online ? 'on' : ''}"></span>${onRemove ? '<span class="x" data-x>×</span>' : ''}`;
     b.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) { e.stopPropagation(); onRemove(); } else onClick(); });
     return b;
@@ -135,14 +135,40 @@
     }
   }
 
+  // Encryption: PCs found over plain HTTP (discovery) advertise an HTTPS port and the fingerprint
+  // of their self-signed certificate. The app pins that fingerprint the first time (like PC-to-PC
+  // pairing) and from then on talks to that PC only over HTTPS. A PC that was paired securely is
+  // never used over plain HTTP again, so a man in the middle can't quietly downgrade it.
+  async function secure(pc, h) {
+    if (!h.tls) {
+      if (pc.fp) { toast(`${pc.name} didn’t offer an encrypted connection. Update DropWave on the PC and try again.`); return false; }
+      pc.sbase = ''; // older PC app: plain HTTP as before
+      return true;
+    }
+    if (pc.fp && pc.fp !== h.tls.fp) {
+      const ok = confirm(`${pc.name}’s security key has changed.\n\nThat’s expected if DropWave was reinstalled on the PC. If not, someone on this Wi-Fi may be trying to intercept your files.\n\nPair again with the PIN?`);
+      if (!ok) return false;
+      pc.key = '';
+    }
+    pc.fp = h.tls.fp;
+    await DW?.pinCert({ fp: pc.fp });
+    pc.sbase = `https://${new URL(pc.base).hostname}:${h.tls.port}`;
+    return true;
+  }
+  const apiBase = (pc) => pc.sbase || pc.base;
+
   // Connect: reuse the saved key if it still works, otherwise ask for the PIN.
   async function connect(base) {
-    const h = await hello(base, pcs.find((p) => p.base === base)?.key, 2500);
+    const h = await hello(base, null, 2500);
     if (!h) return toast('Can’t reach that PC. Is DropWave open on it, on this Wi-Fi?');
     let pc = pcs.find((p) => p.id === h.pc.id);
     if (!pc) { pc = { id: h.pc.id, name: h.pc.name, base }; pcs.push(pc); }
-    pc.name = h.pc.name; pc.base = base; savePcs();
-    if (h.authed) return open(pc);
+    pc.name = h.pc.name; pc.base = base;
+    if (!(await secure(pc, h))) { savePcs(); return; }
+    savePcs();
+    const s = await hello(apiBase(pc), pc.key, 4000); // over HTTPS when the PC supports it
+    if (!s) return toast('Couldn’t open an encrypted connection to that PC. Try again.');
+    if (s.authed) return open(pc);
     askPin(pc);
   }
 
@@ -154,7 +180,7 @@
   $('#pinForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const pc = pinFor; if (!pc) return;
-    const r = await fetch(`${pc.base}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) }).catch(() => null);
+    const r = await fetch(`${apiBase(pc)}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) }).catch(() => null);
     const j = r ? await r.json().catch(() => ({})) : {};
     if (!r || !r.ok) { $('#pinErr').textContent = j.error || 'Could not connect'; $('#pin').value = ''; return; }
     pc.key = j.key; savePcs(); closePin(); open(pc);
@@ -183,7 +209,7 @@
       while (queue.length) {
         const host = queue.shift();
         const base = `http://${host}:${PORT}`;
-        const h = await hello(base, pcs.find((p) => p.base === base)?.key, 1200);
+        const h = await hello(base, null, 1200); // discovery only: never send the key over plain HTTP
         done++; $('#scanbar i').style.width = `${(done / hosts.length) * 100}%`;
         if (h) {
           found++;
@@ -204,7 +230,17 @@
   (async () => {
     renderMine();
     const pick = new URLSearchParams(location.search).has('pick');
-    await Promise.all(pcs.map(async (pc) => { const h = await hello(pc.base, pc.key); if (h) { online.add(pc.id); if (h.authed) pc.ok = true; } }));
+    await Promise.all(pcs.map(async (pc) => {
+      const h = await hello(pc.base);
+      if (!h || h.pc.id !== pc.id) return;
+      online.add(pc.id);
+      // Upgrade PCs saved before encryption existed; skip any whose key changed (needs the user).
+      if (h.tls && pc.fp && pc.fp !== h.tls.fp) return;
+      if (!(await secure(pc, h))) return;
+      const s = await hello(apiBase(pc), pc.key, 3000);
+      if (s?.authed) pc.ok = true;
+    }));
+    savePcs();
     renderMine();
     const last = [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
     if (!pick && last && last.ok) return open(last);

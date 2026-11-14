@@ -67,7 +67,8 @@ and on phones and TVs right in the browser.
 Any connected browser can send to any other (relayed through the PC).
 
 ### 🔒 Encrypted & reliable
-PC-to-PC transfers are **end-to-end encrypted** (X25519 + AES-256-GCM, device identities pinned).
+PC-to-PC transfers are **end-to-end encrypted** (X25519 + AES-256-GCM, device identities pinned),
+and the **Android app talks to your PC over TLS 1.3** with the PC's certificate pinned.
 Wi-Fi dropped? Transfers **resume where they stopped**. SHA-256 verified, no overwrites.
 
 </td>
@@ -189,8 +190,12 @@ Browsers also need the 6-digit PIN, and <b>New PIN</b> instantly disconnects eve
 <summary><b>Is it encrypted? Can others on the network see my files?</b></summary>
 PC-to-PC transfers and text are end-to-end encrypted: a fresh X25519 key exchange per connection, AES-256-GCM for
 the data, and each PC's Ed25519 identity is remembered on first contact, so an impostor is refused. Compare the
-<b>Security code</b> in Settings on both PCs to be sure. The phone/TV browser page uses plain HTTP on your local
-network (browsers would show certificate warnings otherwise), so use it on networks you trust.
+<b>Security code</b> in Settings on both PCs to be sure.<br><br>
+The <b>Android app</b> connects over HTTPS (TLS 1.3): each PC makes its own certificate, and the app remembers
+(pins) it the first time you pair, then refuses any other certificate and never falls back to plain HTTP for that
+PC. Your PIN, files, messages and video streams are encrypted. The <b>no-install browser page</b> (TVs, iPhones,
+other phones) still uses plain HTTP on your local network, because browsers would show certificate warnings
+otherwise, so use it on networks you trust.
 </details>
 
 <details>
@@ -276,7 +281,9 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Encrypted, resumable PC-to-PC transfers
 - [x] Explorer right-click "Send with DropWave"
 - [x] Android app with Share → DropWave
-- [ ] Android: receive in the background (foreground service) and auto-discovery without scanning
+- [x] Android: notifications with Download / Decline, stays connected in the background
+- [x] Android: encrypted connection to the PC (TLS 1.3, pinned certificate)
+- [ ] Android: auto-discovery without scanning
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)
 - [ ] Hindi and other languages

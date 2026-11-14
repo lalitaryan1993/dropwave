@@ -11,7 +11,8 @@
   const save = () => localStorage.setItem('dw_pcs', JSON.stringify(pcs));
 
   window.DW_APP = {
-    base: cur.base,
+    base: cur.sbase || cur.base, // HTTPS (pinned certificate) when the PC supports it
+    secure: !!cur.sbase,
     key: cur.key || '',
     saveKey(k) { this.key = k; cur.key = k; save(); },
     download(url, name) {

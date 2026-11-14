@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat;
 final class Notifs {
     static final String CH_TRANSFERS = "transfers";
     static final String CH_STATUS = "status";
+    static final String CH_DOWNLOADS = "downloads";
     static final int STATUS_ID = 1;
     private static final int ACCENT = 0xFF6366F1;
 
@@ -29,6 +30,10 @@ final class Notifs {
         s.setDescription("Shown while DropWave stays connected to your PC in the background");
         s.setShowBadge(false);
         nm.createNotificationChannel(s);
+        NotificationChannel d = new NotificationChannel(CH_DOWNLOADS, "Downloads", NotificationManager.IMPORTANCE_LOW);
+        d.setDescription("Progress of files being saved from your PC");
+        d.setShowBadge(false);
+        nm.createNotificationChannel(d);
     }
 
     /** Stable int id for a string id; never collides with the status notification. */
@@ -76,12 +81,12 @@ final class Notifs {
         NotificationManagerCompat.from(c).cancel(num(id));
     }
 
-    /** Clears file/message notifications but keeps the connection one. */
+    /** Clears file/message notifications (keeps the connection and download ones). */
     static void cancelAll(Context c) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm == null) return;
         for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) {
-            if (n.getId() != STATUS_ID) nm.cancel(n.getId());
+            if (CH_TRANSFERS.equals(n.getNotification().getChannelId())) nm.cancel(n.getId());
         }
     }
 }

@@ -6,7 +6,9 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
+const https = require('node:https');
 const { WebShare } = require('../electron/webshare.cjs');
+const { makeCert, fingerprint } = require('../electron/tls.cjs');
 
 const PORT = 48210;
 const base = `http://127.0.0.1:${PORT}`;
@@ -181,6 +183,34 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
 
   phone.close(); tv.close();
   await web.stop();
+
+  // 8. HTTPS for the Android app: /api/hello advertises the port + certificate fingerprint, the
+  //    HTTPS server presents exactly that certificate, and login + an authed call work over it.
+  const tlsCert = makeCert();
+  const sweb = new WebShare({
+    me: () => ({ id: 'PC', name: 'Test PC' }), saveDir: () => saveDir, pin: () => '123456',
+    webRoot: path.join(__dirname, '..', 'electron', 'web'), port: PORT + 10, tls: tlsCert,
+  });
+  await sweb.start();
+  const h = await (await fetch(`http://127.0.0.1:${PORT + 10}/api/hello`)).json();
+  assert.deepEqual(h.tls, { port: PORT + 11, fp: fingerprint(tlsCert.cert) });
+  assert.equal(h.secure, false);
+  const httpsReq = (p, { method = 'GET', headers = {}, body } = {}) => new Promise((resolve, reject) => {
+    const q = https.request({ host: '127.0.0.1', port: PORT + 11, path: p, method, headers, rejectUnauthorized: false, agent: false }, (res) => {
+      const fp = res.socket.getPeerX509Certificate().fingerprint256.replace(/:/g, '').toLowerCase(), cipher = res.socket.getCipher().name;
+      let d = ''; res.on('data', (c) => { d += c; }); res.on('end', () => resolve({ status: res.statusCode, fp, json: JSON.parse(d || '{}'), cipher }));
+    });
+    q.on('error', reject); q.end(body);
+  });
+  const sh = await httpsReq('/api/hello');
+  assert.equal(sh.fp, h.tls.fp);
+  assert.equal(sh.json.secure, true);
+  const tlsLogin = await httpsReq('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '123456' }) });
+  assert.equal(tlsLogin.status, 200);
+  assert.equal((await httpsReq('/api/hello', { headers: { 'X-DropWave-Key': tlsLogin.json.key } })).json.authed, true);
+  console.log(`ok  HTTPS for the app: pinned certificate, PIN login over TLS (${sh.cipher})`);
+  await sweb.stop();
+
   await fsp.rm(root, { recursive: true, force: true });
   console.log('\nAll web tests passed');
   process.exit(0);

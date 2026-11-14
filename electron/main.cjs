@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const QRCode = require('qrcode');
 const { Engine, localIPv4s, collectFiles, DEFAULT_TCP_PORT } = require('./engine.cjs');
 const { WebShare, DEFAULT_WEB_PORT } = require('./webshare.cjs');
+const { loadOrCreate: loadOrCreateTls } = require('./tls.cjs');
 const diagnostics = require('./diagnostics.cjs');
 
 // ---- profiles (lets two copies run on one PC for testing) ----
@@ -297,6 +298,11 @@ function askUser(request) {
 }
 
 // ---- phones & TVs (browser access) ----
+// The HTTPS certificate the Android app pins. Kept in its own file (private key: never in settings/UI).
+function webTls() {
+  try { return loadOrCreateTls(path.join(app.getPath('userData'), 'web-tls.json')); } catch (e) { console.error('web TLS:', e); return null; }
+}
+
 async function startWeb() {
   webError = null;
   if (!settings.webEnabled || web) return;
@@ -307,6 +313,7 @@ async function startWeb() {
     pin: () => settings.webPin,
     webRoot: path.join(__dirname, 'web'),
     port,
+    tls: webTls(),
     decide: askUser,
   });
   w.on('clients', () => push('peers', allPeers()));

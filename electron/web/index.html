@@ -242,11 +242,12 @@
       const d = JSON.parse(m.data);
       $('#meName').textContent = d.you.name;
       setConn(true);
+      APP?.connected?.(d.pc?.name || pc.name);
     });
     es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); });
     es.addEventListener('offer', (m) => addOffer(JSON.parse(m.data)));
     es.addEventListener('text', (m) => addText(JSON.parse(m.data)));
-    es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); toast('The sender cancelled'); });
+    es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); APP?.clearNotify?.('o-' + id); toast('The sender cancelled'); });
     es.onerror = () => {
       setConn(false);
       // A locked response (PIN changed) also lands here: re-check.
@@ -418,11 +419,35 @@
       toast(`💬 ${m.from.name}: ${m.text.length > 50 ? m.text.slice(0, 47) + '…' : m.text}`);
     }
     if (navigator.vibrate) navigator.vibrate(60);
+    // One notification per sender; a newer message replaces the older one.
+    APP?.notify?.({ id: 'm-' + m.from.id, kind: 'text', title: m.from.name, body: m.text.length > 300 ? m.text.slice(0, 297) + '…' : m.text });
   }
 
+  // Download / Decline tapped on an Android notification (app may be in the background).
+  window.dwNotifAction = async (id, action) => {
+    const card = document.getElementById(id);
+    const o = offers.get(id);
+    if (!card || !o) return;
+    if (action === 'decline') {
+      await api('/api/decline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id }) }).catch(() => {});
+      card.remove();
+      return;
+    }
+    // Download every file straight away (no synthetic clicks: they're unreliable in the background).
+    const rows = card.querySelectorAll('.frow');
+    for (let i = 0; i < o.files.length; i++) {
+      const f = o.files[i];
+      if (APP) APP.download(withKey(f.url), f.name.split('/').pop());
+      if (rows[i]) markDone(rows[i]);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  };
+
   // ---------- receiving ----------
+  const offers = new Map(); // 'o-<id>' -> offer, for the notification buttons
   function addOffer(o) {
     if (document.getElementById('o-' + o.id)) return;
+    offers.set('o-' + o.id, o);
     const card = el('div', 'offer');
     card.id = 'o-' + o.id;
     const many = o.files.length > 1;
@@ -460,6 +485,12 @@
     $('#offers').prepend(card);
     if (navigator.vibrate) navigator.vibrate(60);
     toast(`${o.from.name} sent you ${many ? o.files.length + ' files' : 'a file'}`);
+    const names = o.files.map((f) => f.name.split('/').pop());
+    APP?.notify?.({
+      id: 'o-' + o.id, kind: 'offer',
+      title: `${o.from.name} sent you ${many ? o.files.length + ' files' : 'a file'}`,
+      body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3} more` : ''} · ${fmt(o.total)}`,
+    });
   }
   function markDone(row) { const a = row.querySelector('[data-dl]'); a.innerHTML = svg('check', 'style="width:16px;height:16px"'); a.classList.add('ok'); }
 

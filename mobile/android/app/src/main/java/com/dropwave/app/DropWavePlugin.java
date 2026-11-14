@@ -34,7 +34,10 @@ import java.util.List;
  *  - takeShared(): files/text shared into the app from other apps ("Share -> DropWave")
  *  - minimize(): send the app to the background (used for the Back button)
  *  - localIps(): this phone's IPv4 addresses, to scan the Wi-Fi for PCs
- * Emits "shared" when something is shared while the app is already open.
+ *  - showNotification / cancelNotify: system notifications for files and messages from the PC
+ *  - keepAlive: foreground service that keeps the connection open in the background
+ * Emits "shared" when something is shared while the app is already open, and
+ * "notifAction" when a notification's Download/Decline button is tapped.
  */
 @CapacitorPlugin(name = "DropWave")
 public class DropWavePlugin extends Plugin {
@@ -42,11 +45,89 @@ public class DropWavePlugin extends Plugin {
     private static final String TAG = "DropWave";
 
     private JSObject pendingShare = null;
+    private static DropWavePlugin instance;
 
     @Override
     public void load() {
+        instance = this;
+        Notifs.ensureChannels(getContext());
         Intent intent = getActivity().getIntent();
         if (isShare(intent)) collectShare(intent, false);
+    }
+
+    /** A Download/Decline tap on a notification, passed to the page as "notifAction". */
+    static void fireAction(String id, String action) {
+        DropWavePlugin p = instance;
+        if (p == null) return;
+        Log.i(TAG, "notification action " + action + " for " + id);
+        p.notifyListeners("notifAction", new JSObject().put("id", id).put("action", action), true);
+    }
+
+    // ---------- notifications ----------
+
+    // Whether DropWave is on screen. Tracked here because the page's visibilityState isn't reliable:
+    // Capacitor keeps the WebView running in the background, so it can still say "visible".
+    private static volatile boolean onScreen = true;
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        onScreen = true;
+        Notifs.cancelAll(getContext()); // the page shows everything now
+    }
+
+    @Override
+    protected void handleOnPause() {
+        super.handleOnPause();
+        onScreen = false;
+    }
+
+    @PluginMethod
+    public void showNotification(PluginCall call) {
+        String id = call.getString("id", "dropwave");
+        Log.i(TAG, "notification " + call.getString("kind") + " " + id + (onScreen ? " (on screen: skipped)" : ""));
+        if (onScreen) { call.resolve(new JSObject().put("shown", false)); return; } // the page's own cards/toasts show it
+        Notifs.show(getContext(), id, call.getString("kind", "text"), call.getString("title", "DropWave"), call.getString("body", ""));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void cancelNotify(PluginCall call) {
+        String id = call.getString("id");
+        if (id != null) Notifs.cancel(getContext(), id);
+        else Notifs.cancelAll(getContext());
+        call.resolve();
+    }
+
+    /** on=true: stay connected in the background (and ask for the notification permission once). */
+    @PluginMethod
+    public void keepAlive(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("on", true));
+        Context ctx = getContext();
+        Intent i = new Intent(ctx, KeepAliveService.class).putExtra("text", call.getString("text", "Connected"));
+        try {
+            if (on) {
+                askNotificationPermission();
+                ctx.startForegroundService(i);
+            } else {
+                ctx.stopService(i);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            // Android 12+ refuses to start a foreground service while the app is in the background.
+            Log.w(TAG, "keepAlive(" + on + ") failed", e);
+            call.reject(e.getMessage());
+        }
+    }
+
+    private void askNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT < 33) return;
+        String p = android.Manifest.permission.POST_NOTIFICATIONS;
+        if (androidx.core.content.ContextCompat.checkSelfPermission(getContext(), p) == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        android.content.SharedPreferences sp = getContext().getSharedPreferences("dropwave", Context.MODE_PRIVATE);
+        if (sp.getBoolean("askedNotif", false)) return; // ask once; after that it's in Android settings
+        sp.edit().putBoolean("askedNotif", true).apply();
+        androidx.core.app.ActivityCompat.requestPermissions(getActivity(), new String[]{p}, 7301);
     }
 
     @Override
@@ -133,6 +214,7 @@ public class DropWavePlugin extends Plugin {
     public void download(PluginCall call) {
         String url = call.getString("url");
         String name = call.getString("name", "download");
+        Log.i(TAG, "download " + name);
         if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
             call.reject("Bad URL");
             return;

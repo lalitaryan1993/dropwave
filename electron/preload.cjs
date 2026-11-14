@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('dropwave', {
   readClipboard: () => ipcRenderer.invoke('clipboard:read'),
   writeClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
   sendText: (peerId, text) => ipcRenderer.invoke('text:send', peerId, text),
+  // Calls / screen sharing (WebRTC signaling; media flows device to device)
+  rtcSend: (peerId, msg) => ipcRenderer.invoke('rtc:send', peerId, msg),
+  onRtc: on('rtc'),
   openLink: (url) => ipcRenderer.invoke('link:open', url),
   onText: on('text'),
   chatList: () => ipcRenderer.invoke('chat:list'),

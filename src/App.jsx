@@ -9,6 +9,7 @@ import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
 import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, Toasts } from './components.jsx';
 import { ChatsView } from './chat.jsx';
+import { useCalls, CallLayer } from './call.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -55,6 +56,7 @@ export default function App() {
     setToasts((t) => [...t, { id, text, kind }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   }, []);
+  const { call, calls, start: startCall } = useCalls(toast);
 
   useEffect(() => {
     api.getState().then((s) => {
@@ -256,6 +258,7 @@ export default function App() {
                     onDropPaths={sendPaths} onPick={pick} onAdd={() => setShowAdd(true)} onPhone={() => setShowPhone(true)} onSeeAll={() => setView('activity')}
                     onCheck={() => { setView('settings'); setCheckSignal((n) => n + 1); }}
                     onText={(p) => openChatWith(p.id)}
+                    onCall={startCall}
                   />
                 )}
                 {view === 'chats' && <ChatsView peers={peers} list={chatList} selected={chatPeer} onSelect={setChatPeer} />}
@@ -280,6 +283,7 @@ export default function App() {
         )}
         {showPhone && <PhoneModal onClose={() => setShowPhone(false)} onOpenSettings={() => { setShowPhone(false); setView('settings'); }} />}
       </AnimatePresence>
+      <CallLayer call={call} calls={calls} />
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>
   );
@@ -303,7 +307,7 @@ function SectionTitle({ title, sub, right }) {
 
 // ---------- Nearby ----------
 
-function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPaths, onPick, onAdd, onPhone, onSeeAll, onCheck, onText }) {
+function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPaths, onPick, onAdd, onPhone, onSeeAll, onCheck, onText, onCall }) {
   // Computers first, then phones/TVs; alphabetical inside each group.
   const sorted = useMemo(() => [...peers].sort((a, b) => Number(!!a.web) - Number(!!b.web) || a.name.localeCompare(b.name)), [peers]);
   return (
@@ -326,7 +330,7 @@ function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPath
             <motion.div layout className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">
               <AnimatePresence>
                 {sorted.map((p) => (
-                  <DeviceCard key={p.id} peer={p} dragging={dragging} busy={busyPeers.has(p.id)} onDropPaths={onDropPaths} onPick={onPick} onText={onText} />
+                  <DeviceCard key={p.id} peer={p} dragging={dragging} busy={busyPeers.has(p.id)} onDropPaths={onDropPaths} onPick={onPick} onText={onText} onCall={onCall} />
                 ))}
               </AnimatePresence>
             </motion.div>

@@ -110,6 +110,28 @@
   .viewer video, .viewer img, .viewer audio { max-width:100vw; max-height:100vh; }
   .viewer .close { position:fixed; top:max(14px, env(safe-area-inset-top)); right:14px; background:rgba(255,255,255,.15); color:#fff; width:46px; height:46px; border-radius:50%; display:grid; place-items:center; }
 
+  /* calls & screen sharing */
+  .callrow { display:flex; gap:8px; margin:-4px 0 14px; }
+  .callrow .btn { flex:1; height:40px; font-size:13.5px; padding:0 10px; }
+  .call { position:fixed; inset:0; z-index:55; background:#05060a; color:#fff; display:flex; flex-direction:column; }
+  .call video { background:#000; }
+  .call #cRemote { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  .call #cLocal { position:absolute; right:14px; top:calc(70px + env(safe-area-inset-top)); width:30vw; max-width:180px; aspect-ratio:3/4; object-fit:cover; border-radius:16px; border:1px solid rgba(255,255,255,.25); transform:scaleX(-1); z-index:2; }
+  .call .ctop { position:relative; z-index:2; padding:calc(16px + env(safe-area-inset-top)) 18px 26px; background:linear-gradient(#000a,#0000); }
+  .call .ctop b { font-size:17px; display:block; }
+  .call .ctop span { font-size:13px; color:#fffb; }
+  .call .cmid { flex:1; display:grid; place-items:center; position:relative; z-index:1; text-align:center; }
+  .call .cav { width:96px; height:96px; border-radius:50%; display:grid; place-items:center; font-size:34px; font-weight:800; margin:0 auto 14px; background:linear-gradient(140deg,var(--accent),var(--accent2)); }
+  .call .cav.pulse { animation:cpulse 1.4s ease-in-out infinite; }
+  @keyframes cpulse { 50% { box-shadow:0 0 0 18px rgba(139,125,255,.18); } }
+  .call .cbar { position:relative; z-index:2; display:flex; justify-content:center; gap:22px; padding:28px 18px calc(30px + env(safe-area-inset-bottom)); background:linear-gradient(#0000,#000b); }
+  .cbtn { width:62px; height:62px; border-radius:50%; display:grid; place-items:center; background:rgba(255,255,255,.16); color:#fff; }
+  .cbtn.on { background:#fff; color:#111; }
+  .cbtn.red { background:#e5484d; }
+  .cbtn.green { background:#12a36b; }
+  .cbtn svg { width:26px; height:26px; }
+  .clabel { font-size:12px; color:#fffb; margin-top:6px; text-align:center; }
+
   .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:60; }
   @media (min-width: 900px) { .wrap { max-width:760px; } body { font-size:16px; } }
 </style>
@@ -145,6 +167,11 @@
 
     <h2>Send to</h2>
     <div id="targets" class="targets"></div>
+    <div id="callRow" class="callrow hidden">
+      <button class="btn soft" id="callAudio"><svg class="i" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>Call</button>
+      <button class="btn soft" id="callVideo"><svg class="i" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>Video</button>
+      <button class="btn soft" id="callScreen"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>View screen</button>
+    </div>
     <label id="drop" class="drop" tabindex="0">
       <div class="big grad"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></div>
       <b>Choose files to send</b>
@@ -163,11 +190,28 @@
   </section>
 </div>
 
+<div id="call" class="call hidden">
+  <video id="cRemote" autoplay playsinline class="hidden"></video>
+  <video id="cLocal" autoplay playsinline muted class="hidden"></video>
+  <div class="ctop"><b id="cName"></b><span id="cStatus"></span></div>
+  <div class="cmid"><div id="cWho"><div id="cAv" class="cav"></div><div id="cDesc" style="font-size:15px;color:#fffc"></div></div></div>
+  <div id="cRing" class="cbar hidden">
+    <div><button class="cbtn red" id="cDecline" aria-label="Decline"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button><div class="clabel">Decline</div></div>
+    <div><button class="cbtn green" id="cAccept" aria-label="Accept"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></button><div class="clabel" id="cAcceptLabel">Accept</div></div>
+  </div>
+  <div id="cBar" class="cbar hidden">
+    <button class="cbtn" id="cMute" aria-label="Mute"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></button>
+    <button class="cbtn" id="cCam" aria-label="Camera"><svg class="i" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></button>
+    <button class="cbtn red" id="cEnd" aria-label="End"><svg class="i" viewBox="0 0 24 24"><path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7M22 2 2 22"/></svg></button>
+  </div>
+</div>
+
 <div id="viewer" class="viewer hidden">
   <button class="close" id="vClose" aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   <div id="vBody"></div>
 </div>
 
+<script src="rtc.js"></script>
 <script>
 (() => {
   // Inside the DropWave Android app, window.DW_APP = { base, key, download(url, name), saveKey(key),
@@ -247,6 +291,7 @@
     es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); });
     es.addEventListener('offer', (m) => addOffer(JSON.parse(m.data)));
     es.addEventListener('text', (m) => addText(JSON.parse(m.data)));
+    es.addEventListener('rtc', (m) => onRtc(JSON.parse(m.data)));
     es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); APP?.clearNotify?.('o-' + id); toast('The sender cancelled'); });
     es.onerror = () => {
       setConn(false);
@@ -285,6 +330,7 @@
       box.appendChild(b);
     }
     if (target !== before) renderThread();
+    updateCallRow();
   }
 
   // ---------- sending ----------
@@ -506,6 +552,96 @@
   const closeViewer = () => { $('#viewer').classList.add('hidden'); $('#vBody').innerHTML = ''; };
   $('#vClose').addEventListener('click', closeViewer);
   document.addEventListener('keydown', (e) => { if ((e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack') && !$('#viewer').classList.contains('hidden')) { e.preventDefault(); closeViewer(); } });
+
+  // ---------- calls & screen sharing (WebRTC; logic in rtc.js, shared with the PC) ----------
+  const callDesc = (c) => c.media === 'screen'
+    ? (c.role === 'callee' ? (c.share === 'callee' ? 'wants to see your screen' : 'wants to show you their screen') : (c.sharing ? 'Sharing your screen' : 'Screen'))
+    : c.role === 'callee' ? (c.media === 'video' ? 'Video call' : 'Voice call') : (c.media === 'video' ? 'Video call' : 'Voice call');
+  let ringBuzz = null, liveAt = 0, liveTimer = null;
+  const calls = window.DWCalls ? window.DWCalls({
+    send: async (peerId, msg) => {
+      const r = await api('/api/rtc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: peerId, msg }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not reach that device');
+    },
+    onChange: renderCall,
+  }) : null;
+
+  function renderCall(c) {
+    const o = $('#call');
+    clearInterval(ringBuzz); ringBuzz = null;
+    if (!c) {
+      o.classList.add('hidden'); clearInterval(liveTimer); liveTimer = null; liveAt = 0;
+      $('#cRemote').srcObject = null; $('#cLocal').srcObject = null;
+      return;
+    }
+    o.classList.remove('hidden');
+    const ringing = c.status === 'ringing-in';
+    if (ringing && navigator.vibrate) { navigator.vibrate([400, 300, 400]); ringBuzz = setInterval(() => navigator.vibrate([400, 300, 400]), 2000); }
+    $('#cRing').classList.toggle('hidden', !ringing);
+    $('#cBar').classList.toggle('hidden', ringing || c.status === 'ended');
+    $('#cName').textContent = c.peer.name;
+    $('#cDesc').textContent = callDesc(c);
+    $('#cAv').textContent = (c.peer.name || '?').slice(0, 2).toUpperCase();
+    $('#cAv').classList.toggle('pulse', c.status.startsWith('ringing'));
+    const screenAsk = c.media === 'screen' && c.share === 'callee';
+    $('#cAcceptLabel').textContent = ringing && screenAsk ? 'Share screen' : 'Accept';
+
+    const rv = $('#cRemote');
+    if (rv.srcObject !== (c.remote || null)) rv.srcObject = c.remote || null;
+    const showsVideo = c.media === 'video' || (c.media === 'screen' && !c.sharing);
+    rv.classList.toggle('hidden', !showsVideo || !c.remote);
+    $('#cWho').classList.toggle('hidden', showsVideo && !!c.remote);
+    const lv = $('#cLocal');
+    const showLocal = c.media === 'video' && c.local && !c.camOff;
+    if (showLocal && lv.srcObject !== c.local) lv.srcObject = c.local;
+    lv.classList.toggle('hidden', !showLocal);
+
+    const hasMic = !!c.local?.getAudioTracks().length;
+    $('#cMute').classList.toggle('hidden', !hasMic);
+    $('#cMute').classList.toggle('on', c.muted);
+    $('#cCam').classList.toggle('hidden', c.media !== 'video' || !c.local);
+    $('#cCam').classList.toggle('on', c.camOff);
+
+    clearInterval(liveTimer); liveTimer = null;
+    const status = () => {
+      if (c.status === 'ended') return c.reason || 'Call ended';
+      if (c.status === 'ringing-out') return 'Ringing…';
+      if (c.status === 'connecting') return 'Connecting…';
+      if (c.status === 'live') { const s = Math.floor((Date.now() - liveAt) / 1000); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+      return '';
+    };
+    if (c.status === 'live') { if (!liveAt) liveAt = Date.now(); liveTimer = setInterval(() => { $('#cStatus').textContent = status(); }, 1000); }
+    $('#cStatus').textContent = status();
+  }
+
+  async function startCall(media, share) {
+    const to = peers.find((p) => p.id === target);
+    if (!calls || !to) return;
+    try { await calls.start({ id: to.id, name: to.name }, media, share); } catch (e) { toast(e.message || 'Could not start the call'); }
+  }
+  $('#callAudio').addEventListener('click', () => startCall('audio'));
+  $('#callVideo').addEventListener('click', () => startCall('video'));
+  $('#callScreen').addEventListener('click', () => startCall('screen', 'callee'));
+  $('#cAccept').addEventListener('click', () => calls?.accept());
+  $('#cDecline').addEventListener('click', () => calls?.decline());
+  $('#cEnd').addEventListener('click', () => calls?.end());
+  $('#cMute').addEventListener('click', () => calls?.toggleMute());
+  $('#cCam').addEventListener('click', () => calls?.toggleCam());
+
+  function updateCallRow() {
+    const to = peers.find((p) => p.id === target);
+    $('#callRow').classList.toggle('hidden', !calls || !to);
+    $('#callScreen').classList.toggle('hidden', !to?.pc); // only PCs can share their screen
+  }
+
+  function onRtc(d) {
+    calls?.handle(d.from, d.msg);
+    const m = d.msg || {};
+    if (m.type === 'ring') {
+      const what = m.media === 'screen' ? (m.share === 'callee' ? 'wants to see your screen' : 'wants to show you their screen') : m.media === 'video' ? 'is video calling' : 'is calling';
+      APP?.notify?.({ id: 'c-' + m.call, kind: 'call', title: `${d.from.name} ${what}`, body: 'Tap to answer' });
+    } else if (m.type === 'end' || m.type === 'decline') APP?.clearNotify?.('c-' + m.call);
+  }
 
   // ---------- don't lose the connection to an accidental Back press ----------
   // Keep an extra history entry: Back first closes the viewer, then asks for a second press.

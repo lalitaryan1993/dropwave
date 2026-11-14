@@ -299,6 +299,17 @@ class WebShare extends EventEmitter {
       else if (!this.sendText(String(b.to), text, sender)) return json(res, 400, { error: 'That device is no longer connected' });
       return json(res, 200, { ok: true });
     }
+    // Call / screen-sharing signaling (WebRTC). Media itself flows device to device.
+    if (p === '/api/rtc' && req.method === 'POST') {
+      const b = await readJson(req, 64 * 1024);
+      const from = this.clients.get(String(b.from));
+      const m = b.msg;
+      if (!from || !m || typeof m !== 'object' || typeof m.type !== 'string') return json(res, 400, { error: 'Bad call message' });
+      const sender = { id: from.id, name: from.name, kind: from.kind };
+      if (!b.to || b.to === this.o.me().id) this.emit('rtc', { from: sender, msg: m });
+      else if (!this.sendRtc(String(b.to), m, sender)) return json(res, 400, { error: 'That device is no longer connected' });
+      return json(res, 200, { ok: true });
+    }
     if (p === '/api/upload' && req.method === 'POST') return this.#upload(req, res, url);
     if (p === '/api/cancel' && req.method === 'POST') {
       const b = await readJson(req, 1024);
@@ -503,6 +514,15 @@ class WebShare extends EventEmitter {
   }
 
   // ---------- PC / browser -> browser ----------
+
+  /** Push a call/screen-sharing signaling message to a connected browser. False if it isn't connected. */
+  sendRtc(clientId, msg, from = null) {
+    const c = this.clients.get(clientId);
+    if (!c || !c.streams.size) return false;
+    const me = this.o.me();
+    this.#send(c, 'rtc', { from: from || { id: me.id, name: me.name, kind: 'computer' }, msg });
+    return true;
+  }
 
   /** Push a piece of text to a connected browser. Returns false if it isn't connected. */
   sendText(clientId, text, from = null) {

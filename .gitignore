@@ -5,6 +5,7 @@ release/
 
 # Android app: generated from electron/web by mobile/build-www.cjs
 mobile/www/client.html
+mobile/www/rtc.js
 mobile/www/*.png
 mobile/android/app/build/
 mobile/android/.gradle/

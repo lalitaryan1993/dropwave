@@ -15,5 +15,5 @@ html = html.replace(marker, `<script src="bridge.js"></script>\n${marker}`);
 html = html.replace(/<link rel="manifest"[^>]*>\n?/, '');
 fs.writeFileSync(path.join(www, 'client.html'), html);
 
-for (const f of ['icon-192.png', 'icon-512.png', 'favicon.png']) fs.copyFileSync(path.join(web, f), path.join(www, f));
-console.log('www built: client.html + icons');
+for (const f of ['icon-192.png', 'icon-512.png', 'favicon.png', 'rtc.js']) fs.copyFileSync(path.join(web, f), path.join(www, f));
+console.log('www built: client.html + rtc.js + icons');

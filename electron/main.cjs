@@ -1,4 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, Notification, nativeImage, nativeTheme, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, Notification, nativeImage, nativeTheme, clipboard, session, desktopCapturer } = require('electron');
+
+// Calls/screen sharing stay on the local network: offer real LAN addresses instead of
+// mDNS ".local" names, which some phones can't resolve.
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -255,6 +259,17 @@ function handleText(m) {
   }
 }
 
+// Call / screen-sharing signaling from a phone: hand it to the window; a ring brings it to the front.
+function handleRtc({ from, msg }) {
+  if (msg?.type === 'ring') {
+    showWindow();
+    win?.flashFrame(true);
+    const what = msg.media === 'screen' ? (msg.share === 'callee' ? 'wants to see your screen' : 'wants to share their screen') : msg.media === 'video' ? 'is video calling' : 'is calling';
+    notify(`${from.name} ${what}`, 'Open DropWave to answer');
+  }
+  push('rtc', { from, msg });
+}
+
 function handleTransfer(t) {
   const finished = ['completed', 'failed', 'rejected', 'cancelled'].includes(t.status);
   if (finished) {
@@ -319,6 +334,7 @@ async function startWeb() {
   w.on('clients', () => push('peers', allPeers()));
   w.on('transfer', handleTransfer);
   w.on('text', handleText);
+  w.on('rtc', handleRtc);
   w.on('request-closed', (id) => { pendingRequests.delete(id); push('request-closed', id); });
   try {
     await w.start();
@@ -461,6 +477,11 @@ function registerIpc() {
   // Clipboard / text sharing
   ipcMain.handle('clipboard:read', () => clipboard.readText());
   ipcMain.handle('clipboard:write', (_e, text) => { clipboard.writeText(String(text || '')); });
+  ipcMain.handle('rtc:send', async (_e, peerId, msg) => {
+    const peer = findPeer(peerId);
+    if (!peer.web) throw new Error('Calls between two PCs are coming soon. Call a phone for now.');
+    if (!web?.sendRtc(peer.id, msg)) throw new Error('That device is no longer connected');
+  });
   ipcMain.handle('text:send', async (_e, peerId, text) => {
     const peer = findPeer(peerId);
     if (peer.web) { if (!web?.sendText(peer.id, text)) throw new Error('That device is no longer connected'); return; }
@@ -618,6 +639,13 @@ app.on('second-instance', (_e, argv) => {
 });
 
 app.whenReady().then(async () => {
+  // Screen sharing: share the main screen (with its sound on Windows). The share is only ever
+  // started after the user accepts a request or presses "Share screen" in DropWave.
+  session.defaultSession.setDisplayMediaRequestHandler((_req, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] })
+      .then((sources) => callback(sources[0] ? { video: sources[0], ...(process.platform === 'win32' ? { audio: 'loopback' } : {}) } : {}))
+      .catch(() => callback({}));
+  });
   const firstRun = !fs.existsSync(dataFile('settings.json'));
   settings = load('settings.json', defaultSettings());
   // Test profiles get a distinguishable default name, but never override a name the user chose.

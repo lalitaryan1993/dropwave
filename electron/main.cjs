@@ -376,6 +376,7 @@ async function startEngine() {
   engine.on('log', (m) => console.log('[engine]', m));
   engine.on('transfer', handleTransfer);
   engine.on('text', handleText);
+  engine.on('rtc', handleRtc);
 
   try {
     await engine.start();
@@ -500,7 +501,7 @@ function registerIpc() {
   });
   ipcMain.handle('rtc:send', async (_e, peerId, msg) => {
     const peer = findPeer(peerId);
-    if (!peer.web) throw new Error('Calls between two PCs are coming soon. Call a phone for now.');
+    if (!peer.web) return engine.sendRtc(peer, msg); // another PC: over the encrypted engine channel
     if (!web?.sendRtc(peer.id, msg)) throw new Error('That device is no longer connected');
   });
   ipcMain.handle('text:send', async (_e, peerId, text) => {

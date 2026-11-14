@@ -126,11 +126,14 @@ export function DeviceCard({ peer, dragging, busy, onDropPaths, onPick, onText, 
           )}
         </AnimatePresence>
       </div>
-      {peer.web && onCall && !dragging && (
-        <div className="mt-2 flex gap-2">
+      {onCall && !dragging && !peer.outdated && (
+        <div className="mt-2 flex gap-1">
           <Button variant="ghost" className="h-8 flex-1 px-0 text-[12px]" onClick={() => onCall(peer, 'audio')} title={`Voice call ${peer.name}`}><Phone className="h-3.5 w-3.5" /> Call</Button>
           <Button variant="ghost" className="h-8 flex-1 px-0 text-[12px]" onClick={() => onCall(peer, 'video')} title={`Video call ${peer.name}`}><Video className="h-3.5 w-3.5" /> Video</Button>
-          <Button variant="ghost" className="h-8 flex-1 px-0 text-[12px]" onClick={() => onCall(peer, 'screen', 'caller')} title={`Show your screen on ${peer.name}`}><MonitorUp className="h-3.5 w-3.5" /> Screen</Button>
+          <Button variant="ghost" className="h-8 flex-1 px-0 text-[12px]" onClick={() => onCall(peer, 'screen', 'caller')} title={`Show your screen on ${peer.name}`}><MonitorUp className="h-3.5 w-3.5" /> Share</Button>
+          {!peer.web && (
+            <Button variant="ghost" className="h-8 flex-1 px-0 text-[12px]" onClick={() => onCall(peer, 'screen', 'callee')} title={`See ${peer.name}'s screen (they must allow it)`}><Monitor className="h-3.5 w-3.5" /> View</Button>
+          )}
         </div>
       )}
     </motion.div>

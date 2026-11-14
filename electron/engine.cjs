@@ -480,6 +480,30 @@ class Engine extends EventEmitter {
     });
   }
 
+  // Call / screen-sharing signaling (WebRTC offer, answer, ICE…) to another PC, over the same
+  // encrypted, identity-checked channel as files and text. Media then flows directly.
+  async sendRtc(peer, msg, timeoutMs = 8000) {
+    if (peer.outdated) throw new Error(`${peer.name} needs to update DropWave`);
+    const body = JSON.stringify(msg || {});
+    if (body.length > 64 * 1024) throw new Error('Call message too large');
+    const { ch } = await this.#connect(peer.ip, peer.port, peer.id);
+    await new Promise((resolve, reject) => {
+      const reader = new LineReader();
+      const timer = setTimeout(() => { ch.destroy(); reject(new Error('Device did not answer')); }, timeoutMs);
+      ch.on('data', (c) => {
+        reader.push(c);
+        let m; try { m = reader.nextLine(); } catch { return; }
+        if (!m) return;
+        clearTimeout(timer); ch.end();
+        m.type === 'ok' ? resolve() : reject(new Error('Unexpected reply'));
+      });
+      // An older DropWave closes the connection on a message type it doesn't know.
+      ch.on('close', () => { clearTimeout(timer); reject(new Error(`${peer.name} needs a newer DropWave for calls`)); });
+      ch.on('error', (e) => { clearTimeout(timer); reject(e); });
+      send(ch, { type: 'rtc', from: { name: this.name }, msg });
+    });
+  }
+
   // ---------- receiving ----------
 
   #startServer() {
@@ -519,6 +543,12 @@ class Engine extends EventEmitter {
           const text = String(m.text || '').slice(0, MAX_TEXT);
           const from = { id: peerId, name: String(m.from?.name || this.#nameOf(peerId, sock)).slice(0, 64), ip: sock.remoteAddress?.replace(/^::ffff:/, '') };
           if (text) this.emit('text', { id: crypto.randomUUID(), from, text, at: Date.now() });
+          send(sock, { type: 'ok' }); sock.end(); state = 'closed'; return;
+        }
+        if (m.type === 'rtc') {
+          // Call signaling: handed to the window, which asks the user before anything starts.
+          const from = { id: peerId, name: String(m.from?.name || this.#nameOf(peerId, sock)).slice(0, 64) };
+          if (m.msg && typeof m.msg === 'object' && typeof m.msg.type === 'string') this.emit('rtc', { from, msg: m.msg });
           send(sock, { type: 'ok' }); sock.end(); state = 'closed'; return;
         }
         if (m.type !== 'offer' || !Array.isArray(m.files)) { sock.destroy(); return; }

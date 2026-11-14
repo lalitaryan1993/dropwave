@@ -80,6 +80,12 @@ Wi-Fi dropped? Transfers **resume where they stopped**. SHA-256 verified, no ove
 A conversation per device, between PCs, phones and TVs. Send links, notes or your clipboard;
 links open with one click, messages are kept, and unread badges show what's new.
 
+### 📞 Calls, screen sharing & remote control
+Voice and video calls between PCs and phones. Share your screen, or ask to see another PC's screen,
+and talk while you work. With the other side's **Allow**, drive its mouse and keyboard, from another PC
+or from your phone (full-screen, landscape; tap, drag, scroll and type). The person sharing always sees
+who is in control and can press **Stop**. Everything goes device to device on your Wi-Fi.
+
 ### 🖱️ Right-click → Send with DropWave
 Send files and folders straight from File Explorer, without opening the app first.
 
@@ -283,6 +289,8 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Android app with Share → DropWave
 - [x] Android: notifications with Download / Decline, stays connected in the background
 - [x] Android: encrypted connection to the PC (TLS 1.3, pinned certificate)
+- [x] Voice/video calls and screen sharing (PC ↔ PC, PC ↔ phone, phone ↔ phone)
+- [x] Remote control of a Windows PC from another PC or a phone (with the owner's permission)
 - [ ] Android: auto-discovery without scanning
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)

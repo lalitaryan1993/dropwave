@@ -2,7 +2,7 @@
 // electron/web/rtc.js, shared with the phone page.
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MonitorUp, Loader2, MousePointer2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MonitorUp, Loader2, MousePointer2, Maximize2, Minimize2 } from 'lucide-react';
 import '../electron/web/rtc.js';
 import { api } from './lib.js';
 import { Avatar } from './components.jsx';
@@ -41,8 +41,9 @@ function describe(c) {
   return c.role === 'callee' ? (c.media === 'video' ? 'is video calling you' : 'is calling you') : c.media === 'video' ? 'Video call' : 'Voice call';
 }
 
-function MediaEl({ stream, muted, className, audioOnly }) {
-  const ref = useRef(null);
+function MediaEl({ stream, muted, className, audioOnly, videoRef }) {
+  const own = useRef(null);
+  const ref = videoRef || own;
   useEffect(() => { if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null; }, [stream]);
   return audioOnly
     ? <audio ref={ref} autoPlay />
@@ -60,11 +61,63 @@ function Elapsed({ live }) {
 
 const roundBtn = 'grid h-12 w-12 place-items-center rounded-full transition active:scale-95';
 
+// Keys sent by name (the rest of the keyboard arrives as typed text).
+const NAMED_KEYS = new Set(['Enter', 'Backspace', 'Tab', 'Escape', 'Delete', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown',
+  'Home', 'End', 'PageUp', 'PageDown', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`)]);
+
+/** Over the remote screen while we control it: mouse and keyboard go to the other PC. */
+function ControlSurface({ videoRef, send }) {
+  const ref = useRef(null);
+  const raf = useRef(0);
+  const pending = useRef(null);
+  const toScreen = (e) => {
+    const v = videoRef.current; if (!v?.videoWidth) return null;
+    const r = v.getBoundingClientRect();
+    const k = Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
+    const w = v.videoWidth * k, h = v.videoHeight * k;
+    const x = (e.clientX - (r.left + (r.width - w) / 2)) / w, y = (e.clientY - (r.top + (r.height - h) / 2)) / h;
+    return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+  };
+  const btn = (b) => (b === 2 ? 'r' : b === 1 ? 'm' : 'l');
+  useEffect(() => {
+    ref.current?.focus();
+    const onKey = (e) => {
+      if (document.activeElement !== ref.current) return;
+      const mods = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Meta'].filter(Boolean);
+      if (NAMED_KEYS.has(e.key)) send({ t: 'key', key: e.key, mods });
+      else if ((e.ctrlKey || e.altKey || e.metaKey) && /^[a-z]$/i.test(e.key)) send({ t: 'key', key: e.key.toUpperCase(), mods });
+      else if (e.key.length === 1) send({ t: 'text', s: e.key });
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [send]);
+  return (
+    <div
+      ref={ref} tabIndex={0} className="absolute inset-0 cursor-crosshair outline-none"
+      onPointerMove={(e) => { const p = toScreen(e); if (!p) return; pending.current = p; if (!raf.current) raf.current = requestAnimationFrame(() => { raf.current = 0; send({ t: 'move', ...pending.current }); }); }}
+      onPointerDown={(e) => { ref.current.focus(); const p = toScreen(e); if (!p) return; e.currentTarget.setPointerCapture(e.pointerId); send({ t: 'move', ...p }); send({ t: 'down', b: btn(e.button) }); }}
+      onPointerUp={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) send({ t: 'up', b: btn(e.button) }); }}
+      onWheel={(e) => send({ t: 'wheel', dy: Math.round(Math.max(-1200, Math.min(1200, -e.deltaY))) })}
+      onContextMenu={(e) => e.preventDefault()}
+    />
+  );
+}
+
 export function CallLayer({ call, calls }) {
   return <AnimatePresence>{call && <CallView key={call.id} c={call} calls={calls} />}</AnimatePresence>;
 }
 
 function CallView({ c, calls }) {
+  const boxRef = useRef(null);
+  const videoRef = useRef(null);
+  const [isFull, setIsFull] = useState(false);
+  useEffect(() => {
+    const on = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', on);
+    return () => { document.removeEventListener('fullscreenchange', on); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
+  }, []);
   const ended = c.status === 'ended';
   const statusText = ended ? (c.reason || 'Call ended') : c.status === 'ringing-out' ? 'Ringing…' : c.status === 'connecting' ? 'Connecting…' : null;
 
@@ -96,8 +149,21 @@ function CallView({ c, calls }) {
   }
 
   const seesVideo = c.media === 'video' || (c.media === 'screen' && !c.sharing);
+  const watching = c.media === 'screen' && !c.sharing && c.status === 'live';
   const controls = (
     <div className="flex items-center gap-3">
+      {watching && (
+        <button onClick={() => { if (!c.control) calls.requestControl(); }} disabled={c.controlPending}
+          className={`${roundBtn} ${c.control ? 'bg-warn text-black' : 'bg-white/15 text-white hover:bg-white/25'} disabled:opacity-60`}
+          title={c.control ? 'You are controlling this PC (they can stop it)' : c.controlPending ? 'Asking…' : 'Ask to control their mouse & keyboard'}>
+          {c.controlPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <MousePointer2 className="h-5 w-5" />}
+        </button>
+      )}
+      {watching && (
+        <button onClick={() => (document.fullscreenElement ? document.exitFullscreen() : boxRef.current?.requestFullscreen())} className={`${roundBtn} bg-white/15 text-white hover:bg-white/25`} title="Full screen">
+          {isFull ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+        </button>
+      )}
       {c.hasMic && (
         <button onClick={() => calls.toggleMute()} className={`${roundBtn} ${c.muted ? 'bg-white text-black' : 'bg-white/15 text-white hover:bg-white/25'}`} title={c.muted ? 'Unmute' : 'Mute'}>
           {c.muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
@@ -117,20 +183,21 @@ function CallView({ c, calls }) {
   // Watching a screen or on a video call: big view.
   if (seesVideo) {
     return (
-      <motion.div className="fixed inset-4 z-[70] overflow-hidden rounded-3xl border border-line-strong bg-black shadow-2xl" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
-        {c.remote ? <MediaEl stream={c.remote} className="h-full w-full object-contain" /> : (
+      <motion.div ref={boxRef} className="group fixed inset-4 z-[70] overflow-hidden rounded-3xl border border-line-strong bg-black shadow-2xl" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
+        {c.remote ? <MediaEl stream={c.remote} className="h-full w-full object-contain" videoRef={videoRef} /> : (
           <div className="grid h-full place-items-center text-white/80">
             <div className="text-center"><Avatar id={c.peer.id} name={c.peer.name} size={84} /><div className="mt-3 flex items-center justify-center gap-2 text-[14px]">{!ended && <Loader2 className="h-4 w-4 animate-spin" />}{statusText}</div></div>
           </div>
         )}
+        {watching && c.control && <ControlSurface videoRef={videoRef} send={calls.sendInput} />}
         {c.media === 'video' && c.local && !c.camOff && (
           <MediaEl stream={c.local} muted className="absolute right-4 top-4 h-36 w-56 rounded-2xl border border-white/20 bg-black object-cover shadow-xl [transform:scaleX(-1)]" />
         )}
-        <div className="absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent px-5 py-4 text-white">
+        <div className={`absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/70 to-transparent px-5 py-4 text-white ${c.control ? 'pointer-events-none opacity-0 transition group-hover:opacity-100' : ''}`}>
           <span className="font-semibold">{c.peer.name}</span>
           <span className="text-[13px] text-white/70">{describe(c)} {c.status === 'live' && <>· <Elapsed live /></>} {statusText && c.remote ? `· ${statusText}` : ''}</span>
         </div>
-        <div className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/70 to-transparent pb-6 pt-10">{controls}</div>
+        <div className={`absolute inset-x-0 bottom-0 flex justify-center pb-6 ${c.control ? 'pointer-events-none [&>*]:pointer-events-auto' : 'bg-gradient-to-t from-black/70 to-transparent pt-10'}`}>{controls}</div>
       </motion.div>
     );
   }

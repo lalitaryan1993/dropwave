@@ -208,16 +208,16 @@ function CallView({ c, calls }) {
       {c.remote && <MediaEl stream={c.remote} audioOnly />}
       <Avatar id={c.peer.id} name={c.peer.name} size={44} />
       {c.sharing && c.controlAsked && !ended && (
-        <div className="flex items-center gap-2 rounded-full bg-warn/15 py-1.5 pl-3 pr-1.5 text-[12.5px]">
-          <MousePointer2 className="h-4 w-4 text-warn" />
+        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-warn/15 py-1.5 pl-3 pr-1.5 text-[12.5px]">
+          <MousePointer2 className="h-4 w-4 shrink-0 text-warn" />
           <span>{c.peer.name} wants to control your mouse &amp; keyboard</span>
           <button onClick={() => calls.setControl(false)} className="rounded-full px-3 py-1 text-white/80 hover:bg-white/10">Deny</button>
           <button onClick={() => calls.setControl(true)} className="rounded-full bg-warn px-3 py-1 font-semibold text-black">Allow</button>
         </div>
       )}
       {c.sharing && c.control && !ended && (
-        <button onClick={() => calls.setControl(false)} className="flex items-center gap-2 rounded-full bg-warn px-3.5 py-2 text-[12.5px] font-semibold text-black" title="Take back your mouse and keyboard">
-          <MousePointer2 className="h-4 w-4" /> {c.peer.name} is in control · Stop
+        <button onClick={() => calls.setControl(false)} className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-warn px-3.5 py-2 text-[12.5px] font-semibold text-black" title="Take back your mouse and keyboard">
+          <MousePointer2 className="h-4 w-4 shrink-0" /> {c.peer.name} is in control · Stop
         </button>
       )}
       <div className="min-w-[150px]">

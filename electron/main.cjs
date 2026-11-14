@@ -663,9 +663,15 @@ app.on('second-instance', (_e, argv) => {
 app.whenReady().then(async () => {
   // Screen sharing: share the main screen (with its sound on Windows). The share is only ever
   // started after the user accepts a request or presses "Share screen" in DropWave.
+  // DROPWAVE_SHARE_SOURCE (demos/screenshots only): share the window whose title contains this
+  // text instead of the whole screen, so a demo never shows someone's real desktop.
+  const demoSource = process.env.DROPWAVE_SHARE_SOURCE;
   session.defaultSession.setDisplayMediaRequestHandler((_req, callback) => {
-    desktopCapturer.getSources({ types: ['screen'] })
-      .then((sources) => callback(sources[0] ? { video: sources[0], ...(process.platform === 'win32' ? { audio: 'loopback' } : {}) } : {}))
+    desktopCapturer.getSources({ types: demoSource ? ['window'] : ['screen'] })
+      .then((sources) => {
+        const src = demoSource ? sources.find((s) => s.name.includes(demoSource)) : sources[0];
+        callback(src ? { video: src, ...(process.platform === 'win32' && !demoSource ? { audio: 'loopback' } : {}) } : {});
+      })
       .catch(() => callback({}));
   });
   const firstRun = !fs.existsSync(dataFile('settings.json'));

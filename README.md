@@ -86,6 +86,11 @@ and talk while you work. With the other side's **Allow**, drive its mouse and ke
 or from your phone (full-screen, landscape; tap, drag, scroll and type). The person sharing always sees
 who is in control and can press **Stop**. Everything goes device to device on your Wi-Fi.
 
+<p align="center">
+<img src="docs/screenshots/screen-sharing.png" alt="Viewing another PC's screen in DropWave, with control, full screen, mic and end buttons" width="80%" /><br />
+<img src="docs/screenshots/control-ask.png" alt="The shared PC asks: Office PC wants to control your mouse and keyboard. Deny or Allow" width="80%" />
+</p>
+
 ### 🖱️ Right-click → Send with DropWave
 Send files and folders straight from File Explorer, without opening the app first.
 

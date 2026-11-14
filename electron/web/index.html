@@ -120,7 +120,7 @@
   .call .ctop { position:relative; z-index:2; padding:calc(16px + env(safe-area-inset-top)) 18px 26px; background:linear-gradient(#000a,#0000); }
   .call .ctop b { font-size:17px; display:block; }
   .call .ctop span { font-size:13px; color:#fffb; }
-  .call .cmid { flex:1; display:grid; place-items:center; position:relative; z-index:1; text-align:center; }
+  .call .cmid { flex:1; display:grid; place-items:center; position:relative; z-index:1; text-align:center; pointer-events:none; }
   .call .cav { width:96px; height:96px; border-radius:50%; display:grid; place-items:center; font-size:34px; font-weight:800; margin:0 auto 14px; background:linear-gradient(140deg,var(--accent),var(--accent2)); }
   .call .cav.pulse { animation:cpulse 1.4s ease-in-out infinite; }
   @keyframes cpulse { 50% { box-shadow:0 0 0 18px rgba(139,125,255,.18); } }
@@ -131,6 +131,12 @@
   .cbtn.green { background:#12a36b; }
   .cbtn svg { width:26px; height:26px; }
   .clabel { font-size:12px; color:#fffb; margin-top:6px; text-align:center; }
+  .call .ctouch { position:absolute; inset:0; z-index:1; touch-action:none; }
+  .call .ckeys { position:relative; z-index:2; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; padding:0 10px 4px; }
+  .call .ckeys button { height:36px; min-width:44px; padding:0 12px; border-radius:10px; background:rgba(255,255,255,.16); color:#fff; font-size:13px; font-weight:600; }
+  .call #cKeys { position:relative; z-index:2; display:block; width:calc(100% - 20px); margin:0 10px 8px; height:42px; padding:0 14px; border-radius:12px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1); color:#fff; font-size:15px; }
+  .call #cKeys::placeholder { color:#fff9; }
+  .call .chint { position:relative; z-index:2; text-align:center; font-size:12.5px; color:#fffb; padding:0 16px 6px; }
 
   .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:60; }
   @media (min-width: 900px) { .wrap { max-width:760px; } body { font-size:16px; } }
@@ -193,13 +199,23 @@
 <div id="call" class="call hidden">
   <video id="cRemote" autoplay playsinline class="hidden"></video>
   <video id="cLocal" autoplay playsinline muted class="hidden"></video>
+  <div id="cTouch" class="ctouch hidden"></div>
   <div class="ctop"><b id="cName"></b><span id="cStatus"></span></div>
   <div class="cmid"><div id="cWho"><div id="cAv" class="cav"></div><div id="cDesc" style="font-size:15px;color:#fffc"></div></div></div>
   <div id="cRing" class="cbar hidden">
     <div><button class="cbtn red" id="cDecline" aria-label="Decline"><svg class="i" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button><div class="clabel">Decline</div></div>
     <div><button class="cbtn green" id="cAccept" aria-label="Accept"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></button><div class="clabel" id="cAcceptLabel">Accept</div></div>
   </div>
+  <div id="cHint" class="chint hidden">Tap = click · hold = right-click · drag = drag · two fingers = scroll</div>
+  <div id="cKeyRow" class="ckeys hidden">
+    <button data-key="Escape">Esc</button><button data-key="Tab">Tab</button><button data-key="Backspace">⌫</button><button data-key="Enter">Enter</button>
+    <button data-key="ArrowLeft">←</button><button data-key="ArrowUp">↑</button><button data-key="ArrowDown">↓</button><button data-key="ArrowRight">→</button>
+    <button data-key="C" data-mods="Control">Ctrl+C</button><button data-key="V" data-mods="Control">Ctrl+V</button><button data-key="Z" data-mods="Control">Ctrl+Z</button>
+  </div>
+  <input id="cKeys" class="hidden" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="Type on the PC…" aria-label="Type on the PC" />
   <div id="cBar" class="cbar hidden">
+    <button class="cbtn hidden" id="cCtl" aria-label="Control the PC"><svg class="i" viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11 4 4Z"/></svg></button>
+    <button class="cbtn hidden" id="cKbd" aria-label="Keyboard"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 16h8"/></svg></button>
     <button class="cbtn" id="cMute" aria-label="Mute"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></button>
     <button class="cbtn" id="cCam" aria-label="Camera"><svg class="i" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></button>
     <button class="cbtn red" id="cEnd" aria-label="End"><svg class="i" viewBox="0 0 24 24"><path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7M22 2 2 22"/></svg></button>
@@ -254,7 +270,11 @@
   window.dwToast = toast; // used by the Android app bridge
 
   async function boot() {
-    const r = await api('/api/hello').then((x) => x.json()).catch(() => null);
+    // A PC that's off (or a firewall that drops packets) never answers: don't wait forever.
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
+    const r = await api('/api/hello', { signal: ctl.signal }).then((x) => x.json()).catch(() => null);
+    clearTimeout(t);
+    if (!r && APP) { APP.switchPC(); return; } // the app: back to the list of PCs (shows which are online)
     if (!r) { $('#lock').classList.remove('hidden'); $('#pinErr').textContent = 'Can’t reach the PC. Is DropWave open?'; return; }
     pc = r.pc;
     document.title = `DropWave · ${pc.name}`;
@@ -570,6 +590,7 @@
     const o = $('#call');
     clearInterval(ringBuzz); ringBuzz = null;
     if (!c) {
+      renderControl(null);
       o.classList.add('hidden'); clearInterval(liveTimer); liveTimer = null; liveAt = 0;
       $('#cRemote').srcObject = null; $('#cLocal').srcObject = null;
       return;
@@ -612,7 +633,108 @@
     };
     if (c.status === 'live') { if (!liveAt) liveAt = Date.now(); liveTimer = setInterval(() => { $('#cStatus').textContent = status(); }, 1000); }
     $('#cStatus').textContent = status();
+    renderControl(c);
   }
+
+  // ---- remote control (viewing a PC's screen) ----
+  let cur = null;
+  function renderControl(c) {
+    cur = c;
+    const viewing = !!c && c.media === 'screen' && !c.sharing && c.status === 'live';
+    const on = viewing && c.control;
+    $('#cCtl').classList.toggle('hidden', !viewing);
+    $('#cCtl').classList.toggle('on', on);
+    $('#cKbd').classList.toggle('hidden', !on);
+    $('#cTouch').classList.toggle('hidden', !on);
+    $('#cHint').classList.toggle('hidden', !on);
+    if (!on) { $('#cKeyRow').classList.add('hidden'); $('#cKeys').classList.add('hidden'); $('#cKeys').blur(); }
+    if (viewing && c.controlPending) $('#cStatus').textContent = 'Asking to control…';
+  }
+  $('#cCtl').addEventListener('click', () => {
+    if (!cur) return;
+    if (cur.control) toast('To stop, press “Stop” on the PC, or end the screen view');
+    else calls?.requestControl();
+  });
+  const inp = (e) => calls?.sendInput(e);
+  function toScreen(cx, cy) {
+    const v = $('#cRemote'); const r = v.getBoundingClientRect();
+    if (!v.videoWidth) return null;
+    const k = Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
+    const w = v.videoWidth * k, h = v.videoHeight * k;
+    const x = (cx - (r.left + (r.width - w) / 2)) / w, y = (cy - (r.top + (r.height - h) / 2)) / h;
+    return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+  }
+  // Gestures: tap = click, hold = right-click, drag = drag, two fingers = scroll.
+  const pts = new Map();
+  let g = null, raf = 0, pendingMove = null;
+  const flushMove = () => { raf = 0; if (pendingMove) { inp({ t: 'move', ...pendingMove }); pendingMove = null; } };
+  const moveTo = (p) => { pendingMove = p; if (!raf) raf = requestAnimationFrame(flushMove); };
+  const avgY = () => [...pts.values()].reduce((a, q) => a + q.y, 0) / pts.size;
+  const touch = $('#cTouch');
+  touch.addEventListener('pointerdown', (e) => {
+    touch.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) { clearTimeout(g?.hold); if (g?.drag) inp({ t: 'up', b: 'l' }); g = { scroll: true, y: avgY(), acc: 0 }; return; }
+    if (pts.size > 2) return;
+    const p = toScreen(e.clientX, e.clientY);
+    g = { x0: e.clientX, y0: e.clientY, p, drag: false, done: false };
+    if (p) g.hold = setTimeout(() => { if (g && !g.drag && !g.scroll) { g.done = true; inp({ t: 'move', ...p }); inp({ t: 'click', b: 'r' }); navigator.vibrate?.(30); } }, 550);
+  });
+  touch.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!g) return;
+    if (g.scroll) {
+      const y = avgY(); g.acc += (y - g.y) * 4; g.y = y;
+      if (Math.abs(g.acc) >= 40) { inp({ t: 'wheel', dy: Math.round(g.acc) }); g.acc = 0; }
+      return;
+    }
+    if (g.done) return;
+    if (!g.drag && g.p && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > 12) {
+      clearTimeout(g.hold); g.drag = true;
+      inp({ t: 'move', ...g.p }); inp({ t: 'down', b: 'l' });
+    }
+    if (g.drag) { const p = toScreen(e.clientX, e.clientY); if (p) moveTo(p); }
+  });
+  const lift = (e) => {
+    pts.delete(e.pointerId);
+    if (!g) return;
+    if (g.scroll) { if (!pts.size) g = null; return; }
+    clearTimeout(g.hold);
+    if (g.drag) { flushMove(); inp({ t: 'up', b: 'l' }); }
+    else if (!g.done && g.p && e.type === 'pointerup') { inp({ t: 'move', ...g.p }); inp({ t: 'click', b: 'l' }); }
+    g = null;
+  };
+  touch.addEventListener('pointerup', lift);
+  touch.addEventListener('pointercancel', lift);
+
+  // Keyboard: whatever the phone keyboard types goes to the PC (diffing handles autocorrect).
+  const keys = $('#cKeys');
+  let typed = '';
+  $('#cKbd').addEventListener('click', () => {
+    const show = $('#cKeyRow').classList.contains('hidden');
+    $('#cKeyRow').classList.toggle('hidden', !show);
+    keys.classList.toggle('hidden', !show);
+    $('#cHint').classList.toggle('hidden', show); // room for the keys while typing
+    if (show) { keys.value = ''; typed = ''; keys.focus(); } else keys.blur();
+  });
+  keys.addEventListener('input', () => {
+    const v = keys.value;
+    let i = 0; while (i < typed.length && i < v.length && typed[i] === v[i]) i++;
+    for (let n = typed.length - i; n > 0; n--) inp({ t: 'key', key: 'Backspace' });
+    if (v.length > i) inp({ t: 'text', s: v.slice(i) });
+    typed = v;
+    if (v.length > 200) { keys.value = ''; typed = ''; }
+  });
+  keys.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); inp({ t: 'key', key: 'Enter' }); keys.value = ''; typed = ''; }
+    else if (e.key === 'Backspace' && !keys.value) { e.preventDefault(); inp({ t: 'key', key: 'Backspace' }); }
+  });
+  $('#cKeyRow').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-key]'); if (!b) return;
+    inp({ t: 'key', key: b.dataset.key, mods: b.dataset.mods ? [b.dataset.mods] : [] });
+    keys.focus();
+  });
 
   async function startCall(media, share) {
     const to = peers.find((p) => p.id === target);

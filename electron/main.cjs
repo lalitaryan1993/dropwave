@@ -11,6 +11,11 @@ const QRCode = require('qrcode');
 const { Engine, localIPv4s, collectFiles, DEFAULT_TCP_PORT } = require('./engine.cjs');
 const { WebShare, DEFAULT_WEB_PORT } = require('./webshare.cjs');
 const { loadOrCreate: loadOrCreateTls } = require('./tls.cjs');
+const { RemoteInput } = require('./input.cjs');
+
+// Remote control: off unless the user allows it for the screen share that is running now.
+const remoteInput = new RemoteInput();
+let controlOn = false;
 const diagnostics = require('./diagnostics.cjs');
 
 // ---- profiles (lets two copies run on one PC for testing) ----
@@ -477,6 +482,22 @@ function registerIpc() {
   // Clipboard / text sharing
   ipcMain.handle('clipboard:read', () => clipboard.readText());
   ipcMain.handle('clipboard:write', (_e, text) => { clipboard.writeText(String(text || '')); });
+  // Remote control. The window turns it on only after the user presses "Allow" during a
+  // screen share, and off when they stop it or the share ends.
+  // DROPWAVE_INPUT_LOG (testing only): write the events to that file instead of moving the mouse.
+  const inputLog = process.env.DROPWAVE_INPUT_LOG;
+  ipcMain.handle('input:control', async (_e, on) => {
+    controlOn = !!on;
+    if (inputLog) { fs.appendFileSync(inputLog, JSON.stringify({ control: controlOn }) + '\n'); return controlOn; }
+    if (controlOn) { await remoteInput.start(); win?.flashFrame(false); }
+    else remoteInput.stop();
+    return controlOn;
+  });
+  ipcMain.on('input:event', (_e, ev) => {
+    if (!controlOn) return;
+    if (inputLog) fs.appendFileSync(inputLog, JSON.stringify(ev) + '\n');
+    else remoteInput.handle(ev);
+  });
   ipcMain.handle('rtc:send', async (_e, peerId, msg) => {
     const peer = findPeer(peerId);
     if (!peer.web) throw new Error('Calls between two PCs are coming soon. Call a phone for now.');
@@ -668,7 +689,7 @@ app.whenReady().then(async () => {
   createTray();
 });
 
-app.on('before-quit', () => { quitting = true; });
+app.on('before-quit', () => { quitting = true; controlOn = false; remoteInput.stop(); });
 app.on('will-quit', (e) => {
   if (engine || web) {
     e.preventDefault();

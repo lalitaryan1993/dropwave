@@ -2,7 +2,7 @@
 // electron/web/rtc.js, shared with the phone page.
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MonitorUp, Loader2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MonitorUp, Loader2, MousePointer2 } from 'lucide-react';
 import '../electron/web/rtc.js';
 import { api } from './lib.js';
 import { Avatar } from './components.jsx';
@@ -16,8 +16,14 @@ export function useCalls(toast) {
     ref.current = window.DWCalls({
       send: (peerId, msg) => api.rtcSend(peerId, msg),
       onChange: setCall,
+      onInput: (e) => api.inputEvent(e), // rtc.js only passes these on while control is allowed
     });
   }
+  // Remote control runs only while: sharing my screen, the user allowed it, and the call is up.
+  const controlOn = !!(call && call.sharing && call.control && call.status !== 'ended');
+  useEffect(() => {
+    api.inputControl(controlOn).catch((e) => { toast(cleanErr(e), 'error'); ref.current.setControl(false); });
+  }, [controlOn, toast]);
   useEffect(() => api.onRtc(({ from, msg }) => ref.current.handle(from, msg)), []);
   // Dev builds only: lets test scripts read call stats over the debugging port.
   useEffect(() => { if (import.meta.env.DEV) window.__dwCalls = ref.current; }, []);
@@ -134,6 +140,19 @@ function CallView({ c, calls }) {
     <motion.div className="fixed bottom-6 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-4 rounded-full border border-line-strong bg-[#14151d] py-2 pl-2 pr-3 text-white shadow-2xl" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
       {c.remote && <MediaEl stream={c.remote} audioOnly />}
       <Avatar id={c.peer.id} name={c.peer.name} size={44} />
+      {c.sharing && c.controlAsked && !ended && (
+        <div className="flex items-center gap-2 rounded-full bg-warn/15 py-1.5 pl-3 pr-1.5 text-[12.5px]">
+          <MousePointer2 className="h-4 w-4 text-warn" />
+          <span>{c.peer.name} wants to control your mouse &amp; keyboard</span>
+          <button onClick={() => calls.setControl(false)} className="rounded-full px-3 py-1 text-white/80 hover:bg-white/10">Deny</button>
+          <button onClick={() => calls.setControl(true)} className="rounded-full bg-warn px-3 py-1 font-semibold text-black">Allow</button>
+        </div>
+      )}
+      {c.sharing && c.control && !ended && (
+        <button onClick={() => calls.setControl(false)} className="flex items-center gap-2 rounded-full bg-warn px-3.5 py-2 text-[12.5px] font-semibold text-black" title="Take back your mouse and keyboard">
+          <MousePointer2 className="h-4 w-4" /> {c.peer.name} is in control · Stop
+        </button>
+      )}
       <div className="min-w-[150px]">
         <div className="text-[14px] font-semibold">{c.sharing ? <span className="flex items-center gap-1.5"><span className="h-2 w-2 animate-pulse rounded-full bg-bad" /> Sharing your screen</span> : c.peer.name}</div>
         <div className="text-[12px] text-white/60">{c.sharing ? `with ${c.peer.name}` : describe(c)} {c.status === 'live' ? <>· <Elapsed live /></> : statusText ? `· ${statusText}` : ''}</div>

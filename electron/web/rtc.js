@@ -8,23 +8,29 @@
 // offer {sdp}, the callee answers {sdp}; both trickle ice {candidate}; either side sends end.
 //   media: 'audio' | 'video' (calls)  or 'screen' (one side shares its screen)
 //   share: for 'screen', who shares: 'caller' or 'callee'
+//
+// Remote control (screen sessions only): a data channel "input" carries control-request /
+// control {on} and the viewer's mouse/keyboard events. The sharing side passes input events to
+// `onInput` only while it has allowed control.
 (function () {
   const RING_TIMEOUT_MS = 45000;
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
 
-  function createCalls({ send, onChange }) {
+  function createCalls({ send, onChange, onInput }) {
     let s = null; // current session
 
     const snapshot = () => s && {
       id: s.id, peer: s.peer, media: s.media, share: s.share, role: s.role, status: s.status, reason: s.reason,
       local: s.local, remote: s.remote, muted: s.muted, camOff: s.camOff, sharing: s.sharing(),
+      control: s.control, controlAsked: s.controlAsked, controlPending: s.controlPending, dataReady: s.dc?.readyState === 'open',
     };
     const changed = () => onChange(snapshot());
     const msg = (type, extra = {}) => send(s.peer.id, { type, call: s.id, ...extra }).catch((e) => fail(e.message || 'Could not reach the other device'));
 
     function newSession(peer, media, share, role, id) {
       s = { id: id || uid(), peer, media, share: share || null, role, status: role === 'caller' ? 'ringing-out' : 'ringing-in',
-        reason: '', pc: null, local: null, remote: null, pendingIce: [], muted: false, camOff: false, timer: null };
+        reason: '', pc: null, local: null, remote: null, pendingIce: [], muted: false, camOff: false, timer: null,
+        dc: null, control: false, controlAsked: false, controlPending: false };
       s.sharing = () => s.media === 'screen' && s.share === s.role; // this device shows its screen
       s.timer = setTimeout(() => { if (s && s.status.startsWith('ringing')) { if (s.role === 'caller') msg('end'); finish('No answer'); } }, RING_TIMEOUT_MS);
     }
@@ -51,6 +57,7 @@
         if (!s.remote.getTracks().includes(e.track)) s.remote.addTrack(e.track);
         changed();
       };
+      pc.ondatachannel = (e) => bindDc(e.channel);
       pc.onconnectionstatechange = () => {
         if (!s || s.pc !== pc) return;
         const st = pc.connectionState;
@@ -60,6 +67,23 @@
       s.pc = pc;
       return pc;
     }
+
+    const INPUT_EVENTS = new Set(['move', 'down', 'up', 'click', 'wheel', 'text', 'key']);
+    function bindDc(dc) {
+      s.dc = dc;
+      const mine = s;
+      dc.onopen = () => { if (s === mine) changed(); };
+      dc.onclose = () => { if (s === mine) { s.control = false; changed(); } };
+      dc.onmessage = (ev) => {
+        if (s !== mine) return;
+        let d; try { d = JSON.parse(ev.data); } catch { return; }
+        if (!d || typeof d.t !== 'string') return;
+        if (INPUT_EVENTS.has(d.t)) { if (s.control && s.sharing()) onInput?.(d); return; } // only when allowed
+        if (d.t === 'control-request' && s.sharing()) { s.controlAsked = true; changed(); }
+        if (d.t === 'control' && !s.sharing()) { s.control = !!d.on; s.controlPending = false; changed(); }
+      };
+    }
+    function sendData(obj) { if (s?.dc?.readyState === 'open') s.dc.send(JSON.stringify(obj)); }
 
     function addLocalTracks(pc) {
       if (!s.local) return;
@@ -77,6 +101,8 @@
     function finish(reason = '') {
       if (!s) return;
       clearTimeout(s.timer);
+      s.control = false;
+      try { s.dc?.close(); } catch {}
       s.local?.getTracks().forEach((t) => t.stop());
       try { s.pc?.close(); } catch {}
       s.status = 'ended'; s.reason = reason;
@@ -148,6 +174,7 @@
           try { s.local = await localMedia(); } catch (e) { return fail(e.message || 'Microphone/camera not available'); }
           const pc = makePc();
           addLocalTracks(pc);
+          if (s.media === 'screen') bindDc(pc.createDataChannel('input', { ordered: true }));
           // Just watching a screen: ask to receive its video (and system sound).
           if (!s.local) { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); }
           changed();
@@ -190,7 +217,24 @@
       return out;
     }
 
-    return { start, accept, decline, end, toggleMute, toggleCam, handle, stats, get state() { return snapshot(); } };
+    // ---- remote control ----
+    /** Viewer: ask the sharing device for control of its mouse and keyboard. */
+    function requestControl() {
+      if (!s || s.sharing() || s.media !== 'screen') return;
+      s.controlPending = true; changed();
+      sendData({ t: 'control-request' });
+    }
+    /** Sharing side: allow or stop control (also answers a request). */
+    function setControl(on) {
+      if (!s || !s.sharing()) return;
+      s.control = !!on; s.controlAsked = false;
+      sendData({ t: 'control', on: !!on });
+      changed();
+    }
+    /** Viewer: send one mouse/keyboard event (only does anything while control is allowed). */
+    function sendInput(e) { if (s && s.control && !s.sharing()) sendData(e); }
+
+    return { start, accept, decline, end, toggleMute, toggleCam, handle, stats, requestControl, setControl, sendInput, get state() { return snapshot(); } };
   }
 
   window.DWCalls = createCalls;

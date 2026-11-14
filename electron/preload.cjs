@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('dropwave', {
   // Calls / screen sharing (WebRTC signaling; media flows device to device)
   rtcSend: (peerId, msg) => ipcRenderer.invoke('rtc:send', peerId, msg),
   onRtc: on('rtc'),
+  // Remote control (only while the user allows it during a screen share)
+  inputControl: (on) => ipcRenderer.invoke('input:control', on),
+  inputEvent: (e) => ipcRenderer.send('input:event', e),
   openLink: (url) => ipcRenderer.invoke('link:open', url),
   onText: on('text'),
   chatList: () => ipcRenderer.invoke('chat:list'),

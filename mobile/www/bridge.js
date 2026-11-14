@@ -25,6 +25,8 @@
     // System notification for a file offer / message. The native side only shows it while the
     // app isn't on screen (in front, the page's own cards and toasts already show it).
     notify(n) { DW?.showNotification(n).catch((e) => console.warn('DropWave notify failed', e)); },
+    // Full screen for viewing / controlling a PC: landscape, no system bars, screen stays on.
+    setImmersive(on) { DW?.setImmersive({ on: !!on }).catch(() => {}); },
     clearNotify(id) { DW?.cancelNotify(id ? { id } : {}).catch(() => {}); },
     // Connected: keep the connection alive in the background (quiet "Connected to …" notification).
     connected(pcName) { DW?.keepAlive({ on: true, text: `Connected to ${pcName}` }).catch(() => {}); },

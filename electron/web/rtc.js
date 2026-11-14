@@ -23,6 +23,7 @@
       id: s.id, peer: s.peer, media: s.media, share: s.share, role: s.role, status: s.status, reason: s.reason,
       local: s.local, remote: s.remote, muted: s.muted, camOff: s.camOff, sharing: s.sharing(),
       control: s.control, controlAsked: s.controlAsked, controlPending: s.controlPending, dataReady: s.dc?.readyState === 'open',
+      hasMic: !!s.micTrack || (s.media !== 'screen' && !!s.local?.getAudioTracks().length),
     };
     const changed = () => onChange(snapshot());
     const msg = (type, extra = {}) => send(s.peer.id, { type, call: s.id, ...extra }).catch((e) => fail(e.message || 'Could not reach the other device'));
@@ -35,12 +36,35 @@
       s.timer = setTimeout(() => { if (s && s.status.startsWith('ringing')) { if (s.role === 'caller') msg('end'); finish('No answer'); } }, RING_TIMEOUT_MS);
     }
 
+    // Microphone for talking during a screen share. Optional: without it the share still works.
+    async function micOrNull() {
+      try { return await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { return null; }
+    }
+
     async function localMedia() {
       const md = navigator.mediaDevices;
       if (s.media === 'screen') {
-        if (!s.sharing()) return null; // just watching
+        if (!s.sharing()) {
+          // Watching: send our voice so both sides can talk while working.
+          const mic = md?.getUserMedia ? await micOrNull() : null;
+          s.micTrack = mic?.getAudioTracks()[0] || null;
+          return mic;
+        }
         if (!md?.getDisplayMedia) throw new Error('This device can’t share its screen');
-        return md.getDisplayMedia({ video: { frameRate: 30 }, audio: true });
+        const screen = await md.getDisplayMedia({ video: { frameRate: 30 }, audio: true });
+        const mic = await micOrNull();
+        s.micTrack = mic?.getAudioTracks()[0] || null;
+        const sys = screen.getAudioTracks()[0];
+        if (!mic) return screen;
+        if (!sys) return new MediaStream([...screen.getVideoTracks(), s.micTrack]);
+        // Computer sound + microphone as one audio track (Mute only silences the microphone).
+        const ac = new AudioContext();
+        const out = ac.createMediaStreamDestination();
+        ac.createMediaStreamSource(new MediaStream([sys])).connect(out);
+        ac.createMediaStreamSource(new MediaStream([s.micTrack])).connect(out);
+        s.audioCtx = ac;
+        s.rawTracks = [sys, s.micTrack]; // stopped when the session ends
+        return new MediaStream([...screen.getVideoTracks(), out.stream.getAudioTracks()[0]]);
       }
       if (!md?.getUserMedia) throw new Error('Calls need the DropWave app (this browser blocks the microphone on plain HTTP)');
       return md.getUserMedia({
@@ -104,6 +128,8 @@
       s.control = false;
       try { s.dc?.close(); } catch {}
       s.local?.getTracks().forEach((t) => t.stop());
+      s.rawTracks?.forEach((t) => t.stop());
+      s.audioCtx?.close().catch(() => {});
       try { s.pc?.close(); } catch {}
       s.status = 'ended'; s.reason = reason;
       changed();
@@ -144,7 +170,8 @@
     function toggleMute() {
       if (!s?.local) return;
       s.muted = !s.muted;
-      s.local.getAudioTracks().forEach((t) => { t.enabled = !s.muted; });
+      // Only the microphone: during a screen share the computer's sound keeps playing.
+      (s.micTrack ? [s.micTrack] : s.local.getAudioTracks()).forEach((t) => { t.enabled = !s.muted; });
       changed();
     }
 
@@ -176,7 +203,11 @@
           addLocalTracks(pc);
           if (s.media === 'screen') bindDc(pc.createDataChannel('input', { ordered: true }));
           // Just watching a screen: ask to receive its video (and system sound).
-          if (!s.local) { pc.addTransceiver('video', { direction: 'recvonly' }); pc.addTransceiver('audio', { direction: 'recvonly' }); }
+          // Watching a screen: receive its video (and its sound, if we aren't sending a microphone).
+          if (s.media === 'screen' && !s.sharing()) {
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            if (!s.local?.getAudioTracks().length) pc.addTransceiver('audio', { direction: 'recvonly' });
+          }
           changed();
           await pc.setLocalDescription(await pc.createOffer());
           return msg('offer', { sdp: pc.localDescription.toJSON() });

@@ -136,6 +136,13 @@
   .call .ckeys button { height:36px; min-width:44px; padding:0 12px; border-radius:10px; background:rgba(255,255,255,.16); color:#fff; font-size:13px; font-weight:600; }
   .call #cKeys { position:relative; z-index:2; display:block; width:calc(100% - 20px); margin:0 10px 8px; height:42px; padding:0 14px; border-radius:12px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1); color:#fff; font-size:15px; }
   .call #cKeys::placeholder { color:#fff9; }
+  /* full screen (landscape) while viewing a PC: controls float on the right */
+  .call.full .ctop, .call.full .chint, .call.full .cmid { display:none; }
+  .call.full .cbar { position:absolute; right:10px; top:50%; transform:translateY(-50%); flex-direction:column; gap:10px; padding:10px 8px; border-radius:34px; background:rgba(0,0,0,.45); z-index:3; }
+  .call.full .cbtn { width:48px; height:48px; }
+  .call.full .cbtn svg { width:22px; height:22px; }
+  .call.full .ckeys { position:absolute; left:10px; right:84px; bottom:58px; z-index:3; justify-content:flex-start; padding:0; }
+  .call.full #cKeys { position:absolute; left:10px; right:84px; bottom:8px; width:auto; margin:0; z-index:3; }
   .call .chint { position:relative; z-index:2; text-align:center; font-size:12.5px; color:#fffb; padding:0 16px 6px; }
 
   .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:60; }
@@ -215,6 +222,7 @@
   <input id="cKeys" class="hidden" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="Type on the PC…" aria-label="Type on the PC" />
   <div id="cBar" class="cbar hidden">
     <button class="cbtn hidden" id="cCtl" aria-label="Control the PC"><svg class="i" viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11 4 4Z"/></svg></button>
+    <button class="cbtn hidden" id="cFull" aria-label="Full screen"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
     <button class="cbtn hidden" id="cKbd" aria-label="Keyboard"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 16h8"/></svg></button>
     <button class="cbtn" id="cMute" aria-label="Mute"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></button>
     <button class="cbtn" id="cCam" aria-label="Camera"><svg class="i" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></button>
@@ -617,7 +625,7 @@
     if (showLocal && lv.srcObject !== c.local) lv.srcObject = c.local;
     lv.classList.toggle('hidden', !showLocal);
 
-    const hasMic = !!c.local?.getAudioTracks().length;
+    const hasMic = !!c.hasMic;
     $('#cMute').classList.toggle('hidden', !hasMic);
     $('#cMute').classList.toggle('on', c.muted);
     $('#cCam').classList.toggle('hidden', c.media !== 'video' || !c.local);
@@ -637,11 +645,26 @@
   }
 
   // ---- remote control (viewing a PC's screen) ----
-  let cur = null;
+  let cur = null, full = false, hadControl = false;
+  // Full screen: landscape with no system bars in the app (Fullscreen API in a browser).
+  function setFull(on) {
+    if (full === on) return;
+    full = on;
+    $('#call').classList.toggle('full', on);
+    $('#cFull').classList.toggle('on', on);
+    if (APP) APP.setImmersive?.(on);
+    else if (on) document.documentElement.requestFullscreen?.().catch(() => {});
+    else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }
+  $('#cFull').addEventListener('click', () => setFull(!full));
   function renderControl(c) {
     cur = c;
     const viewing = !!c && c.media === 'screen' && !c.sharing && c.status === 'live';
     const on = viewing && c.control;
+    $('#cFull').classList.toggle('hidden', !viewing);
+    if (!viewing) setFull(false);
+    if (on && !hadControl) setFull(true); // control granted: go full screen right away
+    hadControl = on;
     $('#cCtl').classList.toggle('hidden', !viewing);
     $('#cCtl').classList.toggle('on', on);
     $('#cKbd').classList.toggle('hidden', !on);

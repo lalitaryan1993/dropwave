@@ -63,6 +63,30 @@ public class DropWavePlugin extends Plugin {
         p.notifyListeners("notifAction", new JSObject().put("id", id).put("action", action), true);
     }
 
+    // ---------- full screen (viewing / controlling a PC's screen) ----------
+
+    /** on: landscape, no status/navigation bars, screen kept on. off: back to normal. */
+    @PluginMethod
+    public void setImmersive(PluginCall call) {
+        final boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        getActivity().runOnUiThread(() -> {
+            android.app.Activity a = getActivity();
+            a.setRequestedOrientation(on ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            androidx.core.view.WindowInsetsControllerCompat c =
+                    androidx.core.view.WindowCompat.getInsetsController(a.getWindow(), a.getWindow().getDecorView());
+            if (on) {
+                c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+                c.setSystemBarsBehavior(androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                a.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+                a.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+        });
+        call.resolve();
+    }
+
     // ---------- encryption ----------
 
     /** Trust this PC certificate fingerprint (hex SHA-256) from now on. */

@@ -98,7 +98,7 @@ function CallView({ c, calls }) {
   const seesVideo = c.media === 'video' || (c.media === 'screen' && !c.sharing);
   const controls = (
     <div className="flex items-center gap-3">
-      {c.local && c.local.getAudioTracks().length > 0 && (
+      {c.hasMic && (
         <button onClick={() => calls.toggleMute()} className={`${roundBtn} ${c.muted ? 'bg-white text-black' : 'bg-white/15 text-white hover:bg-white/25'}`} title={c.muted ? 'Unmute' : 'Mute'}>
           {c.muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </button>

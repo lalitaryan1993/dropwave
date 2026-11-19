@@ -82,9 +82,9 @@ export function RecentCalls({ phone }) {
   return (
     <section className="rounded-[22px] border border-line bg-raised/60 p-5">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-display text-[15px] font-semibold"><Phone className="h-4 w-4 text-faint" /> Recent calls</div>
+        <div className="flex items-center gap-2 whitespace-nowrap font-display text-[15px] font-semibold"><Phone className="h-4 w-4 text-faint" /> Recent calls</div>
         <div className="flex items-center gap-2">
-          {missed > 0 && <span className="rounded-full bg-bad/15 px-2 py-0.5 text-[11px] font-semibold text-bad">{missed} missed today</span>}
+          {missed > 0 && <span className="whitespace-nowrap rounded-full bg-bad/15 px-2 py-0.5 text-[11px] font-semibold text-bad" title="Missed today">{missed} missed</span>}
           {access === 'all' && (
             <button onClick={() => setPad(true)} title="Dial a number" className="no-drag flex h-8 items-center gap-1.5 rounded-lg bg-good/15 px-2.5 text-[12px] font-semibold text-good hover:bg-good/25">
               <Grid3x3 className="h-3.5 w-3.5" /> Dial

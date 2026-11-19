@@ -41,7 +41,7 @@ export function CommandPalette({ commands, onClose }) {
         <div className="flex items-center gap-3 border-b border-line px-5">
           <Search className="h-[18px] w-[18px] shrink-0 text-faint" />
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={key} placeholder="Type a command or a device…"
-            className="h-14 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint focus-visible:outline-none" />
+            style={{ outline: 'none' }} className="h-14 min-w-0 flex-1 bg-transparent text-[15px] placeholder:text-faint" />
           {q && <button onClick={() => setQ('')} className="rounded-lg border border-line px-2 py-0.5 text-[11.5px] text-muted hover:text-fg">Clear</button>}
         </div>
         <div ref={listRef} className="min-h-0 flex-1 overflow-auto p-2">

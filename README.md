@@ -115,29 +115,51 @@ New versions download in the background. Restart when you like.
 
 ## Your phone on your PC (new in 1.7)
 
-With the Android app connected, **Home** shows your phone right on the PC:
+Connect the DropWave Android app and your phone is right there on the PC: no cloud, no account,
+everything over your own Wi-Fi.
 
-- **Notifications** from the phone, with **Reply**, the app's own buttons, **Dismiss** and **Clear all**.
-  One-time codes get a **Copy code** button. New ones pop up on Windows too.
-- **Battery** and charging, and **what's playing** (title, artist, cover) with play / pause / next.
-- **Clipboard sync:** copy on the phone, paste on the PC, and the other way round. Passwords marked
-  sensitive by the password manager are never sent.
-- **Find my phone:** rings at full volume, even on silent, until you tap *Found it*.
-- **Phone as touchpad & keyboard:** in the app, **Control PC** turns the phone into a touchpad
-  (tap, two-finger right-click and scroll, hold-and-drag), a keyboard with autocorrect, and a
-  **Deck** of shortcuts: media, volume, show desktop, switch app, screenshot, copy/paste, slides,
-  **Lock** and **Sleep**. The PC asks first (*Deny / Allow once / Always allow*) and shows
-  *"… is using your mouse · Stop"* while it's in use.
+<div align="center">
+  <img src="docs/screenshots/home-phone.png" alt="DropWave Home: the phone's battery, music with volume, notifications with Reply and Copy code, and recent calls" width="88%" />
+  <br /><sub>Home: battery, music and volume, notifications (reply, copy one-time codes), recent calls</sub>
+</div>
+
+| | |
+|---|---|
+| 🔔 **Notifications** | Reply, press the app's own buttons, dismiss, clear all. One-time codes get **Copy code**. New ones pop up on Windows too. |
+| 📞 **Calls** | See who's calling, **Answer / Decline / Hang up** from the PC (WhatsApp, Telegram and Signal calls too), a **dial pad**, call back and recent calls. |
+| 💬 **Messages** | Your SMS on the PC: conversations, replies and new messages, sent by the phone with its SIM. |
+| 🖼️ **Photos** | The camera roll by day (photos, videos, screenshots). Pick some and **Download to PC**, originals with their own dates. |
+| 📂 **Phone files** | Browse the phone's storage and copy files to the PC. |
+| 📱 **Phone screen** | See the phone's screen in a window and use it with your **mouse and keyboard**: click, drag, scroll, type, Back/Home/Recents, screenshots. |
+| 📋 **Clipboard** | Copy on one, paste on the other. Passwords from password managers are never sent. |
+| 🎵 **Music & volume** | What's playing, play / pause / next / seek, and the phone's volume. |
+| 🛎️ **Find my phone** | Rings at full volume, even on silent, until you tap *Found it*. |
+| 🖱️ **Phone as touchpad** | **Control PC** turns the phone into a touchpad, keyboard and a **Deck** of shortcuts (media, volume, switch app, screenshot, slides, Lock, Sleep). The PC asks first and shows *"… is using your mouse · Stop"*. |
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/messages.png" alt="Messages: SMS conversations on the PC with a reply box" /></td>
+<td width="50%"><img src="docs/screenshots/photos.png" alt="Photos: the phone's camera roll grouped by day" /></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/phone-files.png" alt="Phone files: the phone's Documents folder with sizes and dates" /></td>
+<td width="50%"><img src="docs/screenshots/command-palette.png" alt="Command palette (Ctrl+K) listing actions for the phone" /></td>
+</tr>
+</table>
 
 Also new on the PC: a **command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>) for every action and device,
 a **timeline** of what moved between devices, and five colour themes (Wave, Ocean, Sunset, Forest,
 Graphite) in light and dark.
 
-> Notifications need **notification access**: in the app tap *Show phone notifications on PC*.
-> If Android says *"Restricted setting"* (APKs installed from a browser), open DropWave's
-> **App info › ⋮ › Allow restricted settings** first. Everything stays on your Wi-Fi; nothing is stored on the PC.
+> **Permissions, only for what you use.** Each feature has its own card on the phone's Home
+> (notification access, photos, calls, SMS, all-files access, Accessibility for screen control),
+> and Android asks once. If Android says *"Restricted setting"* (APKs installed from a browser),
+> open DropWave's **App info › ⋮ › Allow restricted settings** first. Nothing is stored on the PC
+> unless you download it.
 
 ## Android app
+
+<img src="docs/screenshots/phone-app-dark.png" alt="The DropWave Android app: connection card, Control PC, Deck, calls, Send files, Lock and Sleep" width="260" align="right" />
 
 Prefer an app over the browser? Install **`DropWave-Android-x.y.z.apk`** from the [latest release](https://github.com/lalitaryan1993/dropwave/releases/latest) (Android 10+).
 
@@ -322,6 +344,9 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Remote control of a Windows PC from another PC or a phone (with the owner's permission)
 - [x] Phone on PC: notifications with replies, clipboard sync, battery, media, find my phone
 - [x] Phone as touchpad, keyboard and Deck; command palette; colour themes
+- [x] Photos, calls (and app calls), dial, SMS and phone files on the PC
+- [x] Phone screen on the PC with mouse and keyboard control
+- [ ] Phone audio while mirroring, photo auto-backup
 - [ ] Android: auto-discovery without scanning
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)

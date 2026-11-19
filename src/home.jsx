@@ -275,15 +275,14 @@ function Tiles({ phone, onPick, onText, onCall, toast }) {
     try { await api.phoneCmd(phone.id, { type: 'ring', on: !phone.ringing }); } catch (e) { toast(e.message, 'error'); }
   };
   const tiles = [
-    { Icon: MonitorSmartphone, label: 'Phone screen', sub: 'see and control it', onClick: () => api.mirrorStart(phone.id).catch((e) => toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error')) },
+    { Icon: MonitorSmartphone, label: 'Screen', sub: 'see and control it', onClick: () => api.mirrorStart(phone.id).catch((e) => toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error')) },
     { Icon: Send, label: 'Send files', sub: 'or drop them here', onClick: () => onPick(peer, 'files') },
-    { Icon: ClipboardCopy, label: 'Send clipboard', sub: 'copied on this PC', onClick: sendClip },
-    { Icon: BellRing, label: phone.ringing ? 'Stop ringing' : 'Find phone', sub: phone.ringing ? 'ringing now…' : 'even on silent', onClick: ring, on: phone.ringing },
+    { Icon: ClipboardCopy, label: 'Clipboard', sub: 'send what you copied', onClick: sendClip },
+    { Icon: BellRing, label: phone.ringing ? 'Stop' : 'Find phone', sub: phone.ringing ? 'ringing now…' : 'even on silent', onClick: ring, on: phone.ringing },
     { Icon: Phone, label: 'Call', sub: 'voice over Wi-Fi', onClick: () => onCall(peer, 'audio') },
-    { Icon: MessageSquare, label: 'Message', sub: 'chat', onClick: () => onText(peer) },
   ];
   return (
-    <div className="@container"><div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(100px,1fr))]">
+    <div className="@container"><div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(96px,1fr))]">
       {tiles.map(({ Icon, label, sub, onClick, on }) => (
         <button key={label} onClick={onClick}
           className={`no-drag group flex h-[104px] min-w-0 flex-col justify-between rounded-2xl border p-3.5 text-left transition active:scale-[.98] ${on ? 'border-accent bg-accent/12 shadow-[0_0_0_3px_var(--glow)]' : 'border-line bg-raised/60 hover:border-line-strong hover:bg-raised'}`}>

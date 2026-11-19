@@ -211,6 +211,42 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   console.log(`ok  HTTPS for the app: pinned certificate, PIN login over TLS (${sh.cipher})`);
   await sweb.stop();
 
+  // Phone on PC: the app reports to the PC, the PC sends commands back, and the touchpad
+  // goes through the PC's permission. Only a device with a live connection can do either.
+  {
+    const pweb = new WebShare({
+      me: () => ({ id: 'PC', name: 'Test PC' }), saveDir: () => saveDir, pin: () => '123456',
+      webRoot: path.join(__dirname, '..', 'electron', 'web'), port: PORT + 20,
+      remote: async (from, ev) => (from.id === 'phoneP' ? { ok: true, got: ev } : { ok: false, ask: true }),
+    });
+    await pweb.start();
+    const pbase = `http://127.0.0.1:${PORT + 20}`;
+    const pkey = (await (await fetch(`${pbase}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '123456' }) })).json()).key;
+    const ppost = (p, body) => fetch(pbase + p, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-DropWave-Key': pkey }, body: JSON.stringify(body) });
+    const got = [];
+    pweb.on('phone', (m) => got.push(m));
+    // Not connected yet: refused.
+    assert.equal((await ppost('/api/phone', { from: 'phoneP', type: 'status', data: { battery: 80 } })).status, 400);
+    const ctrl = new AbortController();
+    const stream = await fetch(`${pbase}/api/events?id=phoneP&name=Pixel&key=${pkey}`, { signal: ctrl.signal });
+    const reader = stream.body.getReader();
+    const dec = new TextDecoder();
+    let sbuf = '';
+    const until = async (re) => { while (!re.test(sbuf)) { const { value } = await reader.read(); sbuf += dec.decode(value); } };
+    await until(/event: hello/);
+    assert.equal((await ppost('/api/phone', { from: 'phoneP', type: 'status', data: { battery: 80 } })).status, 200);
+    assert.deepEqual(got[0], { from: { id: 'phoneP', name: 'Pixel', kind: 'phone' }, type: 'status', data: { battery: 80 } });
+    assert.equal(pweb.sendPhone('phoneP', { type: 'ring', on: true }), true);
+    await until(/event: phone\ndata: \{"type":"ring","on":true\}/);
+    assert.equal(pweb.sendPhone('nobody', { type: 'ring' }), false);
+    const rr = await ppost('/api/remote', { from: 'phoneP', ev: { t: 'click', b: 'l' } });
+    assert.deepEqual(await rr.json(), { ok: true, got: { t: 'click', b: 'l' } });
+    assert.equal((await ppost('/api/remote', { from: 'other', ev: { t: 'click' } })).status, 400);
+    ctrl.abort();
+    await pweb.stop();
+    console.log('ok  phone on PC: status in, commands out, touchpad only for a connected device');
+  }
+
   await fsp.rm(root, { recursive: true, force: true });
   console.log('\nAll web tests passed');
   process.exit(0);

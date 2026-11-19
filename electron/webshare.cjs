@@ -310,6 +310,23 @@ class WebShare extends EventEmitter {
       else if (!this.sendRtc(String(b.to), m, sender)) return json(res, 400, { error: 'That device is no longer connected' });
       return json(res, 200, { ok: true });
     }
+    // The phone itself (Android app): battery, notifications, what's playing, clipboard.
+    // Only from a device that is connected right now, from the same address as its live stream.
+    if (p === '/api/phone' && req.method === 'POST') {
+      const b = await readJson(req, 1024 * 1024);
+      const from = this.#liveClient(b.from, ip);
+      if (!from || typeof b.type !== 'string') return json(res, 400, { error: 'Not connected' });
+      this.emit('phone', { from: { id: from.id, name: from.name, kind: from.kind }, type: b.type, data: b.data ?? null });
+      return json(res, 200, { ok: true });
+    }
+    // Touchpad, keyboard and Deck from a phone. The PC decides (asks its user the first time).
+    if (p === '/api/remote' && req.method === 'POST') {
+      const b = await readJson(req, 16 * 1024);
+      const from = this.#liveClient(b.from, ip);
+      if (!from) return json(res, 400, { error: 'Not connected' });
+      const r = this.o.remote ? await this.o.remote({ id: from.id, name: from.name, kind: from.kind }, b.ev) : { ok: false, error: 'Not available' };
+      return json(res, r.ok ? 200 : 403, r);
+    }
     if (p === '/api/upload' && req.method === 'POST') return this.#upload(req, res, url);
     if (p === '/api/cancel' && req.method === 'POST') {
       const b = await readJson(req, 1024);
@@ -335,7 +352,7 @@ class WebShare extends EventEmitter {
       const data = await fsp.readFile(file);
       res.writeHead(200, {
         'Content-Type': mimeOf(file),
-        'Cache-Control': file.endsWith('.html') ? 'no-store' : 'max-age=3600',
+        'Cache-Control': /\.(html|js)$/.test(file) ? 'no-store' : 'max-age=3600', // pages and scripts always match this version
         'X-Content-Type-Options': 'nosniff',
         ...(file.endsWith('.html') ? { 'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:" } : {}),
       });
@@ -521,6 +538,20 @@ class WebShare extends EventEmitter {
     if (!c || !c.streams.size) return false;
     const me = this.o.me();
     this.#send(c, 'rtc', { from: from || { id: me.id, name: me.name, kind: 'computer' }, msg });
+    return true;
+  }
+
+  /** A connected device with a live event stream from this address (ids alone are visible to other devices). */
+  #liveClient(id, ip) {
+    const c = this.clients.get(String(id || ''));
+    return c && c.streams.size && c.ip === ip ? c : null;
+  }
+
+  /** A command for the phone app (ring, media keys, notification reply, clipboard…). False if it isn't connected. */
+  sendPhone(clientId, cmd) {
+    const c = this.clients.get(clientId);
+    if (!c || !c.streams.size) return false;
+    this.#send(c, 'phone', cmd);
     return true;
   }
 

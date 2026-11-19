@@ -289,7 +289,7 @@ export function TransferRow({ t, compact = false }) {
 
 // ---------- modals ----------
 
-function Modal({ children, onClose }) {
+export function Modal({ children, onClose }) {
   useEffect(() => {
     const k = (e) => e.key === 'Escape' && onClose?.();
     window.addEventListener('keydown', k);

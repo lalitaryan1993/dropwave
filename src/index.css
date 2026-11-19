@@ -133,3 +133,18 @@ input[type="text"], input:not([type]) { user-select: text; }
 @media (prefers-reduced-motion: reduce) {
   .radar-ring, .bar-shimmer { animation: none; }
 }
+
+/* Accent colour themes (Settings > Appearance). "wave" is the default palette above. */
+:root[data-accent="ocean"] { --accent: #0a84ff; --accent-2: #14c8b4; }
+:root[data-accent="sunset"] { --accent: #ec4d58; --accent-2: #f39a1c; }
+:root[data-accent="forest"] { --accent: #15924a; --accent-2: #7cbf12; }
+:root[data-accent="graphite"] { --accent: #3f4656; --accent-2: #8a94a8; }
+.dark[data-accent="ocean"] { --accent: #3d9bff; --accent-2: #2fd8c4; }
+.dark[data-accent="sunset"] { --accent: #ff6b6f; --accent-2: #ffb340; }
+.dark[data-accent="forest"] { --accent: #34d37f; --accent-2: #a3e635; }
+.dark[data-accent="graphite"] { --accent: #8b93a7; --accent-2: #5d6579; }
+:root[data-accent]:not([data-accent="wave"]) {
+  --glow: color-mix(in oklab, var(--accent) 30%, transparent);
+  --aurora-a: color-mix(in oklab, var(--accent) 15%, transparent);
+  --aurora-b: color-mix(in oklab, var(--accent-2) 13%, transparent);
+}

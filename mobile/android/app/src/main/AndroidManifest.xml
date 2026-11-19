@@ -48,6 +48,18 @@
                 android:value="Keeps a local-network connection to the user's own PC open so files and messages sent from it arrive while the app is in the background." />
         </service>
 
+        <!-- Phone on PC: reads notifications and what's playing, only after the user turns on
+             notification access for DropWave in Android settings. -->
+        <service
+            android:name=".PhoneListener"
+            android:exported="false"
+            android:label="DropWave: phone notifications on your PC"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Download / Decline buttons on file notifications. -->
         <receiver
             android:name=".NotifActionReceiver"
@@ -64,6 +76,14 @@
         </provider>
     </application>
 
+    <!-- Show app names and icons for notifications and "what's playing" (Android 11+ hides other apps otherwise). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -71,6 +91,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Find my phone -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Calls (asked only when you start or accept a call) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />

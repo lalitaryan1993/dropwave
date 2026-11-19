@@ -46,11 +46,32 @@
   .err { color:var(--bad); font-size:13.5px; min-height:20px; text-align:center; }
   .hidden { display:none !important; }
   .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:30; }
+
+  /* 1.7 look */
+  header b { font-weight:800; }
+  .welcome { position:relative; overflow:hidden; border-radius:28px; padding:20px; color:#fff; margin-bottom:6px;
+    background:radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--accent2) 70%, transparent), transparent 55%), linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #0b0d14));
+    box-shadow:0 22px 48px -26px var(--glow); }
+  .welcome::after { content:""; position:absolute; right:-50px; bottom:-70px; width:210px; height:210px; border-radius:50%; background:rgba(255,255,255,.08); }
+  .welcome b { display:block; font-size:22px; letter-spacing:-.02em; line-height:1.2; }
+  .welcome p { margin:6px 0 14px; font-size:13.5px; color:#ffffffd0; line-height:1.45; }
+  .welcome ul { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:6px; position:relative; z-index:1; }
+  .welcome li { font-size:12.5px; font-weight:600; padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.15); }
+  .card { border-radius:22px; padding:14px 14px 14px 12px; background:var(--panel); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+  .av { width:46px; height:46px; border-radius:15px; }
+  .btn { border-radius:16px; height:52px; }
+  input { border-radius:16px; height:52px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header><img src="icon-192.png" alt="" /><b>DropWave</b></header>
+
+  <div class="welcome" id="welcome">
+    <b>Your phone and PC,<br/>working as one</b>
+    <p>Files, calls, clipboard, notifications and a touchpad for your PC. Everything stays on your Wi-Fi.</p>
+    <ul><li>📁 Send files</li><li>🖱️ Control PC</li><li>🔔 Notifications</li><li>📋 Clipboard</li></ul>
+  </div>
 
   <div id="mine-box">
     <h2>Your PCs</h2>
@@ -115,7 +136,7 @@
     const h = hue(pc.id);
     const b = document.createElement('button');
     b.className = 'card';
-    b.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${esc((pc.name || '?').slice(0, 2).toUpperCase())}</span>
+    b.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
       <span class="meta"><div class="n">${esc(pc.name)}</div><div class="s">${pc.fp ? '🔒 ' : ''}${esc(pc.base.replace('http://', ''))}</div></span>
       <span class="dot ${online ? 'on' : ''}"></span>${onRemove ? '<span class="x" data-x>×</span>' : ''}`;
     b.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) { e.stopPropagation(); onRemove(); } else onClick(); });
@@ -125,6 +146,7 @@
   const online = new Set();
   function renderMine() {
     $('#mine-box').classList.toggle('hidden', !pcs.length);
+    $('#welcome').classList.toggle('hidden', !!pcs.length); // first run only
     const box = $('#mine'); box.innerHTML = '';
     for (const pc of [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))) {
       box.appendChild(card(pc, {

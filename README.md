@@ -8,7 +8,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.4.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.7.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
 [![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
 [![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
@@ -112,6 +112,30 @@ New versions download in the background. Restart when you like.
   <img src="docs/screenshots/desktop-dark.png" alt="DropWave desktop app with nearby PCs, a phone and a TV" width="88%" />
   <br /><sub>Nearby devices: PCs, a phone and a TV, with live transfers on the right</sub>
 </div>
+
+## Your phone on your PC (new in 1.7)
+
+With the Android app connected, **Home** shows your phone right on the PC:
+
+- **Notifications** from the phone, with **Reply**, the app's own buttons, **Dismiss** and **Clear all**.
+  One-time codes get a **Copy code** button. New ones pop up on Windows too.
+- **Battery** and charging, and **what's playing** (title, artist, cover) with play / pause / next.
+- **Clipboard sync:** copy on the phone, paste on the PC, and the other way round. Passwords marked
+  sensitive by the password manager are never sent.
+- **Find my phone:** rings at full volume, even on silent, until you tap *Found it*.
+- **Phone as touchpad & keyboard:** in the app, **Control PC** turns the phone into a touchpad
+  (tap, two-finger right-click and scroll, hold-and-drag), a keyboard with autocorrect, and a
+  **Deck** of shortcuts: media, volume, show desktop, switch app, screenshot, copy/paste, slides,
+  **Lock** and **Sleep**. The PC asks first (*Deny / Allow once / Always allow*) and shows
+  *"… is using your mouse · Stop"* while it's in use.
+
+Also new on the PC: a **command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>) for every action and device,
+a **timeline** of what moved between devices, and five colour themes (Wave, Ocean, Sunset, Forest,
+Graphite) in light and dark.
+
+> Notifications need **notification access**: in the app tap *Show phone notifications on PC*.
+> If Android says *"Restricted setting"* (APKs installed from a browser), open DropWave's
+> **App info › ⋮ › Allow restricted settings** first. Everything stays on your Wi-Fi; nothing is stored on the PC.
 
 ## Android app
 
@@ -296,6 +320,8 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Android: encrypted connection to the PC (TLS 1.3, pinned certificate)
 - [x] Voice/video calls and screen sharing (PC ↔ PC, PC ↔ phone, phone ↔ phone)
 - [x] Remote control of a Windows PC from another PC or a phone (with the owner's permission)
+- [x] Phone on PC: notifications with replies, clipboard sync, battery, media, find my phone
+- [x] Phone as touchpad, keyboard and Deck; command palette; colour themes
 - [ ] Android: auto-discovery without scanning
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)

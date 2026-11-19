@@ -147,6 +147,75 @@
 
   .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:60; }
   @media (min-width: 900px) { .wrap { max-width:760px; } body { font-size:16px; } }
+
+  /* ===== 1.7 phone UI ===== */
+  .contents { display:contents; }
+  .contents.hidden { display:none !important; }
+  .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  header.top { display:flex; align-items:center; gap:10px; margin:2px 0 16px; }
+  header.top img { width:32px; height:32px; border-radius:10px; }
+  header.top .t { flex:1; font-weight:800; font-size:19px; letter-spacing:-.02em; }
+  .chip { display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 12px; border-radius:999px; background:var(--raised); border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--muted); }
+  .chip svg { width:15px; height:15px; }
+  .chip.me { max-width:44%; }
+
+  .hero { position:relative; overflow:hidden; border-radius:28px; padding:18px; color:#fff;
+    background: radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--accent2) 70%, transparent), transparent 55%),
+                linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #0b0d14));
+    box-shadow: 0 22px 48px -26px var(--glow); }
+  .hero::after { content:""; position:absolute; right:-40px; bottom:-60px; width:200px; height:200px; border-radius:50%; background:rgba(255,255,255,.08); }
+  .hero-row { display:flex; align-items:center; gap:14px; position:relative; z-index:1; }
+  .hero-ic { width:56px; height:56px; border-radius:18px; display:grid; place-items:center; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.25); flex:none; }
+  .hero-ic svg { width:28px; height:28px; }
+  .hero .status { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:#ffffffd9; }
+  .hero .status .dot { background:#4ff0a8; box-shadow:0 0 0 4px rgba(79,240,168,.22); }
+  .hero .status .dot.off { background:#ffb4b4; box-shadow:none; }
+  .hero-name { font-size:24px; font-weight:800; letter-spacing:-.025em; margin-top:2px; line-height:1.15; white-space:normal; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .hero-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:16px; position:relative; z-index:1; }
+  .hchip { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 10px; border-radius:999px; background:rgba(255,255,255,.16); font-size:12px; font-weight:600; }
+  .hchip svg { width:13px; height:13px; }
+
+  .sec-h { font-size:12px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--faint); margin:22px 6px 9px; }
+  .group { padding:8px; border-radius:24px; background:var(--panel); border:1px solid var(--line); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+  .pills { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pbtn { display:flex; align-items:center; gap:10px; min-height:54px; padding:0 14px; border-radius:17px; text-align:left; font-weight:650; font-size:14px;
+    background:color-mix(in oklab, var(--accent) 9%, var(--raised)); border:1px solid color-mix(in oklab, var(--accent) 14%, var(--line)); color:var(--fg); cursor:pointer; transition:transform .12s, background .15s; }
+  .pbtn svg { color:var(--accent); width:20px; height:20px; }
+  .pbtn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pbtn:active { transform:scale(.97); }
+  .pbtn.primary { color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); border-color:transparent; box-shadow:0 12px 26px -14px var(--glow); }
+  .pbtn.primary svg { color:#fff; }
+  .pbtn.outline { background:transparent; border-color:var(--line2); }
+  .pbtn.warn svg { color:var(--bad); }
+  .pbtn.wide { grid-column:1 / -1; }
+  .drop.over, .pbtn.over { outline:2px dashed var(--accent); outline-offset:3px; }
+
+  .targets { gap:8px; }
+  .target { border-radius:999px; padding:6px 14px 6px 6px; }
+  .target .av { width:30px; height:30px; }
+
+  .tabbar { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom)); z-index:40; display:flex; gap:4px; padding:6px;
+    border-radius:999px; background:color-mix(in oklab, var(--raised) 82%, transparent); border:1px solid var(--line2); backdrop-filter:blur(20px) saturate(140%); -webkit-backdrop-filter:blur(20px) saturate(140%);
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.45); }
+  .tabbar button { position:relative; display:flex; align-items:center; gap:7px; height:44px; padding:0 16px; border-radius:999px; font-weight:650; font-size:14px; color:var(--muted); }
+  .tabbar button svg { width:19px; height:19px; }
+  .tabbar button.on { color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); }
+  .tabbar button:not(.on) span { display:none; }
+  .tbadge { position:absolute; top:6px; right:8px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--bad); color:#fff; font-size:10px; font-style:normal; font-weight:700; display:grid; place-items:center; }
+  .tbadge.dotonly { min-width:9px; width:9px; height:9px; padding:0; top:9px; right:12px; }
+
+  .thread { max-height:none; min-height:240px; padding:6px 2px 4px; }
+  .tab[data-tab="chat"] .textbox { position:fixed; z-index:39; left:50%; transform:translateX(-50%); width:min(592px, calc(100% - 28px)); margin:0;
+    bottom:calc(80px + env(safe-area-inset-bottom)); border-radius:24px; padding:6px 6px 6px 12px; align-items:center; background:color-mix(in oklab, var(--raised) 92%, transparent);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); box-shadow:0 14px 30px -20px rgba(0,0,0,.45); }
+  .tab[data-tab="chat"] .thread { padding-bottom:80px; }
+  .sendbtn { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); flex:none; }
+  .sendbtn svg { width:18px; height:18px; }
+  .empty-state { display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; padding:46px 20px; color:var(--faint); font-size:13.5px; }
+  .empty-state svg { width:34px; height:34px; color:var(--line2); }
+  .empty-state b { color:var(--fg); font-size:15px; }
+  .offer { margin-bottom:14px; }
+  @media (min-width: 640px) { .pills { grid-template-columns:repeat(3, 1fr); } }
 </style>
 </head>
 <body>
@@ -165,43 +234,85 @@
 
   <!-- Main -->
   <section id="app" class="hidden">
-    <header>
+    <header class="top">
       <img src="icon-192.png" alt="" />
-      <div style="flex:1;min-width:0">
-        <div class="t">DropWave</div>
-        <div class="faint" style="font-size:12.5px"><span id="conn" class="row" style="gap:6px;display:flex;min-width:0"><span class="dot" style="flex:none"></span><span id="connText" class="ellipsis">Connected</span></span></div>
-      </div>
-      <button id="switchBtn" class="pill hidden" style="flex:none" title="Connect to a different PC">PCs</button>
-      <button id="meBtn" class="pill" style="flex:none;max-width:45%" title="Rename this device"><span id="meName" class="ellipsis">This device</span>
-        <svg class="i" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      <div class="t">DropWave</div>
+      <button id="switchBtn" class="chip hidden" title="Connect to a different PC"><svg class="i" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg><span>PCs</span></button>
+      <button id="meBtn" class="chip me" title="Rename this device"><span id="meName" class="ellipsis">This device</span><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
     </header>
 
     <div id="offers" class="list"></div>
 
-    <h2>Send to</h2>
-    <div id="targets" class="targets"></div>
-    <div id="callRow" class="callrow hidden">
-      <button class="btn soft" id="callAudio"><svg class="i" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>Call</button>
-      <button class="btn soft" id="callVideo"><svg class="i" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>Video</button>
-      <button class="btn soft" id="callScreen"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>View screen</button>
-    </div>
-    <label id="drop" class="drop" tabindex="0">
-      <div class="big grad"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></div>
-      <b>Choose files to send</b>
-      <span class="muted" style="font-size:13.5px">Photos, videos, documents — any size</span>
-      <input id="file" type="file" multiple class="hidden" />
-    </label>
-    <h2 id="chatTitle">Chat</h2>
-    <div id="thread" class="thread"></div>
-    <form id="textForm" class="textbox">
-      <textarea id="textIn" rows="1" placeholder="Message or link…" aria-label="Message"></textarea>
-      <button class="btn primary small" type="submit" aria-label="Send message">Send</button>
-    </form>
+    <!-- Home -->
+    <div class="tab" data-tab="home">
+      <div class="hero">
+        <div class="hero-row">
+          <div class="hero-ic"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+          <div style="min-width:0;flex:1">
+            <div id="conn" class="status"><span class="dot"></span><span id="connText" class="ellipsis">Connecting…</span></div>
+            <div id="heroName" class="hero-name ellipsis">Your PC</div>
+          </div>
+        </div>
+        <div class="hero-chips">
+          <span class="hchip" id="secChip"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span id="secText">Encrypted</span></span>
+          <span class="hchip" id="pingChip"><svg class="i" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg><span id="pingText">— ms</span></span>
+          <span class="hchip"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.6a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0M12 20h.01"/></svg><span>Same Wi-Fi</span></span>
+        </div>
+      </div>
 
-    <h2 id="actTitle" class="hidden">Activity</h2>
-    <div id="activity" class="list"></div>
+      <div class="sec-h">Send to</div>
+      <div id="targets" class="targets"></div>
+
+      <div class="sec-h">Screen, calls &amp; control</div>
+      <div class="group"><div class="pills">
+        <span id="slotControl" class="contents"></span>
+        <span id="callRow" class="contents hidden">
+          <button class="pbtn" id="callScreen"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>View screen</span></button>
+          <button class="pbtn" id="callAudio"><svg class="i" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg><span>Call</span></button>
+          <button class="pbtn" id="callVideo"><svg class="i" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg><span>Video call</span></button>
+        </span>
+      </div></div>
+
+      <div class="sec-h">Transfer &amp; clipboard</div>
+      <div class="group"><div class="pills">
+        <label id="drop" class="pbtn primary" tabindex="0"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg><span>Send files</span><input id="file" type="file" multiple class="hidden" /></label>
+        <span id="slotClip" class="contents"></span>
+        <button class="pbtn" id="noteBtn"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Send a note</span></button>
+      </div></div>
+
+      <div id="slotPowerWrap">
+        <div class="sec-h">System &amp; power</div>
+        <div class="group"><div class="pills" id="slotPower"></div></div>
+      </div>
+
+      <div id="phoneBox"></div>
+    </div>
+
+    <!-- Chat -->
+    <div class="tab hidden" data-tab="chat">
+      <div class="sec-h" id="chatTitle">Chat</div>
+      <div id="chatTargets" class="targets"></div>
+      <div id="thread" class="thread"></div>
+      <form id="textForm" class="textbox">
+        <textarea id="textIn" rows="1" placeholder="Message or link…" aria-label="Message"></textarea>
+        <button class="sendbtn" type="submit" aria-label="Send message"><svg class="i" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg></button>
+      </form>
+    </div>
+
+    <!-- Activity -->
+    <div class="tab hidden" data-tab="activity">
+      <div class="sec-h" id="actTitle">Activity</div>
+      <div id="activity" class="list"></div>
+      <div id="actEmpty" class="empty-state"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Nothing yet</b><span>Files you send and receive show up here.</span></div>
+    </div>
   </section>
 </div>
+
+<nav id="tabbar" class="tabbar hidden" aria-label="Sections">
+  <button data-go="home" class="on"><svg class="i" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+  <button data-go="chat"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span><i id="chatBadge" class="tbadge hidden"></i></button>
+  <button data-go="activity"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Activity</span><i id="actBadge" class="tbadge dotonly hidden"></i></button>
+</nav>
 
 <div id="call" class="call hidden">
   <video id="cRemote" autoplay playsinline class="hidden"></video>
@@ -235,7 +346,7 @@
   <div id="vBody"></div>
 </div>
 
-<script src="rtc.js"></script>
+<script src="rtc.js?v=1.7.0"></script>
 <script>
 (() => {
   // Inside the DropWave Android app, window.DW_APP = { base, key, download(url, name), saveKey(key),
@@ -276,6 +387,8 @@
     setTimeout(() => t.remove(), 3200);
   }
   window.dwToast = toast; // used by the Android app bridge
+  // For phone.js (Control PC, and the phone's notifications/clipboard in the Android app)
+  window.DW_PAGE = { api, myId, toast, pcName: () => pc?.name || 'the PC' };
 
   async function boot() {
     // A PC that's off (or a firewall that drops packets) never answers: don't wait forever.
@@ -287,9 +400,11 @@
     pc = r.pc;
     document.title = `DropWave · ${pc.name}`;
     $('#pcName1').textContent = pc.name;
-    if (!r.authed) { $('#lock').classList.remove('hidden'); $('#app').classList.add('hidden'); $('#pin').focus(); return; }
+    if (!r.authed) { $('#lock').classList.remove('hidden'); $('#app').classList.add('hidden'); $('#tabbar').classList.add('hidden'); $('#pin').focus(); return; }
     $('#lock').classList.add('hidden');
     $('#app').classList.remove('hidden');
+    $('#tabbar').classList.remove('hidden');
+    $('#heroName').textContent = pc.name;
     connect();
   }
 
@@ -315,7 +430,9 @@
       $('#meName').textContent = d.you.name;
       setConn(true);
       APP?.connected?.(d.pc?.name || pc.name);
+      window.dwPhone?.connected();
     });
+    es.addEventListener('phone', (m) => window.dwPhone?.command(JSON.parse(m.data)));
     es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); });
     es.addEventListener('offer', (m) => addOffer(JSON.parse(m.data)));
     es.addEventListener('text', (m) => addText(JSON.parse(m.data)));
@@ -323,6 +440,7 @@
     es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); APP?.clearNotify?.('o-' + id); toast('The sender cancelled'); });
     es.onerror = () => {
       setConn(false);
+      window.dwPhone?.disconnected();
       // A locked response (PIN changed) also lands here: re-check.
       api('/api/hello').then((x) => x.json()).then((r) => { if (!r.authed) { es.close(); boot(); } }).catch(() => {});
     };
@@ -330,7 +448,39 @@
 
   function setConn(on) {
     $('#conn .dot').classList.toggle('off', !on);
-    $('#connText').textContent = on ? `${APP?.secure ? '🔒 ' : ''}Connected to ${pc.name}` : 'Reconnecting…';
+    $('#connText').textContent = on ? 'Connected' : 'Reconnecting…';
+    $('#secText').textContent = APP?.secure || location.protocol === 'https:' ? 'Encrypted' : 'Local network';
+    if (on) ping(); else $('#pingText').textContent = '— ms';
+  }
+  // Round trip to the PC, shown on the hero card (every 10 s while the page is on screen).
+  let pingTimer = null;
+  async function ping() {
+    clearTimeout(pingTimer);
+    if (document.visibilityState === 'visible') {
+      const t0 = performance.now();
+      const ok = await api('/api/hello', { cache: 'no-store' }).then((r) => r.ok).catch(() => false);
+      if (ok) $('#pingText').textContent = `${Math.max(1, Math.round(performance.now() - t0))} ms`;
+    }
+    pingTimer = setTimeout(ping, 10000);
+  }
+
+  // ---------- tabs ----------
+  let tab = 'home';
+  function showTab(name) {
+    tab = name;
+    document.querySelectorAll('#app .tab').forEach((t) => t.classList.toggle('hidden', t.dataset.tab !== name));
+    document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
+    if (name === 'chat') { renderThread(); renderTargets(); }
+    if (name === 'activity') $('#actBadge').classList.add('hidden');
+    window.scrollTo({ top: 0 });
+  }
+  document.querySelectorAll('#tabbar button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.go)));
+  $('#noteBtn').addEventListener('click', () => { showTab('chat'); setTimeout(() => $('#textIn').focus(), 50); });
+  window.dwShowTab = showTab;
+  function updateBadges() {
+    const n = [...unread.values()].reduce((a, b) => a + b, 0);
+    $('#chatBadge').textContent = n > 9 ? '9+' : String(n);
+    $('#chatBadge').classList.toggle('hidden', !n);
   }
 
   if (APP) { $('#switchBtn').classList.remove('hidden'); $('#switchBtn').addEventListener('click', () => APP.switchPC()); }
@@ -347,18 +497,20 @@
   function renderTargets() {
     const before = target;
     if (!target || !peers.some((p) => p.id === target)) target = peers[0]?.id;
-    const box = $('#targets');
-    box.innerHTML = '';
-    for (const p of peers) {
-      const h = hue(p.id);
-      const n = unread.get(p.id) || 0;
-      const b = el('button', 'target' + (p.id === target ? ' on' : ''),
-        `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${svg(p.kind in ICON ? p.kind : 'computer', 'style="width:18px;height:18px"')}</span>${esc(p.name)}${n ? ` <span class="badge">${n}</span>` : ''}`);
-      b.addEventListener('click', () => { target = p.id; renderTargets(); renderThread(); });
-      box.appendChild(b);
+    for (const box of [$('#targets'), $('#chatTargets')]) {
+      box.innerHTML = '';
+      for (const p of peers) {
+        const h = hue(p.id);
+        const n = unread.get(p.id) || 0;
+        const b = el('button', 'target' + (p.id === target ? ' on' : ''),
+          `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))">${svg(p.kind in ICON ? p.kind : 'computer', 'style="width:16px;height:16px"')}</span>${esc(p.name)}${n ? ` <span class="badge">${n}</span>` : ''}`);
+        b.addEventListener('click', () => { target = p.id; renderTargets(); renderThread(); });
+        box.appendChild(b);
+      }
     }
     if (target !== before) renderThread();
     updateCallRow();
+    updateBadges();
   }
 
   // ---------- sending ----------
@@ -414,7 +566,8 @@
   }
 
   function activityRow(id, title, sub, cancellable) {
-    $('#actTitle').classList.remove('hidden');
+    $('#actEmpty').classList.add('hidden');
+    if (tab !== 'activity') $('#actBadge').classList.remove('hidden');
     const r = el('div', 'item', `
       <div class="row"><div style="flex:1;min-width:0"><div class="name">${esc(title)}</div><div class="sub" data-sub>${esc(sub)}</div></div>
       ${cancellable ? `<button class="btn ghost small" data-cancel aria-label="Cancel">${svg('x')}</button>` : ''}</div>
@@ -452,7 +605,8 @@
       box.appendChild(b);
     }
     box.scrollTop = box.scrollHeight;
-    unread.delete(target);
+    if (tab === 'chat') { unread.delete(target); updateBadges(); }
+    if (tab === 'chat') window.scrollTo({ top: document.body.scrollHeight });
   }
 
   const textIn = $('#textIn');
@@ -486,7 +640,7 @@
     if (msgs.some((x) => x.id === m.id)) return;
     msgs.push({ id: m.id, peer: m.from.id, name: m.from.name, dir: 'in', text: m.text, at: Date.now() });
     saveMsgs();
-    if (m.from.id === target) renderThread();
+    if (m.from.id === target && tab === 'chat') renderThread();
     else {
       unread.set(m.from.id, (unread.get(m.from.id) || 0) + 1);
       renderTargets();
@@ -799,7 +953,7 @@
   if (!APP) history.pushState({ dw: 'guard' }, '');
   let lastBack = 0;
   if (!APP) window.addEventListener('popstate', () => {
-    if (!$('#viewer').classList.contains('hidden')) { closeViewer(); history.pushState({ dw: 'guard' }, ''); return; }
+    if (window.dwBack && window.dwBack()) { history.pushState({ dw: 'guard' }, ''); return; } // viewer or Control PC was open
     const now = Date.now();
     if (now - lastBack < 2000) { history.back(); return; } // second press within 2 s: really leave
     lastBack = now;
@@ -846,5 +1000,6 @@
   boot();
 })();
 </script>
+<script src="phone.js?v=1.7.0"></script>
 </body>
 </html>

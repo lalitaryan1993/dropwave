@@ -3,17 +3,30 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Radar as RadarIcon, History, Settings as SettingsIcon, FolderOpen, Plus, Trash2, Sun, Moon, MonitorSmartphone,
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
-  Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare,
+  Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
+  Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
 import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, Toasts } from './components.jsx';
 import { ChatsView } from './chat.jsx';
 import { useCalls, CallLayer } from './call.jsx';
+import { Home, usePhones, RemoteAskModal, RemotePill } from './home.jsx';
+import { CommandPalette } from './palette.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
-function useTheme(theme) {
+// Accent colour themes (Settings > Appearance)
+const ACCENTS = [
+  ['wave', 'Wave', '#6d5dfc', '#19b5d8'],
+  ['ocean', 'Ocean', '#0a84ff', '#14c8b4'],
+  ['sunset', 'Sunset', '#f2555a', '#f7a325'],
+  ['forest', 'Forest', '#16a34a', '#84cc16'],
+  ['graphite', 'Graphite', '#3f4656', '#8a94a8'],
+];
+
+function useTheme(theme, accent) {
+  useEffect(() => { document.documentElement.dataset.accent = accent || 'wave'; }, [accent]);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && mq.matches));
@@ -29,7 +42,9 @@ export default function App() {
   const [active, setActive] = useState({}); // id -> transfer
   const [history, setHistory] = useState([]);
   const [pending, setPending] = useState([]);
-  const [view, setView] = useState('nearby');
+  const [view, setView] = useState('home');
+  const [homePhone, setHomePhone] = useState(null);
+  const [palette, setPalette] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
@@ -42,7 +57,7 @@ export default function App() {
   // Chats
   const [chatList, setChatList] = useState([]);
   const [chatPeer, setChatPeer] = useState(null);
-  const where = useRef({ view: 'nearby', chatPeer: null });
+  const where = useRef({ view: 'home', chatPeer: null });
   const openChatWith = useCallback((id) => { setChatPeer(id); setView('chats'); }, []);
   const [toSend, setToSend] = useState(null); // paths from Explorer's "Send with DropWave"
   useEffect(() => {
@@ -57,6 +72,19 @@ export default function App() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   }, []);
   const { call, calls, start: startCall } = useCalls(toast);
+  const { phones, timeline, asks, remote } = usePhones();
+  useEffect(() => {
+    const offs = [
+      api.onClipIn(({ peer }) => toast(`Copied from ${peer.name}: paste it anywhere`)),
+      api.onOpenHome((id) => { setHomePhone(id); setView('home'); }),
+    ];
+    // Ctrl+K (or Ctrl+Alt+Space): command palette
+    const key = (e) => {
+      if ((e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'k') || (e.ctrlKey && e.altKey && e.code === 'Space')) { e.preventDefault(); setPalette((v) => !v); }
+    };
+    window.addEventListener('keydown', key);
+    return () => { offs.forEach((f) => f()); window.removeEventListener('keydown', key); };
+  }, [toast]);
 
   useEffect(() => {
     api.getState().then((s) => {
@@ -85,7 +113,7 @@ export default function App() {
     return () => offs.forEach((f) => f());
   }, [toast]);
 
-  useTheme(state?.settings.theme || 'system');
+  useTheme(state?.settings.theme || 'system', state?.settings.accent);
 
   // Chat list + "message arrived" toast when that conversation isn't on screen.
   where.current = { view, chatPeer };
@@ -152,7 +180,7 @@ export default function App() {
     };
   }, [toast]);
 
-  useEffect(() => { if (dragging && view !== 'nearby') setView('nearby'); }, [dragging, view]);
+  useEffect(() => { if (dragging && view !== 'nearby' && view !== 'home') setView('nearby'); }, [dragging, view]);
 
   const sendPaths = async (peer, paths) => {
     try { await api.sendPaths(peer.id, paths); } catch (e) { toast(cleanErr(e), 'error'); }
@@ -166,11 +194,54 @@ export default function App() {
   };
   const updateSettings = async (patch) => setState(await api.updateSettings(patch));
 
+  // Everything the command palette can do, rebuilt as devices come and go.
+  const commands = useMemo(() => {
+    if (!state) return [];
+    const go = (id, title, Icon, hint) => ({ id: `go-${id}`, title, hint, Icon, group: 'Go to', run: () => setView(id) });
+    const list = [
+      go('home', 'Home', House, 'Your phone: notifications, battery, music'),
+      go('nearby', 'Nearby devices', RadarIcon, 'Send files by drag and drop'),
+      go('chats', 'Chats', MessagesSquare),
+      go('activity', 'Activity', History, 'Everything sent and received'),
+      go('settings', 'Settings', SettingsIcon),
+      { id: 'connect', title: 'Connect a phone or TV', hint: 'QR code and PIN', Icon: QrCode, group: 'Actions', run: () => setShowPhone(true) },
+      { id: 'add-ip', title: 'Add a PC by IP address', Icon: Plus, group: 'Actions', run: () => setShowAdd(true) },
+      { id: 'received', title: 'Open received files', hint: state.settings.saveDir, Icon: FolderOpen, group: 'Actions', run: () => api.openSaveDir() },
+      { id: 'check', title: 'Network check', hint: 'Find and fix why a device can’t be seen', Icon: Stethoscope, group: 'Actions', keywords: 'firewall doctor fix', run: () => { setView('settings'); setCheckSignal((n) => n + 1); } },
+      { id: 'theme', title: document.documentElement.classList.contains('dark') ? 'Switch to light mode' : 'Switch to dark mode', Icon: Moon, group: 'Appearance', keywords: 'theme dark light',
+        run: () => updateSettings({ theme: document.documentElement.classList.contains('dark') ? 'light' : 'dark' }) },
+      ...ACCENTS.map(([id, name]) => ({ id: `accent-${id}`, title: `${name} colours`, Icon: Palette, group: 'Appearance', keywords: 'theme accent color', run: () => updateSettings({ accent: id }) })),
+      { id: 'update', title: 'Check for updates', Icon: Download, group: 'Actions', run: () => api.checkUpdate().then(setUpdate) },
+    ];
+    for (const p of peers) {
+      const g = p.name;
+      list.push(
+        { id: `send-${p.id}`, title: `Send files to ${p.name}`, Icon: Send, group: g, run: () => pick(p, 'files') },
+        { id: `folder-${p.id}`, title: `Send a folder to ${p.name}`, Icon: FolderUp, group: g, run: () => pick(p, 'folder') },
+        { id: `clip-${p.id}`, title: `Send clipboard to ${p.name}`, hint: 'What you copied on this PC', Icon: ClipboardCopy, group: g, keywords: 'paste copy',
+          run: async () => { const t = await api.readClipboard(); if (!t) return toast('The clipboard is empty', 'error'); try { await api.sendText(p.id, t); toast(`Sent to ${p.name}`); } catch (e) { toast(cleanErr(e), 'error'); } } },
+        { id: `chat-${p.id}`, title: `Message ${p.name}`, Icon: MessageSquare, group: g, keywords: 'chat text', run: () => openChatWith(p.id) },
+        { id: `call-${p.id}`, title: `Call ${p.name}`, Icon: Phone, group: g, keywords: 'voice', run: () => startCall(p, 'audio') },
+        { id: `video-${p.id}`, title: `Video call ${p.name}`, Icon: Video, group: g, run: () => startCall(p, 'video') },
+      );
+    }
+    for (const ph of Object.values(phones)) {
+      list.push(
+        { id: `ring-${ph.id}`, title: ph.ringing ? `Stop ringing ${ph.name}` : `Find ${ph.name}`, hint: 'Rings the phone, even on silent', Icon: BellRing, group: ph.name, keywords: 'find phone ring lost',
+          run: () => api.phoneCmd(ph.id, { type: 'ring', on: !ph.ringing }).catch((e) => toast(cleanErr(e), 'error')) },
+        { id: `phone-${ph.id}`, title: `Open ${ph.name}`, hint: 'Notifications, battery and music', Icon: Smartphone, group: ph.name, run: () => { setHomePhone(ph.id); setView('home'); } },
+      );
+    }
+    return list;
+  }, [state, peers, phones]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!state) return <div className="aurora h-full" />;
 
   const activeList = Object.values(active).sort((a, b) => b.startedAt - a.startedAt);
   const busyPeers = new Set(activeList.map((t) => (t.direction === 'out' ? t.to.id : t.from.id)));
+  const notifCount = Object.values(phones).reduce((a, p) => a + (p.notifs?.length || 0), 0);
   const nav = [
+    { id: 'home', label: 'Home', Icon: House, badge: notifCount || null },
     { id: 'nearby', label: 'Nearby', Icon: RadarIcon, badge: peers.length || null },
     { id: 'chats', label: 'Chats', Icon: MessagesSquare, badge: chatList.reduce((a, c) => a + (c.unread || 0), 0) || null },
     { id: 'activity', label: 'Activity', Icon: History, badge: activeList.length || null },
@@ -184,6 +255,13 @@ export default function App() {
         <Logo />
         <span className="font-display text-[14px] font-semibold tracking-tight">DropWave</span>
         <span className="ml-2 rounded-md border border-line px-1.5 py-px text-[10.5px] text-faint">v{state.version}</span>
+        <span className="ml-auto" />
+        <RemotePill remote={remote} />
+        <button onClick={() => setPalette(true)}
+          className="no-drag flex h-8 w-[260px] items-center gap-2 rounded-xl border border-line bg-raised/60 px-3 text-[12.5px] text-faint transition hover:border-line-strong hover:text-muted max-[900px]:w-auto">
+          <Command className="h-3.5 w-3.5" /> <span className="flex-1 text-left max-[900px]:hidden">Search commands…</span>
+          <kbd className="rounded-md border border-line px-1.5 font-sans text-[10.5px]">Ctrl K</kbd>
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -251,6 +329,14 @@ export default function App() {
                 transition={{ duration: 0.18 }}
                 className="h-full"
               >
+                {view === 'home' && (
+                  <Home
+                    phones={phones} peers={peers} timeline={timeline} history={history}
+                    selected={homePhone} onSelect={setHomePhone}
+                    onConnect={() => setShowPhone(true)} onPick={pick} onText={(p) => openChatWith(p.id)} onCall={startCall}
+                    onSeeAll={() => setView('activity')} toast={toast}
+                  />
+                )}
                 {view === 'nearby' && (
                   <Nearby
                     me={state.me} peers={peers} dragging={dragging} busyPeers={busyPeers}
@@ -281,6 +367,8 @@ export default function App() {
             onPhone={() => setShowPhone(true)}
           />
         )}
+        {asks[0] && !pending[0] && <RemoteAskModal key={`ask-${asks[0].id}`} ask={asks[0]} />}
+        {palette && <CommandPalette key="palette" commands={commands} onClose={() => setPalette(false)} />}
         {showPhone && <PhoneModal onClose={() => setShowPhone(false)} onOpenSettings={() => { setShowPhone(false); setView('settings'); }} />}
       </AnimatePresence>
       <CallLayer call={call} calls={calls} />
@@ -576,6 +664,29 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
           )}
         </Card>
 
+        <Card title="Phone (Android app)">
+          <Row label="Clipboard sync" hint="Copy on the phone, paste on this PC, and the other way round">
+            <Toggle on={s.clipSync !== false} set={(v) => update({ clipSync: v })} />
+          </Row>
+          <Row label="Phone notifications on this PC" hint="New notifications from the phone pop up here while DropWave isn’t in front">
+            <Toggle on={s.phoneNotifs !== false} set={(v) => update({ phoneNotifs: v })} />
+          </Row>
+          {(s.remoteAllowed || []).length === 0 ? (
+            <div className="flex items-center gap-2 text-[12.5px] text-faint"><ShieldCheck className="h-4 w-4" /> No phone may use this PC’s mouse and keyboard. Each phone asks first.</div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="text-[12px] text-faint">Always allowed to use this PC’s mouse and keyboard:</div>
+              {s.remoteAllowed.map((d) => (
+                <div key={d.id} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                  <Avatar id={d.id} name={d.name} size={28} />
+                  <span className="flex-1 text-[13px]">{d.name}</span>
+                  <button onClick={() => api.remoteRevoke(d.id)} className="grid h-7 w-7 place-items-center rounded-lg text-faint hover:bg-[var(--line)] hover:text-bad" title="Remove"><X className="h-4 w-4" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
         <Card title="Received files">
           <Row label="Save to" hint={s.saveDir}>
             <Button variant="soft" onClick={chooseDir}><FolderOpen className="h-4 w-4" /> Change</Button>
@@ -590,6 +701,17 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
                 <Icon className="h-5 w-5" /> {l}
               </button>
             ))}
+          </div>
+          <div className="flex flex-wrap gap-2.5 pt-1">
+            {ACCENTS.map(([id, l, a, b]) => {
+              const on = (s.accent || 'wave') === id;
+              return (
+                <button key={id} onClick={() => update({ accent: id })} title={l}
+                  className={`flex h-10 items-center gap-2 rounded-xl border pl-1.5 pr-3 text-[12.5px] font-medium transition ${on ? 'border-accent bg-accent/10 text-fg shadow-[0_0_0_3px_var(--glow)]' : 'border-line text-muted hover:border-line-strong hover:text-fg'}`}>
+                  <span className="h-7 w-7 rounded-lg" style={{ background: `linear-gradient(135deg, ${a}, ${b})` }} /> {l}
+                </button>
+              );
+            })}
           </div>
         </Card>
 

@@ -1,0 +1,248 @@
+// "Phone on PC": what the DropWave Android app shares with this PC (battery, notifications,
+// what's playing, clipboard), the commands this PC sends back (ring, media keys, replies), and
+// the phone's touchpad / keyboard / Deck, which only work once this PC's user allows that phone.
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+
+const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+const isDataImage = (v, max) => typeof v === 'string' && v.length <= max && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v);
+
+// One-time codes in a notification ("Your code is 482913", "G-123456 is your Google code").
+function findCode(text) {
+  if (!/\b(code|otp|pin|password|passcode|verification|verify|one[- ]time|कोड|ओटीपी)\b/i.test(text)) return null;
+  const m = text.match(/(?:^|[^\d])(\d{4,8})(?!\d)/) || text.match(/\b([A-Z0-9]{3,4}-[A-Z0-9]{3,4})\b/);
+  return m ? m[1] : null;
+}
+
+class PhoneHub {
+  /**
+   * @param {{ push:Function, notify:Function, web:()=>any, settings:()=>any, saveSettings:Function,
+   *   clipboard:any, remoteInput:any, focused:()=>boolean, attention:Function, inputLog?:string }} o
+   */
+  constructor(o) {
+    this.o = o;
+    this.phones = new Map();   // client id -> phone state
+    this.timeline = [];        // this session's events (clipboard, ring, remote…), newest first
+    this.sessionAllowed = new Set(); // phones allowed to control this PC until DropWave restarts
+    this.asking = new Map();   // phone id -> { id, name } waiting for Allow / Deny
+    this.lastClip = '';
+    this.clipTimer = null;
+    this.lastRemote = new Map(); // phone id -> time of its last input (for "… is using your mouse")
+    this.names = new Map();      // device id -> name, for devices allowed this session
+    this.activeTimer = null;
+  }
+
+  /** Who may use the mouse and keyboard, and who is using them right now (title-bar "Stop" pill). */
+  remoteState() {
+    const now = Date.now();
+    const ids = new Set([...this.sessionAllowed, ...this.#always().map((d) => d.id)]);
+    return [...ids].map((id) => ({
+      id, name: this.phones.get(id)?.name || this.names.get(id) || this.#always().find((d) => d.id === id)?.name || 'A device',
+      always: this.#always().some((d) => d.id === id), active: now - (this.lastRemote.get(id) || 0) < 5000,
+    }));
+  }
+
+  #pushRemote() {
+    this.o.push('remote-state', this.remoteState());
+    // Clear "active" once input stops.
+    clearTimeout(this.activeTimer);
+    if (this.remoteState().some((r) => r.active)) this.activeTimer = setTimeout(() => this.#pushRemote(), 5200);
+  }
+
+  start() {
+    try { this.lastClip = this.o.clipboard.readText(); } catch {}
+    this.clipTimer = setInterval(() => this.#pollClipboard(), 1000);
+  }
+
+  stop() { clearInterval(this.clipTimer); }
+
+  list() { return [...this.phones.values()].map((p) => this.#public(p)); }
+
+  #public(p) {
+    const allowed = this.isAllowed(p.id);
+    return {
+      id: p.id, name: p.name, status: p.status, notifs: p.notifs, media: p.media, icons: p.icons,
+      ringing: p.ringing, remote: { allowed, always: this.#always().some((d) => d.id === p.id), active: Date.now() - (this.lastRemote.get(p.id) || 0) < 4000 },
+    };
+  }
+
+  #emit(p) { this.o.push('phone', this.#public(p)); }
+
+  #event(kind, peer, text) {
+    const e = { id: crypto.randomUUID(), at: Date.now(), kind, peer: peer ? { id: peer.id, name: peer.name } : null, text };
+    this.timeline = [e, ...this.timeline].slice(0, 100);
+    this.o.push('timeline', e);
+  }
+
+  /** Devices that are still connected; drop the rest. */
+  sync(clients) {
+    const live = new Map(clients.map((c) => [c.id, c]));
+    for (const [id, p] of this.phones) {
+      if (!live.has(id)) { this.phones.delete(id); this.o.push('phone-gone', id); }
+      else if (live.get(id).name !== p.name) { p.name = live.get(id).name; this.#emit(p); }
+    }
+  }
+
+  // ---------- phone -> PC ----------
+
+  handle({ from, type, data }) {
+    let p = this.phones.get(from.id);
+    if (!p) {
+      p = { id: from.id, name: from.name, status: null, notifs: [], media: null, icons: {}, ringing: false, seen: new Set(), primed: false };
+      this.phones.set(from.id, p);
+    }
+    p.name = from.name;
+    const d = data && typeof data === 'object' ? data : {};
+    switch (type) {
+      case 'status': {
+        p.status = {
+          battery: num(d.battery), charging: !!d.charging, model: str(d.model, 60), android: str(d.android, 20),
+          notifAccess: !!d.notifAccess, clip: !!d.clip, app: str(d.app, 20),
+          volume: num(d.volume), volumeMax: num(d.volumeMax), muted: !!d.muted,
+        };
+        break;
+      }
+      case 'notifs': {
+        const list = (Array.isArray(d.list) ? d.list : []).slice(0, 60).map((n) => {
+          const text = str(n.text, 2000), title = str(n.title, 200);
+          return {
+            key: str(n.key, 300), pkg: str(n.pkg, 120), app: str(n.app, 60), title, text, time: num(n.time) || Date.now(),
+            code: findCode(`${title} ${text}`),
+            actions: (Array.isArray(n.actions) ? n.actions : []).slice(0, 3).map((a, i) => ({ i: num(a.i) ?? i, title: str(a.title, 40), reply: !!a.reply })),
+          };
+        }).filter((n) => n.key && (n.title || n.text));
+        // A new notification pops up on the PC too (not the ones already there when the phone connected).
+        if (p.primed) {
+          for (const n of list) {
+            if (p.seen.has(n.key)) continue;
+            if (!this.o.focused() && this.o.settings().phoneNotifs !== false) {
+              this.o.notify(`${n.app || 'Phone'} · ${n.title || p.name}`, n.code ? `${n.text}\n\nCode: ${n.code}` : n.text, () => this.o.push('open-home', p.id));
+            }
+          }
+        }
+        p.seen = new Set(list.map((n) => n.key));
+        p.primed = true;
+        p.notifs = list;
+        break;
+      }
+      case 'icon': {
+        const pkg = str(d.pkg, 120);
+        if (pkg && isDataImage(d.data, 60 * 1024) && Object.keys(p.icons).length < 200) p.icons = { ...p.icons, [pkg]: d.data };
+        break;
+      }
+      case 'media': {
+        p.media = d.title || d.artist ? {
+          title: str(d.title, 200), artist: str(d.artist, 200), app: str(d.app, 60), playing: !!d.playing,
+          canSeek: !!d.canSeek, canSkip: d.canSkip !== false,
+          pos: num(d.pos), dur: num(d.dur), at: Date.now(), art: isDataImage(d.art, 300 * 1024) ? d.art : (p.media?.title === d.title ? p.media?.art : null),
+        } : null;
+        break;
+      }
+      case 'ring': p.ringing = !!d.on; break;
+      case 'clip': {
+        const text = str(d.text, 100 * 1024);
+        if (!text || this.o.settings().clipSync === false) return;
+        this.lastClip = text;
+        try { this.o.clipboard.writeText(text); } catch {}
+        this.#event('clip-in', p, text.length > 80 ? `${text.slice(0, 77)}…` : text);
+        this.o.push('clip-in', { peer: { id: p.id, name: p.name }, text });
+        return;
+      }
+      default: return;
+    }
+    this.#emit(p);
+  }
+
+  // ---------- PC -> phone ----------
+
+  command(id, cmd) {
+    const p = this.phones.get(id);
+    const web = this.o.web();
+    if (!p || !web) throw new Error('The phone is no longer connected');
+    if (!cmd || typeof cmd.type !== 'string') throw new Error('Unknown command');
+    const ok = web.sendPhone(id, cmd);
+    if (!ok) throw new Error('The phone is no longer connected');
+    if (cmd.type === 'ring') { p.ringing = !!cmd.on; this.#emit(p); if (cmd.on) this.#event('ring', p, 'Ringing the phone'); }
+    if (cmd.type === 'notif' && cmd.action === 'dismiss') { p.notifs = p.notifs.filter((n) => n.key !== cmd.key); this.#emit(p); }
+    if (cmd.type === 'notif' && cmd.action === 'clear') { p.notifs = []; this.#emit(p); }
+    if (cmd.type === 'clip') this.#event('clip-out', p, 'Clipboard sent');
+    return true;
+  }
+
+  #pollClipboard() {
+    let t = '';
+    try { t = this.o.clipboard.readText(); } catch { return; }
+    if (!t || t === this.lastClip) return;
+    this.lastClip = t;
+    if (this.o.settings().clipSync === false || t.length > 100 * 1024) return;
+    const web = this.o.web();
+    for (const p of this.phones.values()) if (p.status?.clip) web?.sendPhone(p.id, { type: 'clip', text: t, auto: true });
+  }
+
+  // ---------- phone's touchpad / keyboard / Deck ----------
+
+  #always() { return this.o.settings().remoteAllowed || []; }
+  isAllowed(id) { return this.sessionAllowed.has(id) || this.#always().some((d) => d.id === id); }
+
+  /** The answer to an Allow / Deny prompt on this PC. */
+  respond(id, allow, always) {
+    const who = this.asking.get(id) || this.phones.get(id) || { id, name: 'Phone' };
+    this.asking.delete(id);
+    if (allow) {
+      this.sessionAllowed.add(id);
+      this.names.set(id, who.name);
+      if (always) this.o.saveSettings({ remoteAllowed: [...this.#always().filter((d) => d.id !== id), { id, name: who.name }] });
+      this.#event('remote', who, always ? 'Can always control this PC' : 'Allowed to control this PC');
+    }
+    this.o.web()?.sendPhone(id, { type: 'remote', allowed: !!allow });
+    this.o.push('remote-ask-closed', id);
+    const p = this.phones.get(id);
+    if (p) this.#emit(p);
+    this.#pushRemote();
+  }
+
+  revoke(id) {
+    this.sessionAllowed.delete(id);
+    this.o.saveSettings({ remoteAllowed: this.#always().filter((d) => d.id !== id) });
+    this.o.web()?.sendPhone(id, { type: 'remote', allowed: false });
+    this.lastRemote.delete(id);
+    const p = this.phones.get(id);
+    if (p) this.#emit(p);
+    this.#pushRemote();
+  }
+
+  pendingAsks() { return [...this.asking.values()]; }
+
+  async remote(from, ev) {
+    if (!this.isAllowed(from.id)) {
+      if (!this.asking.has(from.id)) {
+        this.asking.set(from.id, { id: from.id, name: from.name });
+        this.o.push('remote-ask', { id: from.id, name: from.name });
+        this.o.attention(`${from.name} wants to use your mouse and keyboard`, 'Open DropWave to allow or deny');
+      }
+      return { ok: false, ask: true, error: 'Waiting for the PC to allow it' };
+    }
+    if (!ev || typeof ev !== 'object' || ev.t === 'hello') return { ok: true };
+    const first = Date.now() - (this.lastRemote.get(from.id) || 0) > 4000;
+    this.lastRemote.set(from.id, Date.now());
+    if (first) { const p = this.phones.get(from.id); if (p) this.#emit(p); this.#pushRemote(); }
+    if (this.o.inputLog) { fs.appendFileSync(this.o.inputLog, JSON.stringify({ from: from.id, ...ev }) + '\n'); return { ok: true }; }
+    if (ev.t === 'action') return this.#action(String(ev.a));
+    try { await this.o.remoteInput.start(); } catch (e) { return { ok: false, error: e.message }; }
+    this.o.remoteInput.handle(ev);
+    return { ok: true };
+  }
+
+  #action(a) {
+    if (process.platform !== 'win32') return { ok: false, error: 'Works on Windows PCs for now' };
+    const run = (cmd, args) => spawn(cmd, args, { windowsHide: true, detached: true, stdio: 'ignore' }).unref();
+    if (a === 'lock') run('rundll32.exe', ['user32.dll,LockWorkStation']);
+    else if (a === 'sleep') run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"]);
+    else return { ok: false, error: 'Unknown action' };
+    return { ok: true };
+  }
+}
+
+module.exports = { PhoneHub, findCode };

@@ -12,10 +12,12 @@ const { Engine, localIPv4s, collectFiles, DEFAULT_TCP_PORT } = require('./engine
 const { WebShare, DEFAULT_WEB_PORT } = require('./webshare.cjs');
 const { loadOrCreate: loadOrCreateTls } = require('./tls.cjs');
 const { RemoteInput } = require('./input.cjs');
+const { PhoneHub } = require('./phone.cjs');
 
 // Remote control: off unless the user allows it for the screen share that is running now.
 const remoteInput = new RemoteInput();
 let controlOn = false;
+let phoneHub = null;
 const diagnostics = require('./diagnostics.cjs');
 
 // ---- profiles (lets two copies run on one PC for testing) ----
@@ -68,6 +70,10 @@ function defaultSettings() {
     webPin: newPin(),
     identityKey: Engine.generateIdentityKey(), // this PC's long-term signing key (never leaves the PC)
     knownKeys: {}, // device id -> identity key, pinned on first contact
+    accent: 'wave', // colour theme: wave, ocean, sunset, forest, graphite
+    clipSync: true, // copy on the phone, paste on the PC (and back) with the Android app
+    phoneNotifs: true, // the phone's new notifications pop up on this PC too
+    remoteAllowed: [], // [{ id, name }] phones that may always use this PC's mouse and keyboard
   };
 }
 
@@ -335,8 +341,10 @@ async function startWeb() {
     port,
     tls: webTls(),
     decide: askUser,
+    remote: (from, ev) => phoneHub.remote(from, ev),
   });
-  w.on('clients', () => push('peers', allPeers()));
+  w.on('clients', (list) => { push('peers', allPeers()); phoneHub.sync(list); });
+  w.on('phone', (m) => phoneHub.handle(m));
   w.on('transfer', handleTransfer);
   w.on('text', handleText);
   w.on('rtc', handleRtc);
@@ -355,6 +363,7 @@ async function stopWeb() {
   web = null;
   await w.stop();
   push('peers', allPeers());
+  phoneHub.sync([]);
 }
 
 // ---- engine wiring ----
@@ -395,7 +404,7 @@ function registerIpc() {
   ipcMain.handle('state', () => publicState());
 
   ipcMain.handle('settings:update', async (_e, patch) => {
-    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled'];
+    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent'];
     if ('trusted' in patch) {
       // Removing a trusted device also forgets its pinned identity (e.g. after a reinstall).
       const keep = new Set((patch.trusted || []).map((d) => d.id));
@@ -499,6 +508,11 @@ function registerIpc() {
     if (inputLog) fs.appendFileSync(inputLog, JSON.stringify(ev) + '\n');
     else remoteInput.handle(ev);
   });
+  // Phone on PC (Android app)
+  ipcMain.handle('phone:list', () => ({ phones: phoneHub.list(), timeline: phoneHub.timeline, asks: phoneHub.pendingAsks(), remote: phoneHub.remoteState() }));
+  ipcMain.handle('phone:cmd', (_e, id, cmd) => phoneHub.command(String(id), cmd));
+  ipcMain.handle('remote:respond', (_e, id, allow, always) => phoneHub.respond(String(id), !!allow, !!always));
+  ipcMain.handle('remote:revoke', (_e, id) => phoneHub.revoke(String(id)));
   ipcMain.handle('rtc:send', async (_e, peerId, msg) => {
     const peer = findPeer(peerId);
     if (!peer.web) return engine.sendRtc(peer, msg); // another PC: over the encrypted engine channel
@@ -686,6 +700,17 @@ app.whenReady().then(async () => {
   nativeTheme.on('updated', () => { applyTheme(); push('state', publicState()); });
 
   if (!settings.webPin) { settings.webPin = newPin(); save('settings.json', settings); }
+  phoneHub = new PhoneHub({
+    push, notify,
+    web: () => web,
+    settings: () => settings,
+    saveSettings: (patch) => { Object.assign(settings, patch); save('settings.json', settings); push('state', publicState()); },
+    clipboard, remoteInput,
+    focused: () => !!win && win.isVisible() && win.isFocused(),
+    attention: (title, body) => { notify(title, body); win?.flashFrame(true); },
+    inputLog: process.env.DROPWAVE_INPUT_LOG,
+  });
+  phoneHub.start();
   registerIpc();
   await startEngine();
   await startWeb();
@@ -696,7 +721,7 @@ app.whenReady().then(async () => {
   createTray();
 });
 
-app.on('before-quit', () => { quitting = true; controlOn = false; remoteInput.stop(); });
+app.on('before-quit', () => { quitting = true; controlOn = false; remoteInput.stop(); phoneHub?.stop(); });
 app.on('will-quit', (e) => {
   if (engine || web) {
     e.preventDefault();

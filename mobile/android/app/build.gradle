@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
 
 // Release signing key lives outside the repo: %USERPROFILE%\.dropwave\keystore.properties
 // (or set DROPWAVE_KEYSTORE_PROPERTIES). Without it, release builds are left unsigned.
@@ -36,6 +37,9 @@ android {
             }
         }
     }
+    kotlinOptions {
+        jvmTarget = '21' // same as Capacitor's Java target
+    }
     buildTypes {
         release {
             minifyEnabled false
@@ -57,6 +61,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    implementation "androidx.core:core-ktx:$androidxCoreVersion"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

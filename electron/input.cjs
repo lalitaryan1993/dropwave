@@ -4,7 +4,8 @@
 // by Add-Type), so DropWave needs no native Node module. Only main.cjs calls this, and only
 // while the user has allowed control for an active screen share.
 //
-// Commands (one per line): m x y (absolute, 0..1 of the primary screen) | b l|r|m d|u |
+// Commands (one per line): m x y (absolute, 0..1 of the primary screen) | r dx dy (relative,
+// the phone's touchpad) | b l|r|m d|u |
 // w dy | k vk d|u | t <text>
 const { spawn } = require('node:child_process');
 
@@ -23,6 +24,7 @@ public static class DWInput {
   static INPUT Mouse(int x, int y, uint data, uint flags) { var i = new INPUT(); i.type = 0; i.u.mi = new MOUSEINPUT { dx = x, dy = y, mouseData = data, dwFlags = flags }; return i; }
   static INPUT Key(ushort vk, ushort scan, uint flags) { var i = new INPUT(); i.type = 1; i.u.ki = new KEYBDINPUT { wVk = vk, wScan = scan, dwFlags = flags }; return i; }
   public static void Move(double x, double y) { Send(Mouse((int)(x * 65535), (int)(y * 65535), 0, 0x0001 | 0x8000)); }
+  public static void MoveBy(int dx, int dy) { Send(Mouse(dx, dy, 0, 0x0001)); }
   public static void Button(string b, bool down) {
     uint f = b == "r" ? (down ? 0x0008u : 0x0010u) : b == "m" ? (down ? 0x0020u : 0x0040u) : (down ? 0x0002u : 0x0004u);
     Send(Mouse(0, 0, 0, f));
@@ -43,6 +45,7 @@ while ($true) {
     switch ($p[0]) {
       'm' { $a = $p[1].Split(' '); [DWInput]::Move([double]::Parse($a[0], [Globalization.CultureInfo]::InvariantCulture), [double]::Parse($a[1], [Globalization.CultureInfo]::InvariantCulture)) }
       'b' { $a = $p[1].Split(' '); [DWInput]::Button($a[0], $a[1] -eq 'd') }
+      'r' { $a = $p[1].Split(' '); [DWInput]::MoveBy([int]$a[0], [int]$a[1]) }
       'w' { [DWInput]::Wheel([int]$p[1]) }
       'k' { $a = $p[1].Split(' '); [DWInput]::KeyVk([uint16]$a[0], $a[1] -eq 'd') }
       't' { [DWInput]::Text([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[1]))) }
@@ -56,6 +59,9 @@ const KEYS = {
   Enter: 0x0d, Backspace: 0x08, Tab: 0x09, Escape: 0x1b, Delete: 0x2e, Space: 0x20,
   ArrowLeft: 0x25, ArrowUp: 0x26, ArrowRight: 0x27, ArrowDown: 0x28, Home: 0x24, End: 0x23, PageUp: 0x21, PageDown: 0x22,
   Control: 0x11, Shift: 0x10, Alt: 0x12, Meta: 0x5b,
+  // Media and volume keys (the phone's Deck)
+  MediaPlayPause: 0xb3, MediaTrackNext: 0xb0, MediaTrackPrevious: 0xb1, MediaStop: 0xb2,
+  AudioVolumeMute: 0xad, AudioVolumeDown: 0xae, AudioVolumeUp: 0xaf,
   ...Object.fromEntries('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => [c, c.charCodeAt(0)])),
   ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, 0x70 + i])),
 };
@@ -97,6 +103,7 @@ class RemoteInput {
     const num = (v, lo, hi) => (typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null);
     switch (e.t) {
       case 'move': { const x = num(e.x, 0, 1), y = num(e.y, 0, 1); if (x != null && y != null) this.#cmd(`m ${x.toFixed(5)} ${y.toFixed(5)}`); break; }
+      case 'rel': { const dx = num(e.dx, -2000, 2000), dy = num(e.dy, -2000, 2000); if (dx != null && dy != null && (dx || dy)) this.#cmd(`r ${Math.round(dx)} ${Math.round(dy)}`); break; }
       case 'down': case 'up': { const b = ['l', 'r', 'm'].includes(e.b) ? e.b : 'l'; this.#cmd(`b ${b} ${e.t === 'down' ? 'd' : 'u'}`); break; }
       case 'click': { const b = ['l', 'r'].includes(e.b) ? e.b : 'l'; this.#cmd(`b ${b} d`); this.#cmd(`b ${b} u`); break; }
       case 'wheel': { const dy = num(e.dy, -2400, 2400); if (dy) this.#cmd(`w ${Math.round(dy)}`); break; }

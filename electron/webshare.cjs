@@ -102,6 +102,7 @@ class WebShare extends EventEmitter {
     this.failedLogins = new Map(); // ip -> { n, until }
     this.photoTokens = new Map(); // token -> photos the PC asked a phone for (see allowPhotoUpload)
     this.mirrorTokens = new Map(); // token -> a screen-mirroring stream the PC asked a phone for
+    this.mirrorInputs = new Map(); // token -> { clientId, res }: taps/keys for a mirroring phone, read by its native service
     this.relayDir = path.join(os.tmpdir(), 'dropwave-relay');
     this.server = null;
     this.timer = null;
@@ -332,6 +333,7 @@ class WebShare extends EventEmitter {
     }
     if (p === '/api/photo-upload' && req.method === 'POST') return this.#photoUpload(req, res, url, ip);
     if (p === '/api/mirror' && req.method === 'POST') return this.#mirror(req, res, url, ip);
+    if (p === '/api/mirror-input' && req.method === 'GET') return this.#mirrorInput(req, res, url, ip);
     if (p === '/api/upload' && req.method === 'POST') return this.#upload(req, res, url);
     if (p === '/api/cancel' && req.method === 'POST') {
       const b = await readJson(req, 1024);
@@ -607,6 +609,7 @@ class WebShare extends EventEmitter {
     const from = this.#liveClient(url.searchParams.get('from'), ip);
     if (!m || !from || from.id !== m.clientId) { req.resume(); return json(res, 403, { error: 'Not requested' }); }
     this.mirrorTokens.delete(token);
+    this.mirrorInputs.set(token, { clientId: from.id, ip, res: null });
     req.socket.setNoDelay(true);
     // Frames: [u32 length][u8 type][u64 timestamp][payload]
     let buf = Buffer.alloc(0);
@@ -623,10 +626,41 @@ class WebShare extends EventEmitter {
       }
     });
     let ended = false;
-    const end = () => { if (!ended) { ended = true; m.onEnd?.(); } };
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      const inp = this.mirrorInputs.get(token);
+      this.mirrorInputs.delete(token);
+      inp?.res?.end();
+      m.onEnd?.();
+    };
     req.on('end', () => { end(); json(res, 200, { ok: true }); });
     req.on('close', end);
     m.stop = () => req.destroy();
+  }
+
+  // The phone's mirroring service reads input here directly (one JSON event per line), so control
+  // keeps working while DropWave's page is asleep in the background.
+  #mirrorInput(req, res, url, ip) {
+    // The secret token of a running stream, from the same address: enough even if the page's own
+    // connection has dropped meanwhile (that's exactly when this route is needed).
+    const inp = this.mirrorInputs.get(String(url.searchParams.get('token') || ''));
+    if (!inp || inp.ip !== ip || String(url.searchParams.get('from') || '') !== inp.clientId) return json(res, 403, { error: 'Not mirroring' });
+    inp.res?.end();
+    res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+    res.socket?.setNoDelay(true);
+    res.write('{"t":"hello"}\n');
+    inp.res = res;
+    const ping = setInterval(() => res.write('{"t":"ping"}\n'), 15000);
+    req.on('close', () => { clearInterval(ping); if (inp.res === res) inp.res = null; });
+  }
+
+  /** Send a tap/key to a mirroring phone's native service. False if it isn't listening. */
+  mirrorSend(clientId, ev) {
+    for (const inp of this.mirrorInputs.values()) {
+      if (inp.clientId === clientId && inp.res) { inp.res.write(JSON.stringify(ev) + '\n'); return true; }
+    }
+    return false;
   }
 
   /** A connected device with a live event stream from this address (ids alone are visible to other devices). */

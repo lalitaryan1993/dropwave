@@ -362,7 +362,8 @@ class PhoneHub {
     if (!ev || typeof ev !== 'object' || typeof ev.t !== 'string') return;
     const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
     const e = { t: str(ev.t, 20), x: n(ev.x), y: n(ev.y), x2: n(ev.x2), y2: n(ev.y2), ms: Math.min(3000, Math.max(1, Number(ev.ms) || 200)), s: str(ev.s, 500) };
-    this.o.web()?.sendPhone(id, { type: 'mirror-input', ev: e });
+    // Straight to the phone's mirroring service; the page route is only a fallback (it sleeps in the background).
+    if (!this.o.web()?.mirrorSend(id, e)) this.o.web()?.sendPhone(id, { type: 'mirror-input', ev: e });
   }
 
   // ---------- messages (SMS) ----------

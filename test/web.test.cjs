@@ -7,6 +7,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const https = require('node:https');
+const http = require('node:http');
 const { WebShare } = require('../electron/webshare.cjs');
 const { makeCert, fingerprint } = require('../electron/tls.cjs');
 
@@ -254,6 +255,28 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
     assert.equal(fs.statSync(path.join(photoDir, 'IMG_1.jpg')).mtimeMs, 1700000000000);
     assert.equal(gotFiles[0].id, 'i7');
     assert.equal((await up('phoneP', 'tok1')).status, 403); // used up
+    // Screen mirroring: a frame arrives on the PC, and taps reach the phone's native input stream.
+    const frames = [];
+    pweb.allowMirror('mtok', { clientId: 'phoneP', onFrame: (type, pts, data) => frames.push({ type, pts, data: data.toString() }) });
+    assert.equal((await fetch(`${pbase}/api/mirror-input?token=mtok&from=phoneP`, { headers: { 'X-DropWave-Key': pkey } })).status, 403); // no stream yet
+    const head = Buffer.alloc(13); head.writeUInt32BE(3, 0); head.writeUInt8(2, 4); head.writeBigUInt64BE(42n, 5);
+    const mirrorReq = http.request(`${pbase}/api/mirror?token=mtok&from=phoneP`, { method: 'POST', headers: { 'X-DropWave-Key': pkey } });
+    mirrorReq.on('error', () => {}); // destroyed on purpose at the end
+    mirrorReq.write(Buffer.concat([head, Buffer.from('abc')]));
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(frames, [{ type: 2, pts: 42, data: 'abc' }]);
+    const inCtrl = new AbortController();
+    const inRes = await fetch(`${pbase}/api/mirror-input?token=mtok&from=phoneP`, { headers: { 'X-DropWave-Key': pkey }, signal: inCtrl.signal });
+    assert.equal(inRes.status, 200);
+    const inReader = inRes.body.getReader();
+    let inBuf = '';
+    const inUntil = async (s) => { while (!inBuf.includes(s)) inBuf += dec.decode((await inReader.read()).value); };
+    await inUntil('hello');
+    assert.equal(pweb.mirrorSend('phoneP', { t: 'tap', x: 0.5, y: 0.5 }), true);
+    await inUntil('"t":"tap"');
+    assert.equal((await fetch(`${pbase}/api/mirror-input?token=wrong&from=phoneP`, { headers: { 'X-DropWave-Key': pkey } })).status, 403);
+    inCtrl.abort();
+    mirrorReq.destroy();
     ctrl.abort();
     await pweb.stop();
     console.log('ok  phone on PC: status in, commands out, touchpad only for a connected device');

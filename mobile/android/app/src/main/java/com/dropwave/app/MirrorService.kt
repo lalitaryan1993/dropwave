@@ -116,6 +116,7 @@ class MirrorService : Service() {
                 setRequestProperty("Content-Type", "application/octet-stream")
             }
             val out = DataOutputStream(conn.outputStream.buffered(256 * 1024))
+            listenForInput(req)
             fun frame(type: Int, pts: Long, data: ByteArray, off: Int = 0, len: Int = data.size) {
                 out.writeInt(len); out.writeByte(type); out.writeLong(pts); out.write(data, off, len); out.flush()
             }
@@ -181,6 +182,37 @@ class MirrorService : Service() {
             codec?.let { runCatching { it.stop() }; runCatching { it.release() } }
             runCatching { conn?.outputStream?.close(); conn?.responseCode; conn?.disconnect() }
             main.post { stopSelf() }
+        }
+    }
+
+    /** Taps and keys from the PC, read directly here so control works while DropWave's page sleeps. */
+    private fun listenForInput(req: Request) = thread(name = "dropwave-mirror-input") {
+        var tries = 0
+        while (!stopping && tries < 30) {
+            try {
+                val enc = { s: String -> URLEncoder.encode(s, "UTF-8") }
+                val c = (URL("${req.base}/api/mirror-input?token=${enc(req.token)}&from=${enc(req.from)}").openConnection() as HttpURLConnection).apply {
+                    if (this is HttpsURLConnection) {
+                        sslSocketFactory = Pins.socketFactory(this@MirrorService)
+                        setHostnameVerifier { _, _ -> true }
+                    }
+                    connectTimeout = 10000
+                    readTimeout = 40000 // the PC pings every 15 s
+                    setRequestProperty("X-DropWave-Key", req.key)
+                }
+                if (c.responseCode == 403) { Thread.sleep(300); tries++; continue } // stream not registered yet
+                c.inputStream.bufferedReader().useLines { lines ->
+                    for (line in lines) {
+                        if (stopping) break
+                        tries = 0
+                        val ev = runCatching { JSObject(line) }.getOrNull() ?: continue
+                        if (ev.getString("t") in setOf("hello", "ping")) continue
+                        main.post { ControlService.instance?.handle(ev) }
+                    }
+                }
+            } catch (e: Exception) {
+                if (!stopping) { Log.w(TAG, "mirror input: ${e.message}"); Thread.sleep(500); tries++ }
+            }
         }
     }
 

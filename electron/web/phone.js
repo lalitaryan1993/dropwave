@@ -97,6 +97,17 @@
     $('#slotPower').querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => quickAction(btn.dataset.act)));
 
     const box = $('#phoneBox');
+    const callCard = DW && callsAccess !== 'all' ? `<div class="group pcard" style="margin-top:8px">
+        <div class="pcard-row"><span class="pcard-ic">${I('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>')}</span><div><b>Show calls on PC</b>
+        <small>See who’s calling, answer, decline or dial from the PC, and recent calls. Android asks for Phone and Call log.</small></div></div>
+        <button class="pbtn primary wide" id="pCallsOn" style="width:100%;justify-content:center">Allow calls</button></div>` : '';
+    const card = (id, icon, title, text, btn) => `<div class="group pcard" style="margin-top:8px">
+        <div class="pcard-row"><span class="pcard-ic">${I(icon)}</span><div><b>${title}</b><small>${text}</small></div></div>
+        <button class="pbtn primary wide" id="${id}" style="width:100%;justify-content:center">${btn}</button></div>`;
+    const smsCard = DW && smsAccess !== 'all' ? card('pSmsOn', '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+      'Show messages on PC', 'Read and reply to SMS from the PC. Android asks for SMS and Contacts (for names).', 'Allow messages') : '';
+    const filesCard = DW && filesAccess !== 'all' ? card('pFilesOn', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+      'Browse phone files from PC', 'Open this phone’s folders on the PC and copy files. In Android settings, turn on “Allow access to manage all files” for DropWave.', 'Open settings') : '';
     const photoCard = DW && photosAccess === 'none' ? `<div class="group pcard" style="margin-top:8px">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.shot)}</span><div><b>Share photos with PC</b>
         <small>See this phone’s photos and videos on the PC and save the ones you want. Nothing is copied until you pick it there.</small></div></div>
@@ -105,13 +116,16 @@
       box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Show phone notifications on PC</b>
         <small>Reply, copy one-time codes and control music from the PC. If Android says “Restricted setting”: App info › ⋮ › Allow restricted settings.</small></div></div>
-        <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}`;
+        <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}${callCard}${smsCard}${filesCard}`;
       $('#pNotifOn').addEventListener('click', () => DW.openNotifAccess().catch(() => {}));
     } else if (DW) {
       box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
-        <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}`;
+        <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}${callCard}${smsCard}${filesCard}`;
     }
     $('#pPhotosOn')?.addEventListener('click', () => DW.requestPhotos().catch(() => {}));
+    $('#pCallsOn')?.addEventListener('click', () => DW.requestCalls().catch(() => {}));
+    $('#pSmsOn')?.addEventListener('click', () => DW.requestSms().catch(() => {}));
+    $('#pFilesOn')?.addEventListener('click', () => DW.openFilesAccess().catch(() => {}));
     if (!DW) {
       box.innerHTML = `<div class="sec-h">Get more</div><a class="group pcard" href="https://github.com/lalitaryan1993/dropwave/releases/latest" target="_blank" rel="noopener">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Get the Android app</b><small>Phone notifications, clipboard sync, music and Find my phone on your PC.</small></div></div></a>`;
@@ -133,6 +147,9 @@
   // ---------- Android app: share this phone with the PC ----------
   let notifAccess = false;
   let photosAccess = 'none';
+  let callsAccess = 'none';
+  let smsAccess = 'none';
+  let filesAccess = 'none';
   let lastClip = null; // last clipboard text seen or set here (no echo back to the PC)
   const sentIcons = new Set();
 
@@ -141,7 +158,12 @@
     try {
       const s = await DW.phoneStatus();
       notifAccess = !!s.notifAccess;
+      const hadCalls = callsAccess;
       photosAccess = s.photosAccess || 'none';
+      callsAccess = s.callsAccess || 'none';
+      smsAccess = s.smsAccess || 'none';
+      filesAccess = s.filesAccess || 'none';
+      if (callsAccess !== 'none' && hadCalls !== callsAccess) sendCallLog(); // just allowed
       phone('status', { ...s, clip: true, app: 'android' });
       renderBox();
     } catch {}
@@ -156,6 +178,11 @@
       sentIcons.add(n.pkg);
       DW.appIcon({ pkg: n.pkg }).then((r) => r?.data && phone('icon', { pkg: n.pkg, data: r.data })).catch(() => {});
     }
+  }
+
+  function sendCallLog() {
+    if (!DW) return;
+    DW.callLog({ limit: 50 }).then((r) => phone('calllog', r)).catch(() => {});
   }
 
   async function sendMedia(m) {
@@ -191,6 +218,8 @@
     sendStatus();
     sendNotifs();
     sendMedia();
+    sendCallLog();
+    DW.callState().then((r) => r?.call && phone('call', r.call)).catch(() => {});
     if (lastClip === null) DW.readClipboard().then((r) => { lastClip = r?.text || ''; }).catch(() => { lastClip = ''; });
   }
 
@@ -200,6 +229,9 @@
     DW.addListener('battery', () => connected && sendStatus());
     DW.addListener('volume', () => connected && sendStatus());
     DW.addListener('access', () => connected && sendStatus()); // back from a permission dialog / settings
+    DW.addListener('call', (d) => connected && phone('call', d));
+    DW.addListener('appcall', (d) => connected && phone('appcall', d));
+    DW.addListener('sms', (d) => connected && phone('sms', d));
     DW.addListener('photoUpload', (d) => { if (d.done === d.total) P().toast(`${d.total} sent to ${P().pcName()}`); });
     DW.addListener('ring', (d) => connected && phone('ring', { on: !!d.on }));
     DW.addListener('clip', (d) => { if (connected && d.text && d.text !== lastClip && !d.sensitive) { lastClip = d.text; phone('clip', { text: d.text }); } });
@@ -222,6 +254,26 @@
       const app = window.DW_APP || {};
       DW.uploadPhotos({ ids: c.ids.map(String), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
         .then(() => P().toast(`Sending ${c.ids.length} to ${P().pcName()}…`)).catch(() => P().toast('Couldn’t send the photos'));
+    } else if (c.type === 'call') {
+      DW.callAction({ action: String(c.action) }).catch((e) => P().toast(e?.message || 'Couldn’t do that'));
+    } else if (c.type === 'dial') {
+      DW.dial({ number: String(c.number || '') }).catch((e) => phone('dial-error', { error: e?.message || 'Couldn’t place the call' }));
+    } else if (c.type === 'sms-threads') {
+      DW.smsThreads({ limit: 80 }).then((r) => phone('sms-threads', r)).catch((e) => phone('sms-threads', { error: e?.message || 'Couldn’t read messages' }));
+    } else if (c.type === 'sms-thread') {
+      DW.smsThread({ thread: Number(c.thread) }).then((r) => phone('sms-thread', r)).catch((e) => phone('sms-thread', { thread: c.thread, error: e?.message || 'Couldn’t open that conversation' }));
+    } else if (c.type === 'sms-send') {
+      DW.smsSend({ to: String(c.to || ''), text: String(c.text || '') })
+        .then(() => phone('sms-sent', { to: c.to, ref: c.ref, ok: true }))
+        .catch((e) => phone('sms-sent', { to: c.to, ref: c.ref, ok: false, error: e?.message || 'Couldn’t send' }));
+    } else if (c.type === 'files-list') {
+      DW.filesList({ path: String(c.path || ''), hidden: !!c.hidden }).then((r) => phone('files', r)).catch((e) => phone('files', { path: c.path, error: e?.message || 'Couldn’t open that folder' }));
+    } else if (c.type === 'files-get' && Array.isArray(c.paths)) {
+      const app = window.DW_APP || {};
+      DW.uploadFiles({ paths: c.paths.map(String), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .then(() => P().toast(`Sending ${c.paths.length} file${c.paths.length > 1 ? 's' : ''} to ${P().pcName()}…`)).catch(() => P().toast('Couldn’t send the files'));
+    } else if (c.type === 'calllog') {
+      sendCallLog();
     } else if (c.type === 'volume') DW.volume({ action: String(c.action), value: Number(c.value) || 0 }).then(sendStatus).catch((e) => P().toast(e?.message || 'Couldn’t change the volume'));
     else if (c.type === 'notif') DW.notifAction({ key: String(c.key || ''), action: String(c.action), i: Number(c.i) || 0, text: String(c.text || '') }).catch(() => P().toast('Couldn’t do that on this phone'));
     else if (c.type === 'clip' && typeof c.text === 'string') {

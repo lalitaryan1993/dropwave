@@ -516,6 +516,13 @@ function registerIpc() {
   ipcMain.handle('photos:get', (_e, id) => phoneHub.photos(String(id)));
   ipcMain.handle('photos:load', (_e, id, opts) => phoneHub.photosLoad(String(id), opts || {}));
   ipcMain.handle('photos:download', (_e, id, ids) => phoneHub.photosGet(String(id), Array.isArray(ids) ? ids.map(String) : []));
+  ipcMain.handle('sms:get', (_e, id) => phoneHub.sms(String(id)));
+  ipcMain.handle('sms:load', (_e, id) => phoneHub.smsLoad(String(id)));
+  ipcMain.handle('sms:open', (_e, id, thread, address) => phoneHub.smsOpen(String(id), thread, address));
+  ipcMain.handle('sms:send', (_e, id, to, text) => phoneHub.smsSend(String(id), to, text));
+  ipcMain.handle('files:get', (_e, id) => phoneHub.files(String(id)));
+  ipcMain.handle('files:list', (_e, id, rel, hidden) => phoneHub.filesList(String(id), String(rel || ''), hidden));
+  ipcMain.handle('files:download', (_e, id, names) => phoneHub.filesGet(String(id), Array.isArray(names) ? names.map(String) : []));
   ipcMain.handle('rtc:send', async (_e, peerId, msg) => {
     const peer = findPeer(peerId);
     if (!peer.web) return engine.sendRtc(peer, msg); // another PC: over the encrypted engine channel

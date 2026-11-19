@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { api, timeAgo } from './lib.js';
 import { Avatar, Button, Modal } from './components.jsx';
+import { RecentCalls } from './phonecalls.jsx';
 
 const RELEASES = 'https://github.com/lalitaryan1993/dropwave/releases/latest';
 
@@ -82,6 +83,7 @@ export function Home({ phones, peers, timeline, history, selected, onSelect, onC
           </div>
           <div className="min-w-0 space-y-4">
             <MediaCard phone={phone} />
+            <RecentCalls phone={phone} />
             <RemoteCard phone={phone} />
             <TimelineCard timeline={timeline} history={history} onSeeAll={onSeeAll} />
           </div>
@@ -412,7 +414,7 @@ function RemoteCard({ phone }) {
   );
 }
 
-const TL_ICON = { 'clip-in': ClipboardPaste, 'clip-out': ClipboardCopy, ring: BellRing, remote: Keyboard, in: ArrowDownLeft, out: ArrowUpRight };
+const TL_ICON = { 'clip-in': ClipboardPaste, 'clip-out': ClipboardCopy, ring: BellRing, remote: Keyboard, in: ArrowDownLeft, out: ArrowUpRight, missed: Phone, dial: Phone };
 
 function TimelineCard({ timeline, history, onSeeAll }) {
   useNow(30000);
@@ -424,7 +426,7 @@ function TimelineCard({ timeline, history, onSeeAll }) {
     }));
     const events = timeline.map((e) => ({
       id: e.id, at: e.at, kind: e.kind,
-      title: { 'clip-in': 'Clipboard from phone', 'clip-out': 'Clipboard to phone', ring: 'Find phone', remote: 'Touchpad' }[e.kind] || 'Event',
+      title: { 'clip-in': 'Clipboard from phone', 'clip-out': 'Clipboard to phone', ring: 'Find phone', remote: 'Touchpad', missed: 'Missed call', dial: 'Call from PC' }[e.kind] || 'Event',
       sub: `${e.peer?.name ? `${e.peer.name} · ` : ''}${e.text || ''}`,
     }));
     return [...transfers, ...events].sort((a, b) => b.at - a.at).slice(0, 8);

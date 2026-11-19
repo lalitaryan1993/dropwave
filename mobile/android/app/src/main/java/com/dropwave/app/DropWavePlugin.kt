@@ -78,6 +78,13 @@ class DropWavePlugin : Plugin() {
             val stream = i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
             if (stream == -1 || stream == AudioManager.STREAM_MUSIC) emit("volume", volumeState())
         }
+        // Calls: ringing / on a call / ended (with the number once the call log permission is allowed).
+        register(IntentFilter(android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED)) { i -> Calls.onPhoneState(context, i) }
+        // New SMS (only the system may send this broadcast: BROADCAST_SMS).
+        val smsReceiver = object : BroadcastReceiver() { override fun onReceive(c: Context, i: Intent) = Sms.onReceived(context, i) }
+        ContextCompat.registerReceiver(context, smsReceiver, IntentFilter(android.provider.Telephony.Sms.Intents.SMS_RECEIVED_ACTION),
+            "android.permission.BROADCAST_SMS", null, ContextCompat.RECEIVER_EXPORTED)
+        receivers += smsReceiver
         // Clipboard: Android only reports changes while DropWave is on screen.
         clipboard().addPrimaryClipChangedListener { clip()?.let { emit("clip", it) } }
         val intent = activity.intent
@@ -206,7 +213,104 @@ class DropWavePlugin : Plugin() {
             .put("volumeMax", v.getInteger("volumeMax"))
             .put("muted", v.getBool("muted"))
             .put("notifAccess", PhoneListener.enabled(context))
-            .put("photosAccess", PhotoLibrary.access(context)))
+            .put("photosAccess", PhotoLibrary.access(context))
+            .put("callsAccess", Calls.access(context))
+            .put("smsAccess", Sms.access(context))
+            .put("filesAccess", PhoneFiles.access()))
+    }
+
+    // ---------- messages (SMS) ----------
+
+    @PluginMethod
+    fun requestSms(call: PluginCall) {
+        ActivityCompat.requestPermissions(activity, Sms.permissions(), 7305)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun smsThreads(call: PluginCall) {
+        val limit = (call.getInt("limit", 60) ?: 60).coerceIn(1, 200)
+        scope.launch {
+            try { call.resolve(JSObject().put("list", Sms.threads(context, limit)).put("access", Sms.access(context))) } catch (e: Exception) { call.reject(e.message) }
+        }
+    }
+
+    @PluginMethod
+    fun smsThread(call: PluginCall) {
+        val id = call.data.optLong("thread", -1L).takeIf { it >= 0 } ?: return call.reject("No conversation") // getLong() can't read a JS number that fits an int
+        scope.launch {
+            try { call.resolve(JSObject().put("thread", id).put("messages", Sms.thread(context, id, 150))) } catch (e: Exception) { call.reject(e.message) }
+        }
+    }
+
+    @PluginMethod
+    fun smsSend(call: PluginCall) {
+        val err = Sms.send(context, call.getString("to", "")!!, call.getString("text", "")!!)
+        if (err == null) call.resolve() else call.reject(err)
+    }
+
+    // ---------- phone files ----------
+
+    /** Android settings page for "All files access" (the page re-reads phoneStatus on return). */
+    @PluginMethod
+    fun openFilesAccess(call: PluginCall) {
+        val i = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+        try { activity.startActivity(i) } catch (e: Exception) { activity.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun filesList(call: PluginCall) {
+        if (PhoneFiles.access() != "all") return call.resolve(JSObject().put("access", "none"))
+        val path = call.getString("path", "")!!
+        val hidden = call.getBoolean("hidden", false) == true
+        scope.launch {
+            try { call.resolve(PhoneFiles.list(path, hidden).put("access", "all")) } catch (e: Exception) { call.reject(e.message) }
+        }
+    }
+
+    @PluginMethod
+    fun uploadFiles(call: PluginCall) {
+        val paths = call.getArray("paths")?.toList<String>().orEmpty().take(500)
+        val base = call.getString("base", "")!!
+        if (paths.isEmpty() || !(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("Nothing to send")
+        call.resolve()
+        scope.launch {
+            PhoneFiles.upload(context, paths, base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!) { done, total ->
+                emit("photoUpload", JSObject().put("done", done).put("total", total))
+            }
+        }
+    }
+
+    // ---------- calls ----------
+
+    @PluginMethod
+    fun requestCalls(call: PluginCall) {
+        ActivityCompat.requestPermissions(activity, Calls.permissions(), 7304)
+        call.resolve()
+    }
+
+    /** answer | decline | end */
+    @PluginMethod
+    fun callAction(call: PluginCall) {
+        if (Calls.act(context, call.getString("action", "")!!)) call.resolve() else call.reject("Couldn’t do that on this phone")
+    }
+
+    @PluginMethod
+    fun dial(call: PluginCall) {
+        val err = Calls.dial(context, call.getString("number", "")!!)
+        if (err == null) call.resolve() else call.reject(err)
+    }
+
+    @PluginMethod
+    fun callLog(call: PluginCall) {
+        val limit = (call.getInt("limit", 50) ?: 50).coerceIn(1, 200)
+        scope.launch { call.resolve(JSObject().put("list", Calls.log(context, limit)).put("access", Calls.access(context))) }
+    }
+
+    @PluginMethod
+    fun callState(call: PluginCall) {
+        call.resolve(JSObject().put("call", Calls.current() ?: JSONObject.NULL))
     }
 
     // ---------- photos (the PC's Photos page) ----------

@@ -4,7 +4,7 @@ import {
   Radar as RadarIcon, History, Settings as SettingsIcon, FolderOpen, Plus, Trash2, Sun, Moon, MonitorSmartphone,
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
-  Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images,
+  Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
@@ -14,6 +14,9 @@ import { useCalls, CallLayer } from './call.jsx';
 import { Home, usePhones, RemoteAskModal, RemotePill } from './home.jsx';
 import { CommandPalette } from './palette.jsx';
 import { PhotosView } from './photos.jsx';
+import { MessagesView } from './messages.jsx';
+import { FilesView } from './files.jsx';
+import { CallBanner } from './phonecalls.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -78,6 +81,7 @@ export default function App() {
     const offs = [
       api.onClipIn(({ peer }) => toast(`Copied from ${peer.name}: paste it anywhere`)),
       api.onOpenHome((id) => { setHomePhone(id); setView('home'); }),
+      api.onPhoneError((e) => toast(e.error, 'error')),
     ];
     // Ctrl+K (or Ctrl+Alt+Space): command palette
     const key = (e) => {
@@ -202,6 +206,8 @@ export default function App() {
     const list = [
       go('home', 'Home', House, 'Your phone: notifications, battery, music'),
       go('photos', 'Photos', Images, 'The phone’s photos and videos'),
+      go('messages', 'Messages', MessageSquareText, 'The phone’s SMS: read and reply'),
+      go('files', 'Phone files', FolderTree, 'Browse the phone’s storage'),
       go('nearby', 'Nearby devices', RadarIcon, 'Send files by drag and drop'),
       go('chats', 'Chats', MessagesSquare),
       go('activity', 'Activity', History, 'Everything sent and received'),
@@ -245,6 +251,8 @@ export default function App() {
   const nav = [
     { id: 'home', label: 'Home', Icon: House, badge: notifCount || null },
     { id: 'photos', label: 'Photos', Icon: Images },
+    { id: 'messages', label: 'Messages', Icon: MessageSquareText },
+    { id: 'files', label: 'Phone files', Icon: FolderTree },
     { id: 'nearby', label: 'Nearby', Icon: RadarIcon, badge: peers.length || null },
     { id: 'chats', label: 'Chats', Icon: MessagesSquare, badge: chatList.reduce((a, c) => a + (c.unread || 0), 0) || null },
     { id: 'activity', label: 'Activity', Icon: History, badge: activeList.length || null },
@@ -341,6 +349,8 @@ export default function App() {
                   />
                 )}
                 {view === 'photos' && <PhotosView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
+                {view === 'messages' && <MessagesView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
+                {view === 'files' && <FilesView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
                 {view === 'nearby' && (
                   <Nearby
                     me={state.me} peers={peers} dragging={dragging} busyPeers={busyPeers}
@@ -376,6 +386,7 @@ export default function App() {
         {showPhone && <PhoneModal onClose={() => setShowPhone(false)} onOpenSettings={() => { setShowPhone(false); setView('settings'); }} />}
       </AnimatePresence>
       <CallLayer call={call} calls={calls} />
+      <CallBanner phones={phones} />
       <Toasts toasts={toasts} dismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>
   );

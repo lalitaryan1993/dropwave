@@ -65,7 +65,7 @@ class PhoneHub {
     const allowed = this.isAllowed(p.id);
     return {
       id: p.id, name: p.name, status: p.status, notifs: p.notifs, media: p.media, icons: p.icons,
-      ringing: p.ringing, remote: { allowed, always: this.#always().some((d) => d.id === p.id), active: Date.now() - (this.lastRemote.get(p.id) || 0) < 4000 },
+      ringing: p.ringing, call: p.call || null, calls: p.calls || null, remote: { allowed, always: this.#always().some((d) => d.id === p.id), active: Date.now() - (this.lastRemote.get(p.id) || 0) < 4000 },
     };
   }
 
@@ -102,6 +102,9 @@ class PhoneHub {
           battery: num(d.battery), charging: !!d.charging, model: str(d.model, 60), android: str(d.android, 20),
           notifAccess: !!d.notifAccess, clip: !!d.clip, app: str(d.app, 20),
           photosAccess: ['all', 'partial', 'none'].includes(d.photosAccess) ? d.photosAccess : null,
+          callsAccess: ['all', 'partial', 'none'].includes(d.callsAccess) ? d.callsAccess : null,
+          smsAccess: ['all', 'partial', 'none'].includes(d.smsAccess) ? d.smsAccess : null,
+          filesAccess: ['all', 'none'].includes(d.filesAccess) ? d.filesAccess : null,
           volume: num(d.volume), volumeMax: num(d.volumeMax), muted: !!d.muted,
         };
         break;
@@ -144,6 +147,18 @@ class PhoneHub {
       }
       case 'ring': p.ringing = !!d.on; break;
       case 'photos': this.#gotPhotos(p, d); return;
+      case 'call': this.#gotCall(p, d); break;
+      case 'appcall': this.#gotAppCall(p, d); break;
+      case 'sms-threads': case 'sms-thread': case 'sms': case 'sms-sent': this.#gotSms(p, type, d); return;
+      case 'files': this.#gotFiles(p, d); return;
+      case 'dial-error': this.o.push('phone-error', { id: p.id, error: str(d.error, 200) }); return;
+      case 'calllog': {
+        p.calls = (Array.isArray(d.list) ? d.list : []).slice(0, 100).map((c) => ({
+          id: num(c.id), number: str(c.number, 40), name: str(c.name, 80), date: num(c.date) || 0, dur: num(c.dur) || 0,
+          type: ['in', 'out', 'missed', 'rejected', 'blocked'].includes(c.type) ? c.type : 'in',
+        }));
+        break;
+      }
       case 'clip': {
         const text = str(d.text, 100 * 1024);
         if (!text || this.o.settings().clipSync === false) return;
@@ -156,6 +171,60 @@ class PhoneHub {
       default: return;
     }
     this.#emit(p);
+  }
+
+  // ---------- calls ----------
+
+  #gotCall(p, d) {
+    const state = ['ringing', 'offhook', 'idle'].includes(d.state) ? d.state : null;
+    if (!state) return;
+    const prev = p.call;
+    const who = { number: str(d.number, 40) || prev?.number || '', name: str(d.name, 80) || prev?.name || '' };
+    const label = who.name || who.number || 'Unknown number';
+    if (prev?.key) return; // a WhatsApp/Telegram call is showing; phone-network "idle" says nothing about it
+    if (state === 'idle') {
+      // Rang and was never answered here or on the phone: a missed call.
+      if (prev?.state === 'ringing') {
+        this.#event('missed', p, label);
+        if (this.o.settings().phoneNotifs !== false) this.o.notify(`Missed call: ${label}`, `On ${p.name}`, () => this.o.push('open-home', p.id));
+      }
+      p.call = null;
+      // Ask for the updated call log.
+      setTimeout(() => this.o.web()?.sendPhone(p.id, { type: 'calllog' }), 1500);
+      return;
+    }
+    p.call = { state, ...who, since: state === prev?.state ? prev.since : Date.now(), incoming: state === 'ringing' || !!prev?.incoming };
+    if (state === 'ringing' && prev?.state !== 'ringing') {
+      this.o.attention(`${label} is calling`, `On ${p.name} · answer or decline in DropWave`);
+    }
+  }
+
+  /** A call in an app (WhatsApp, Telegram…), from its call notification. */
+  #gotAppCall(p, d) {
+    const key = str(d.key, 300);
+    if (!key) return;
+    const prev = p.call;
+    const idx = (v) => (Number.isInteger(v) && v >= 0 && v < 3 ? v : -1);
+    if (d.state === 'idle') {
+      if (prev?.key !== key) return;
+      if (prev.state === 'ringing') {
+        const label = `${prev.name || 'Someone'} (${prev.app})`;
+        this.#event('missed', p, label);
+        if (this.o.settings().phoneNotifs !== false) this.o.notify(`Missed ${prev.app} call: ${prev.name || 'Someone'}`, `On ${p.name}`, () => this.o.push('open-home', p.id));
+      }
+      p.call = null;
+      return;
+    }
+    if (prev && !prev.key && prev.state) return; // a phone-network call is on: it wins
+    const state = d.state === 'ringing' ? 'ringing' : 'offhook';
+    p.call = {
+      state, key, name: str(d.name, 80), number: '', app: str(d.app, 40), pkg: str(d.pkg, 120),
+      answer: idx(d.answer), decline: idx(d.decline), end: idx(d.end),
+      since: prev?.key === key && prev.state === state ? prev.since : Date.now(), incoming: true,
+    };
+    if (state === 'ringing' && !(prev?.key === key && prev.state === 'ringing')) {
+      this.o.attention(`${p.call.name || 'Someone'} is calling on ${p.call.app}`, `On ${p.name} · answer or decline in DropWave`);
+    }
   }
 
   // ---------- photos ----------
@@ -206,24 +275,25 @@ class PhoneHub {
     this.o.push('phone-photos', this.#photosPublic(p));
   }
 
-  /** Download the chosen originals to <save folder>/Phone; shows up in Activity like any transfer. */
-  photosGet(id, ids) {
-    const p = this.phones.get(id);
+  /**
+   * Have the phone upload these items (each { id, name, size }) to <save folder>/Phone. Shows up in
+   * Activity like any transfer. makeCmd(token) is the command that tells the phone what to send.
+   */
+  #download(p, pick, makeCmd, onSaved) {
     const web = this.o.web();
-    if (!p || !web) throw new Error('The phone is no longer connected');
-    const ph = this.#photosOf(p);
-    const pick = [...new Set(ids)].map((x) => ph.items.find((it) => it.id === x)).filter(Boolean).slice(0, 500);
+    if (!web) throw new Error('The phone is no longer connected');
     if (!pick.length) throw new Error('Nothing selected');
     const token = crypto.randomBytes(16).toString('hex');
+    const dir = path.join(this.o.settings().saveDir, 'Phone');
     const t = {
       id: `ph-${token.slice(0, 12)}`, direction: 'in', web: true, from: { id: p.id, name: p.name }, to: { id: 'me', name: 'This PC' },
-      files: pick.map((x) => ({ name: x.name, size: x.size })), count: pick.length, total: pick.reduce((a, x) => a + x.size, 0),
+      files: pick.map((x) => ({ name: x.name, size: x.size })), count: pick.length, total: pick.reduce((a, x) => a + (x.size || 0), 0),
       done: 0, status: 'active', startedAt: Date.now(), savedTo: [],
     };
     let finished = 0, base = 0, failed = 0;
     const saved = {};
     web.allowPhotoUpload(token, {
-      clientId: id, dir: path.join(this.o.settings().saveDir, 'Phone'), count: pick.length,
+      clientId: p.id, dir, count: pick.length,
       onProgress: (bytes) => { t.done = Math.min(t.total, base + bytes); this.o.transfer({ ...t }); },
       onFile: (f) => {
         finished++;
@@ -236,12 +306,171 @@ class PhoneHub {
           t.finishedAt = Date.now();
         }
         this.o.transfer({ ...t });
-        this.o.push('photos-saved', { id: p.id, saved: { ...saved } });
+        onSaved?.({ ...saved });
       },
     });
-    if (!web.sendPhone(id, { type: 'photo-get', ids: pick.map((x) => x.id), token })) throw new Error('The phone is no longer connected');
+    if (!web.sendPhone(p.id, makeCmd(token))) throw new Error('The phone is no longer connected');
     this.o.transfer({ ...t });
-    return { count: pick.length, dir: path.join(this.o.settings().saveDir, 'Phone') };
+    return { count: pick.length, dir };
+  }
+
+  /** Download the chosen photo/video originals. */
+  photosGet(id, ids) {
+    const p = this.phones.get(id);
+    if (!p) throw new Error('The phone is no longer connected');
+    const ph = this.#photosOf(p);
+    const pick = [...new Set(ids)].map((x) => ph.items.find((it) => it.id === x)).filter(Boolean).slice(0, 500);
+    return this.#download(p, pick, (token) => ({ type: 'photo-get', ids: pick.map((x) => x.id), token }),
+      (saved) => this.o.push('photos-saved', { id: p.id, saved }));
+  }
+
+  // ---------- messages (SMS) ----------
+
+  #smsOf(p) {
+    if (!p.sms) p.sms = { access: null, threads: [], loading: false, error: null, open: null };
+    return p.sms;
+  }
+
+  #smsPush(p) { this.o.push('phone-sms', { id: p.id, ...this.#smsOf(p) }); }
+  sms(id) { const p = this.phones.get(id); return p ? { id, ...this.#smsOf(p) } : null; }
+
+  #need(id) {
+    const p = this.phones.get(id);
+    if (!p || !this.o.web()) throw new Error('The phone is no longer connected');
+    return p;
+  }
+
+  /** Send a request to the phone; if it doesn't answer in time, onTimeout() clears the "loading" state. */
+  #ask(p, cmd, slot, onTimeout) {
+    if (!this.o.web()?.sendPhone(p.id, cmd)) throw new Error('The phone is not connected right now. Open DropWave on the phone.');
+    p.timers = p.timers || {};
+    clearTimeout(p.timers[slot]);
+    p.timers[slot] = setTimeout(onTimeout, 15000);
+  }
+  #answered(p, slot) { if (p.timers) clearTimeout(p.timers[slot]); }
+  static NO_ANSWER = 'The phone didn’t answer. Open DropWave on the phone (and keep it unlocked), then try again.';
+
+  smsLoad(id) {
+    const p = this.#need(id);
+    const m = this.#smsOf(p);
+    m.loading = true;
+    this.#ask(p, { type: 'sms-threads' }, 'smsThreads', () => { if (m.loading) { m.loading = false; m.error = PhoneHub.NO_ANSWER; this.#smsPush(p); } });
+    this.#smsPush(p);
+  }
+
+  smsOpen(id, thread, address) {
+    const p = this.#need(id);
+    const m = this.#smsOf(p);
+    m.open = { thread: num(thread), address: str(address, 40), messages: m.open?.thread === num(thread) ? m.open.messages : [], loading: true };
+    const t = m.threads.find((x) => x.thread === num(thread));
+    if (t) t.unread = 0; // read on the PC (the phone keeps its own read state)
+    if (num(thread) != null) {
+      this.#ask(p, { type: 'sms-thread', thread: num(thread) }, 'smsThread', () => {
+        if (m.open?.loading) { m.open = { ...m.open, loading: false, error: PhoneHub.NO_ANSWER }; this.#smsPush(p); }
+      });
+    } else m.open.loading = false;
+    this.#smsPush(p);
+  }
+
+  smsSend(id, to, text) {
+    const p = this.#need(id);
+    const m = this.#smsOf(p);
+    to = str(to, 40).trim(); text = str(text, 2000);
+    if (!to || !text.trim()) throw new Error('Nothing to send');
+    const ref = crypto.randomUUID();
+    if (!m.open || m.open.address !== to) m.open = { thread: m.threads.find((x) => x.address === to)?.thread ?? null, address: to, messages: [], loading: false };
+    m.open.messages = [...m.open.messages, { id: ref, body: text, date: Date.now(), out: true, pending: true }];
+    this.o.web().sendPhone(id, { type: 'sms-send', to, text, ref });
+    this.#smsPush(p);
+  }
+
+  #gotSms(p, type, d) {
+    const m = this.#smsOf(p);
+    if (type === 'sms-threads') {
+      this.#answered(p, 'smsThreads');
+      m.loading = false;
+      m.access = ['all', 'partial', 'none'].includes(d.access) ? d.access : m.access;
+      m.error = d.error ? str(d.error, 200) : null;
+      if (Array.isArray(d.list)) {
+        m.threads = d.list.slice(0, 200).map((t) => ({
+          thread: num(t.thread), address: str(t.address, 40), name: str(t.name, 80), snippet: str(t.snippet, 200),
+          date: num(t.date) || 0, out: !!t.out, unread: num(t.unread) || 0, code: findCode(str(t.snippet, 200)),
+        }));
+      }
+    } else if (type === 'sms-thread') {
+      this.#answered(p, 'smsThread');
+      if (m.open && d.error) m.open = { ...m.open, loading: false, error: str(d.error, 200) };
+      else if (m.open && m.open.thread === num(d.thread)) {
+        const msgs = (Array.isArray(d.messages) ? d.messages : []).slice(-200).map((x) => ({
+          id: num(x.id), body: str(x.body, 5000), date: num(x.date) || 0, out: !!x.out, failed: !!x.failed, pending: !!x.pending, code: x.out ? null : findCode(str(x.body, 5000)),
+        }));
+        m.open = { ...m.open, messages: msgs, loading: false, error: null };
+      }
+    } else if (type === 'sms') {
+      const address = str(d.address, 40), body = str(d.body, 5000), date = num(d.date) || Date.now();
+      const t = m.threads.find((x) => x.address === address);
+      const row = { ...(t || { thread: null, address, name: str(d.name, 80) }), snippet: body.slice(0, 200), date, out: false, unread: (t?.unread || 0) + 1, code: findCode(body) };
+      m.threads = [row, ...m.threads.filter((x) => x !== t)];
+      if (m.open && m.open.address === address) {
+        m.open = { ...m.open, messages: [...m.open.messages, { id: `in-${date}`, body, date, out: false, code: findCode(body) }] };
+        row.unread = 0;
+      }
+    } else if (type === 'sms-sent') {
+      if (!d.ok) this.o.push('phone-error', { id: p.id, error: str(d.error, 200) || 'Couldn’t send the message' });
+      if (m.open) m.open = { ...m.open, messages: m.open.messages.map((x) => (x.id === d.ref ? { ...x, pending: false, failed: !d.ok } : x)) };
+      // Pick up the saved message (and a new conversation's thread id) from the phone.
+      setTimeout(() => this.o.web()?.sendPhone(p.id, { type: 'sms-threads' }), 1200);
+      if (d.ok) setTimeout(() => {
+        const t = m.threads.find((x) => x.address === m.open?.address);
+        if (t && m.open) { m.open.thread = t.thread; this.o.web()?.sendPhone(p.id, { type: 'sms-thread', thread: t.thread }); }
+      }, 2500);
+    }
+    this.#smsPush(p);
+  }
+
+  // ---------- phone files ----------
+
+  #filesOf(p) {
+    if (!p.files) p.files = { path: '', items: [], total: null, free: null, loading: false, error: null, access: null };
+    return p.files;
+  }
+
+  #filesPush(p) { this.o.push('phone-files', { id: p.id, ...this.#filesOf(p) }); }
+  files(id) { const p = this.phones.get(id); return p ? { id, ...this.#filesOf(p) } : null; }
+
+  filesList(id, rel, hidden) {
+    const p = this.#need(id);
+    const f = this.#filesOf(p);
+    f.loading = true;
+    f.error = null;
+    this.#ask(p, { type: 'files-list', path: str(rel, 1000), hidden: !!hidden }, 'files', () => {
+      if (f.loading) { f.loading = false; f.error = PhoneHub.NO_ANSWER; this.#filesPush(p); }
+    });
+    this.#filesPush(p);
+  }
+
+  #gotFiles(p, d) {
+    this.#answered(p, 'files');
+    const f = this.#filesOf(p);
+    f.loading = false;
+    if (d.access === 'none') { f.access = 'none'; this.#filesPush(p); return; }
+    if (d.error) { f.error = str(d.error, 200); this.#filesPush(p); return; }
+    f.access = 'all';
+    f.path = str(d.path, 1000);
+    f.total = num(d.total); f.free = num(d.free);
+    f.items = (Array.isArray(d.items) ? d.items : []).slice(0, 2000).map((x) => ({
+      name: str(x.name, 255), dir: !!x.dir, size: num(x.size) || 0, mtime: num(x.mtime) || 0, count: num(x.count), mime: str(x.mime, 80),
+    })).filter((x) => x.name && !x.name.includes('/'));
+    this.#filesPush(p);
+  }
+
+  /** Download files (names in the folder on screen). */
+  filesGet(id, names) {
+    const p = this.#need(id);
+    const f = this.#filesOf(p);
+    const pick = [...new Set(names)].map((n) => f.items.find((x) => !x.dir && x.name === n)).filter(Boolean).slice(0, 500)
+      .map((x, i) => ({ id: String(i), name: x.name, size: x.size, rel: f.path ? `${f.path}/${x.name}` : x.name }));
+    return this.#download(p, pick, (token) => ({ type: 'files-get', paths: pick.map((x) => x.rel), token }));
   }
 
   // ---------- PC -> phone ----------
@@ -257,6 +486,8 @@ class PhoneHub {
     if (cmd.type === 'notif' && cmd.action === 'dismiss') { p.notifs = p.notifs.filter((n) => n.key !== cmd.key); this.#emit(p); }
     if (cmd.type === 'notif' && cmd.action === 'clear') { p.notifs = []; this.#emit(p); }
     if (cmd.type === 'clip') this.#event('clip-out', p, 'Clipboard sent');
+    if (cmd.type === 'dial') this.#event('dial', p, `Calling ${str(cmd.number, 40)}`);
+    if (cmd.type === 'call' && cmd.action === 'answer' && p.call) { p.call = { ...p.call, state: 'offhook', since: Date.now() }; this.#emit(p); }
     return true;
   }
 

@@ -57,8 +57,39 @@ class PhoneListener : NotificationListenerService() {
         unwatchAll()
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification) = changed()
-    override fun onNotificationRemoved(sbn: StatusBarNotification) = changed()
+    override fun onNotificationPosted(sbn: StatusBarNotification) { appCall(sbn, false); changed() }
+    override fun onNotificationRemoved(sbn: StatusBarNotification) { appCall(sbn, true); changed() }
+
+    // ---------- calls in apps (WhatsApp, Telegram, Signal…) ----------
+    // These never reach Android's phone state; their "call" notification does, with its own
+    // Answer / Decline / Hang up buttons, which the PC presses through act().
+
+    private val appCalls = HashMap<String, String>() // notification key -> last state sent
+    private val answerWords = Regex("(?i)answer|accept|pick ?up|उठा|स्वीकार")
+    private val declineWords = Regex("(?i)decline|reject|dismiss|ignore|अस्वीकार")
+    private val endWords = Regex("(?i)hang ?up|end|leave|disconnect|काट")
+
+    private fun dialer(): String? = runCatching { getSystemService(android.telecom.TelecomManager::class.java)?.defaultDialerPackage }.getOrNull()
+
+    private fun appCall(s: StatusBarNotification, removed: Boolean) {
+        val n = s.notification
+        if (n.category != Notification.CATEGORY_CALL || s.packageName == packageName || s.packageName == dialer()) return
+        if (removed) {
+            if (appCalls.remove(s.key) != null) DropWavePlugin.emit("appcall", JSObject().put("key", s.key).put("state", "idle"))
+            return
+        }
+        val titles = n.actions?.map { it?.title?.toString().orEmpty() }.orEmpty()
+        val idx = { re: Regex -> titles.indexOfFirst { re.containsMatchIn(it) } }
+        val type = if (android.os.Build.VERSION.SDK_INT >= 31) n.extras.getInt(Notification.EXTRA_CALL_TYPE, 0) else 0
+        val ringing = type == 1 || (type == 0 && idx(answerWords) >= 0)
+        val state = if (ringing) "ringing" else "offhook"
+        if (appCalls[s.key] == state) return
+        appCalls[s.key] = state
+        val caller = (n.extras.getCharSequence(Notification.EXTRA_TITLE) ?: "").toString()
+        DropWavePlugin.emit("appcall", JSObject()
+            .put("key", s.key).put("state", state).put("name", caller).put("app", label(s.packageName)).put("pkg", s.packageName)
+            .put("answer", idx(answerWords)).put("decline", idx(declineWords)).put("end", idx(endWords)))
+    }
 
     private fun component() = ComponentName(this, PhoneListener::class.java)
 

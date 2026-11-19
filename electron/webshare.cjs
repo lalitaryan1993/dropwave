@@ -100,6 +100,7 @@ class WebShare extends EventEmitter {
     this.streamLinks = new Map(); // token -> { files:[{abs,name}], created } — PC-to-PC "Play now"
     this.uploads = new Map();  // batchId -> upload batch
     this.failedLogins = new Map(); // ip -> { n, until }
+    this.photoTokens = new Map(); // token -> photos the PC asked a phone for (see allowPhotoUpload)
     this.relayDir = path.join(os.tmpdir(), 'dropwave-relay');
     this.server = null;
     this.timer = null;
@@ -168,6 +169,7 @@ class WebShare extends EventEmitter {
       if (now - s.created > SHARE_TTL_MS) { this.shares.delete(id); if (s.relayDir) fsp.rm(s.relayDir, { recursive: true, force: true }).catch(() => {}); }
     }
     for (const [token, l] of this.streamLinks) if (now - l.created > STREAM_TTL_MS) this.streamLinks.delete(token);
+    for (const [token, t] of this.photoTokens) if (now - t.created > 60 * 60 * 1000) this.photoTokens.delete(token);
     if (changed) this.emit('clients', this.clientList());
   }
 
@@ -313,7 +315,7 @@ class WebShare extends EventEmitter {
     // The phone itself (Android app): battery, notifications, what's playing, clipboard.
     // Only from a device that is connected right now, from the same address as its live stream.
     if (p === '/api/phone' && req.method === 'POST') {
-      const b = await readJson(req, 1024 * 1024);
+      const b = await readJson(req, 6 * 1024 * 1024); // a page of photo thumbnails is the biggest
       const from = this.#liveClient(b.from, ip);
       if (!from || typeof b.type !== 'string') return json(res, 400, { error: 'Not connected' });
       this.emit('phone', { from: { id: from.id, name: from.name, kind: from.kind }, type: b.type, data: b.data ?? null });
@@ -327,6 +329,7 @@ class WebShare extends EventEmitter {
       const r = this.o.remote ? await this.o.remote({ id: from.id, name: from.name, kind: from.kind }, b.ev) : { ok: false, error: 'Not available' };
       return json(res, r.ok ? 200 : 403, r);
     }
+    if (p === '/api/photo-upload' && req.method === 'POST') return this.#photoUpload(req, res, url, ip);
     if (p === '/api/upload' && req.method === 'POST') return this.#upload(req, res, url);
     if (p === '/api/cancel' && req.method === 'POST') {
       const b = await readJson(req, 1024);
@@ -539,6 +542,54 @@ class WebShare extends EventEmitter {
     const me = this.o.me();
     this.#send(c, 'rtc', { from: from || { id: me.id, name: me.name, kind: 'computer' }, msg });
     return true;
+  }
+
+  // ---------- photos the PC asked a phone for ----------
+
+  /**
+   * Let a phone upload up to `count` files into `dir` with this token: the PC's user picked them
+   * on the Photos page, so they are saved without another Accept prompt.
+   * onProgress(bytesSoFarOfThisFile), onFile({ id, name, path, size } | { id, error })
+   */
+  allowPhotoUpload(token, { clientId, dir, count, onProgress, onFile }) {
+    this.photoTokens.set(token, { clientId, dir, left: count, onProgress, onFile, created: Date.now() });
+  }
+
+  async #photoUpload(req, res, url, ip) {
+    const t = this.photoTokens.get(String(url.searchParams.get('token') || ''));
+    const from = this.#liveClient(url.searchParams.get('from'), ip);
+    if (!t || !from || from.id !== t.clientId || t.left <= 0) { req.resume(); return json(res, 403, { error: 'Not requested' }); }
+    t.left--;
+    if (!t.left) this.photoTokens.delete(String(url.searchParams.get('token')));
+    const id = String(url.searchParams.get('id') || '').slice(0, 40);
+    const name = path.basename(safeName(url.searchParams.get('name') || 'photo')).slice(0, 200);
+    await fsp.mkdir(t.dir, { recursive: true });
+    const dest = await uniquePath(path.join(t.dir, name));
+    const out = fs.createWriteStream(dest);
+    let got = 0, last = 0, failed = false;
+    const fail = (msg) => {
+      if (failed) return;
+      failed = true;
+      out.destroy();
+      fsp.rm(dest, { force: true }).catch(() => {});
+      t.onFile?.({ id, name, error: msg });
+    };
+    req.on('data', (c) => {
+      got += c.length;
+      const now = Date.now();
+      if (now - last > 250) { last = now; t.onProgress?.(got); }
+    });
+    req.on('aborted', () => fail('The phone stopped sending'));
+    out.on('error', (e) => fail(e.message));
+    req.pipe(out);
+    out.on('finish', async () => {
+      if (failed) return;
+      const mtime = Number(url.searchParams.get('mtime'));
+      if (mtime > 0) await fsp.utimes(dest, new Date(), new Date(mtime)).catch(() => {}); // keep the photo's own date
+      t.onProgress?.(got);
+      t.onFile?.({ id, name, path: dest, size: got });
+      json(res, 200, { ok: true });
+    });
   }
 
   /** A connected device with a live event stream from this address (ids alone are visible to other devices). */

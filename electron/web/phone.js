@@ -97,16 +97,22 @@
     $('#slotPower').querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => quickAction(btn.dataset.act)));
 
     const box = $('#phoneBox');
+    const photoCard = DW && photosAccess === 'none' ? `<div class="group pcard" style="margin-top:8px">
+        <div class="pcard-row"><span class="pcard-ic">${I(ICONS.shot)}</span><div><b>Share photos with PC</b>
+        <small>See this phone’s photos and videos on the PC and save the ones you want. Nothing is copied until you pick it there.</small></div></div>
+        <button class="pbtn primary wide" id="pPhotosOn" style="width:100%;justify-content:center">Allow photos</button></div>` : '';
     if (DW && !notifAccess) {
       box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Show phone notifications on PC</b>
         <small>Reply, copy one-time codes and control music from the PC. If Android says “Restricted setting”: App info › ⋮ › Allow restricted settings.</small></div></div>
-        <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>`;
+        <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}`;
       $('#pNotifOn').addEventListener('click', () => DW.openNotifAccess().catch(() => {}));
     } else if (DW) {
       box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
-        <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>`;
-    } else {
+        <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}`;
+    }
+    $('#pPhotosOn')?.addEventListener('click', () => DW.requestPhotos().catch(() => {}));
+    if (!DW) {
       box.innerHTML = `<div class="sec-h">Get more</div><a class="group pcard" href="https://github.com/lalitaryan1993/dropwave/releases/latest" target="_blank" rel="noopener">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Get the Android app</b><small>Phone notifications, clipboard sync, music and Find my phone on your PC.</small></div></div></a>`;
     }
@@ -126,6 +132,7 @@
 
   // ---------- Android app: share this phone with the PC ----------
   let notifAccess = false;
+  let photosAccess = 'none';
   let lastClip = null; // last clipboard text seen or set here (no echo back to the PC)
   const sentIcons = new Set();
 
@@ -134,6 +141,7 @@
     try {
       const s = await DW.phoneStatus();
       notifAccess = !!s.notifAccess;
+      photosAccess = s.photosAccess || 'none';
       phone('status', { ...s, clip: true, app: 'android' });
       renderBox();
     } catch {}
@@ -191,6 +199,8 @@
     DW.addListener('phoneMedia', (d) => connected && sendMedia(d.media || null));
     DW.addListener('battery', () => connected && sendStatus());
     DW.addListener('volume', () => connected && sendStatus());
+    DW.addListener('access', () => connected && sendStatus()); // back from a permission dialog / settings
+    DW.addListener('photoUpload', (d) => { if (d.done === d.total) P().toast(`${d.total} sent to ${P().pcName()}`); });
     DW.addListener('ring', (d) => connected && phone('ring', { on: !!d.on }));
     DW.addListener('clip', (d) => { if (connected && d.text && d.text !== lastClip && !d.sensitive) { lastClip = d.text; phone('clip', { text: d.text }); } });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { setTimeout(checkClipboard, 400); sendStatus(); } });
@@ -204,7 +214,15 @@
     if (!DW) return;
     if (c.type === 'ring') DW.ring({ on: !!c.on }).catch(() => {});
     else if (c.type === 'media') DW.mediaControl({ action: String(c.action), pos: Number(c.pos) || 0 }).catch(() => P().toast('Nothing is playing on this phone'));
-    else if (c.type === 'volume') DW.volume({ action: String(c.action), value: Number(c.value) || 0 }).then(sendStatus).catch((e) => P().toast(e?.message || 'Couldn’t change the volume'));
+    else if (c.type === 'photos') {
+      DW.photoPage({ offset: Number(c.offset) || 0, limit: Number(c.limit) || 60, kind: String(c.kind || 'all') })
+        .then((r) => phone('photos', r))
+        .catch((e) => phone('photos', { error: e?.message || 'Couldn’t read the photos', offset: Number(c.offset) || 0, kind: c.kind }));
+    } else if (c.type === 'photo-get' && Array.isArray(c.ids)) {
+      const app = window.DW_APP || {};
+      DW.uploadPhotos({ ids: c.ids.map(String), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .then(() => P().toast(`Sending ${c.ids.length} to ${P().pcName()}…`)).catch(() => P().toast('Couldn’t send the photos'));
+    } else if (c.type === 'volume') DW.volume({ action: String(c.action), value: Number(c.value) || 0 }).then(sendStatus).catch((e) => P().toast(e?.message || 'Couldn’t change the volume'));
     else if (c.type === 'notif') DW.notifAction({ key: String(c.key || ''), action: String(c.action), i: Number(c.i) || 0, text: String(c.text || '') }).catch(() => P().toast('Couldn’t do that on this phone'));
     else if (c.type === 'clip' && typeof c.text === 'string') {
       lastClip = c.text;

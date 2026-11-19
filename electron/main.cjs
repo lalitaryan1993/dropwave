@@ -513,6 +513,9 @@ function registerIpc() {
   ipcMain.handle('phone:cmd', (_e, id, cmd) => phoneHub.command(String(id), cmd));
   ipcMain.handle('remote:respond', (_e, id, allow, always) => phoneHub.respond(String(id), !!allow, !!always));
   ipcMain.handle('remote:revoke', (_e, id) => phoneHub.revoke(String(id)));
+  ipcMain.handle('photos:get', (_e, id) => phoneHub.photos(String(id)));
+  ipcMain.handle('photos:load', (_e, id, opts) => phoneHub.photosLoad(String(id), opts || {}));
+  ipcMain.handle('photos:download', (_e, id, ids) => phoneHub.photosGet(String(id), Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('rtc:send', async (_e, peerId, msg) => {
     const peer = findPeer(peerId);
     if (!peer.web) return engine.sendRtc(peer, msg); // another PC: over the encrypted engine channel
@@ -708,6 +711,7 @@ app.whenReady().then(async () => {
     clipboard, remoteInput,
     focused: () => !!win && win.isVisible() && win.isFocused(),
     attention: (title, body) => { notify(title, body); win?.flashFrame(true); },
+    transfer: handleTransfer,
     inputLog: process.env.DROPWAVE_INPUT_LOG,
   });
   phoneHub.start();

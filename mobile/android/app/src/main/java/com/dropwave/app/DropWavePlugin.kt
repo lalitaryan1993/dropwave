@@ -135,6 +135,7 @@ class DropWavePlugin : Plugin() {
         super.handleOnResume()
         onScreen = true
         Notifs.cancelAll(context) // the page shows everything now
+        emit("access", JSObject()) // a permission may have changed while we were away
     }
 
     override fun handleOnPause() {
@@ -204,7 +205,47 @@ class DropWavePlugin : Plugin() {
             .put("volume", v.getInteger("volume"))
             .put("volumeMax", v.getInteger("volumeMax"))
             .put("muted", v.getBool("muted"))
-            .put("notifAccess", PhoneListener.enabled(context)))
+            .put("notifAccess", PhoneListener.enabled(context))
+            .put("photosAccess", PhotoLibrary.access(context)))
+    }
+
+    // ---------- photos (the PC's Photos page) ----------
+
+    /** Ask for the photo permission (the page re-reads phoneStatus when DropWave is back on screen). */
+    @PluginMethod
+    fun requestPhotos(call: PluginCall) {
+        ActivityCompat.requestPermissions(activity, PhotoLibrary.permissions(), 7303)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun photoPage(call: PluginCall) {
+        val offset = call.getInt("offset", 0) ?: 0
+        val limit = (call.getInt("limit", 60) ?: 60).coerceIn(1, 120)
+        val kind = call.getString("kind", "all")!!
+        scope.launch {
+            if (PhotoLibrary.access(context) == "none") return@launch call.resolve(JSObject().put("access", "none").put("items", JSArray()))
+            try {
+                call.resolve(PhotoLibrary.page(context, offset, limit, kind).put("access", PhotoLibrary.access(context)))
+            } catch (e: Exception) {
+                Log.w(TAG, "photo page", e)
+                call.reject(e.message)
+            }
+        }
+    }
+
+    /** Upload the originals the PC asked for (token from the PC) to base/api/photo-upload. */
+    @PluginMethod
+    fun uploadPhotos(call: PluginCall) {
+        val ids = call.getArray("ids")?.toList<String>().orEmpty().take(500)
+        val base = call.getString("base", "")!!
+        if (ids.isEmpty() || !(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("Nothing to send")
+        call.resolve()
+        scope.launch {
+            PhotoLibrary.upload(context, ids, base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!) { done, total ->
+                emit("photoUpload", JSObject().put("done", done).put("total", total))
+            }
+        }
     }
 
     private fun audio() = context.getSystemService(AudioManager::class.java)

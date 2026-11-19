@@ -4,7 +4,7 @@ import {
   Radar as RadarIcon, History, Settings as SettingsIcon, FolderOpen, Plus, Trash2, Sun, Moon, MonitorSmartphone,
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
-  Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download,
+  Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
@@ -13,6 +13,7 @@ import { ChatsView } from './chat.jsx';
 import { useCalls, CallLayer } from './call.jsx';
 import { Home, usePhones, RemoteAskModal, RemotePill } from './home.jsx';
 import { CommandPalette } from './palette.jsx';
+import { PhotosView } from './photos.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -200,6 +201,7 @@ export default function App() {
     const go = (id, title, Icon, hint) => ({ id: `go-${id}`, title, hint, Icon, group: 'Go to', run: () => setView(id) });
     const list = [
       go('home', 'Home', House, 'Your phone: notifications, battery, music'),
+      go('photos', 'Photos', Images, 'The phone’s photos and videos'),
       go('nearby', 'Nearby devices', RadarIcon, 'Send files by drag and drop'),
       go('chats', 'Chats', MessagesSquare),
       go('activity', 'Activity', History, 'Everything sent and received'),
@@ -242,6 +244,7 @@ export default function App() {
   const notifCount = Object.values(phones).reduce((a, p) => a + (p.notifs?.length || 0), 0);
   const nav = [
     { id: 'home', label: 'Home', Icon: House, badge: notifCount || null },
+    { id: 'photos', label: 'Photos', Icon: Images },
     { id: 'nearby', label: 'Nearby', Icon: RadarIcon, badge: peers.length || null },
     { id: 'chats', label: 'Chats', Icon: MessagesSquare, badge: chatList.reduce((a, c) => a + (c.unread || 0), 0) || null },
     { id: 'activity', label: 'Activity', Icon: History, badge: activeList.length || null },
@@ -337,6 +340,7 @@ export default function App() {
                     onSeeAll={() => setView('activity')} toast={toast}
                   />
                 )}
+                {view === 'photos' && <PhotosView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
                 {view === 'nearby' && (
                   <Nearby
                     me={state.me} peers={peers} dragging={dragging} busyPeers={busyPeers}

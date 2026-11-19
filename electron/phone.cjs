@@ -4,6 +4,7 @@
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
+const path = require('node:path');
 
 const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
@@ -100,6 +101,7 @@ class PhoneHub {
         p.status = {
           battery: num(d.battery), charging: !!d.charging, model: str(d.model, 60), android: str(d.android, 20),
           notifAccess: !!d.notifAccess, clip: !!d.clip, app: str(d.app, 20),
+          photosAccess: ['all', 'partial', 'none'].includes(d.photosAccess) ? d.photosAccess : null,
           volume: num(d.volume), volumeMax: num(d.volumeMax), muted: !!d.muted,
         };
         break;
@@ -141,6 +143,7 @@ class PhoneHub {
         break;
       }
       case 'ring': p.ringing = !!d.on; break;
+      case 'photos': this.#gotPhotos(p, d); return;
       case 'clip': {
         const text = str(d.text, 100 * 1024);
         if (!text || this.o.settings().clipSync === false) return;
@@ -153,6 +156,92 @@ class PhoneHub {
       default: return;
     }
     this.#emit(p);
+  }
+
+  // ---------- photos ----------
+
+  #photosOf(p) {
+    if (!p.photos) p.photos = { kind: 'all', items: [], next: 0, loading: false, access: null, error: null };
+    return p.photos;
+  }
+
+  /** Ask the phone for the next page (or the first page of another kind). */
+  photosLoad(id, { kind = 'all', reset = false } = {}) {
+    const p = this.phones.get(id);
+    const web = this.o.web();
+    if (!p || !web) throw new Error('The phone is no longer connected');
+    const ph = this.#photosOf(p);
+    if (reset || kind !== ph.kind) Object.assign(ph, { kind, items: [], next: 0, error: null });
+    if (ph.next == null || ph.loading) return this.#photosPublic(p);
+    ph.loading = true;
+    clearTimeout(ph.timer);
+    ph.timer = setTimeout(() => { if (ph.loading) { ph.loading = false; ph.error = 'The phone didn’t answer. Open DropWave on the phone and try again.'; this.o.push('phone-photos', this.#photosPublic(p)); } }, 30000);
+    if (!web.sendPhone(id, { type: 'photos', offset: ph.next, limit: 60, kind: ph.kind })) { ph.loading = false; throw new Error('The phone is no longer connected'); }
+    this.o.push('phone-photos', this.#photosPublic(p));
+    return this.#photosPublic(p);
+  }
+
+  #photosPublic(p) {
+    const ph = this.#photosOf(p);
+    return { id: p.id, kind: ph.kind, items: ph.items, hasMore: ph.next != null, loading: ph.loading, access: ph.access ?? p.status?.photosAccess ?? null, error: ph.error };
+  }
+
+  photos(id) { const p = this.phones.get(id); return p ? this.#photosPublic(p) : null; }
+
+  #gotPhotos(p, d) {
+    const ph = this.#photosOf(p);
+    clearTimeout(ph.timer);
+    ph.loading = false;
+    ph.access = ['all', 'partial', 'none'].includes(d.access) ? d.access : ph.access;
+    if (d.error) ph.error = str(d.error, 200);
+    else if ((d.kind || 'all') === ph.kind && num(d.offset) === ph.items.length) {
+      const items = (Array.isArray(d.items) ? d.items : []).slice(0, 120).map((x) => ({
+        id: str(x.id, 40), name: str(x.name, 200), date: num(x.date) || 0, w: num(x.w), h: num(x.h), size: num(x.size) || 0,
+        mime: str(x.mime, 60), video: !!x.video, dur: num(x.dur), thumb: isDataImage(x.thumb, 80 * 1024) ? x.thumb : null,
+      })).filter((x) => /^[iv]\d+$/.test(x.id));
+      ph.items = [...ph.items, ...items];
+      ph.next = num(d.next);
+      ph.error = null;
+    }
+    this.o.push('phone-photos', this.#photosPublic(p));
+  }
+
+  /** Download the chosen originals to <save folder>/Phone; shows up in Activity like any transfer. */
+  photosGet(id, ids) {
+    const p = this.phones.get(id);
+    const web = this.o.web();
+    if (!p || !web) throw new Error('The phone is no longer connected');
+    const ph = this.#photosOf(p);
+    const pick = [...new Set(ids)].map((x) => ph.items.find((it) => it.id === x)).filter(Boolean).slice(0, 500);
+    if (!pick.length) throw new Error('Nothing selected');
+    const token = crypto.randomBytes(16).toString('hex');
+    const t = {
+      id: `ph-${token.slice(0, 12)}`, direction: 'in', web: true, from: { id: p.id, name: p.name }, to: { id: 'me', name: 'This PC' },
+      files: pick.map((x) => ({ name: x.name, size: x.size })), count: pick.length, total: pick.reduce((a, x) => a + x.size, 0),
+      done: 0, status: 'active', startedAt: Date.now(), savedTo: [],
+    };
+    let finished = 0, base = 0, failed = 0;
+    const saved = {};
+    web.allowPhotoUpload(token, {
+      clientId: id, dir: path.join(this.o.settings().saveDir, 'Phone'), count: pick.length,
+      onProgress: (bytes) => { t.done = Math.min(t.total, base + bytes); this.o.transfer({ ...t }); },
+      onFile: (f) => {
+        finished++;
+        base += pick.find((x) => x.id === f.id)?.size || f.size || 0;
+        if (f.error) failed++; else { t.savedTo.push(f.path); saved[f.id] = f.path; }
+        t.done = Math.min(t.total, base);
+        if (finished === pick.length) {
+          t.status = failed === pick.length ? 'failed' : 'completed';
+          if (failed) t.error = `${failed} of ${pick.length} didn’t arrive`;
+          t.finishedAt = Date.now();
+        }
+        this.o.transfer({ ...t });
+        this.o.push('photos-saved', { id: p.id, saved: { ...saved } });
+      },
+    });
+    if (!web.sendPhone(id, { type: 'photo-get', ids: pick.map((x) => x.id), token })) throw new Error('The phone is no longer connected');
+    this.o.transfer({ ...t });
+    return { count: pick.length, dir: path.join(this.o.settings().saveDir, 'Phone') };
   }
 
   // ---------- PC -> phone ----------

@@ -242,6 +242,18 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
     const rr = await ppost('/api/remote', { from: 'phoneP', ev: { t: 'click', b: 'l' } });
     assert.deepEqual(await rr.json(), { ok: true, got: { t: 'click', b: 'l' } });
     assert.equal((await ppost('/api/remote', { from: 'other', ev: { t: 'click' } })).status, 400);
+    // Photos the PC asked for: saved without a prompt, once per requested file, only from that phone.
+    const photoDir = path.join(root, 'phone-photos');
+    const gotFiles = [];
+    pweb.allowPhotoUpload('tok1', { clientId: 'phoneP', dir: photoDir, count: 1, onFile: (f) => gotFiles.push(f) });
+    const up = (from, token) => fetch(`${pbase}/api/photo-upload?token=${token}&from=${from}&id=i7&name=${encodeURIComponent('../IMG_1.jpg')}&mtime=1700000000000`,
+      { method: 'POST', headers: { 'X-DropWave-Key': pkey }, body: Buffer.from('jpegbytes') });
+    assert.equal((await up('other', 'tok1')).status, 403);
+    assert.equal((await up('phoneP', 'tok1')).status, 200);
+    assert.equal(fs.readFileSync(path.join(photoDir, 'IMG_1.jpg'), 'utf8'), 'jpegbytes');
+    assert.equal(fs.statSync(path.join(photoDir, 'IMG_1.jpg')).mtimeMs, 1700000000000);
+    assert.equal(gotFiles[0].id, 'i7');
+    assert.equal((await up('phoneP', 'tok1')).status, 403); // used up
     ctrl.abort();
     await pweb.stop();
     console.log('ok  phone on PC: status in, commands out, touchpad only for a connected device');

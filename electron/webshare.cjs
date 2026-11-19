@@ -101,6 +101,7 @@ class WebShare extends EventEmitter {
     this.uploads = new Map();  // batchId -> upload batch
     this.failedLogins = new Map(); // ip -> { n, until }
     this.photoTokens = new Map(); // token -> photos the PC asked a phone for (see allowPhotoUpload)
+    this.mirrorTokens = new Map(); // token -> a screen-mirroring stream the PC asked a phone for
     this.relayDir = path.join(os.tmpdir(), 'dropwave-relay');
     this.server = null;
     this.timer = null;
@@ -330,6 +331,7 @@ class WebShare extends EventEmitter {
       return json(res, r.ok ? 200 : 403, r);
     }
     if (p === '/api/photo-upload' && req.method === 'POST') return this.#photoUpload(req, res, url, ip);
+    if (p === '/api/mirror' && req.method === 'POST') return this.#mirror(req, res, url, ip);
     if (p === '/api/upload' && req.method === 'POST') return this.#upload(req, res, url);
     if (p === '/api/cancel' && req.method === 'POST') {
       const b = await readJson(req, 1024);
@@ -590,6 +592,41 @@ class WebShare extends EventEmitter {
       t.onFile?.({ id, name, path: dest, size: got });
       json(res, 200, { ok: true });
     });
+  }
+
+  // ---------- phone screen on PC ----------
+
+  /** Accept one screen stream from this phone with this token. onFrame(type, ptsUs, Buffer), onEnd(). */
+  allowMirror(token, { clientId, onFrame, onEnd }) {
+    this.mirrorTokens.set(token, { clientId, onFrame, onEnd, created: Date.now() });
+  }
+
+  #mirror(req, res, url, ip) {
+    const token = String(url.searchParams.get('token') || '');
+    const m = this.mirrorTokens.get(token);
+    const from = this.#liveClient(url.searchParams.get('from'), ip);
+    if (!m || !from || from.id !== m.clientId) { req.resume(); return json(res, 403, { error: 'Not requested' }); }
+    this.mirrorTokens.delete(token);
+    req.socket.setNoDelay(true);
+    // Frames: [u32 length][u8 type][u64 timestamp][payload]
+    let buf = Buffer.alloc(0);
+    req.on('data', (chunk) => {
+      buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+      while (buf.length >= 13) {
+        const len = buf.readUInt32BE(0);
+        if (len > 8 * 1024 * 1024) { req.destroy(); return; }
+        if (buf.length < 13 + len) break;
+        const type = buf.readUInt8(4);
+        const pts = Number(buf.readBigUInt64BE(5));
+        m.onFrame(type, pts, buf.subarray(13, 13 + len));
+        buf = buf.subarray(13 + len);
+      }
+    });
+    let ended = false;
+    const end = () => { if (!ended) { ended = true; m.onEnd?.(); } };
+    req.on('end', () => { end(); json(res, 200, { ok: true }); });
+    req.on('close', end);
+    m.stop = () => req.destroy();
   }
 
   /** A connected device with a live event stream from this address (ids alone are visible to other devices). */

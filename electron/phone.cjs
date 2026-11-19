@@ -105,6 +105,7 @@ class PhoneHub {
           callsAccess: ['all', 'partial', 'none'].includes(d.callsAccess) ? d.callsAccess : null,
           smsAccess: ['all', 'partial', 'none'].includes(d.smsAccess) ? d.smsAccess : null,
           filesAccess: ['all', 'none'].includes(d.filesAccess) ? d.filesAccess : null,
+          controlAccess: !!d.controlAccess,
           volume: num(d.volume), volumeMax: num(d.volumeMax), muted: !!d.muted,
         };
         break;
@@ -151,6 +152,13 @@ class PhoneHub {
       case 'appcall': this.#gotAppCall(p, d); break;
       case 'sms-threads': case 'sms-thread': case 'sms': case 'sms-sent': this.#gotSms(p, type, d); return;
       case 'files': this.#gotFiles(p, d); return;
+      case 'mirror': {
+        if (d.declined) { p.mirror = 'off'; this.o.mirrorState(p.id, { state: 'declined' }); }
+        else if (d.error) this.o.mirrorState(p.id, { state: d.on ? 'on' : 'error', error: str(d.error, 200) });
+        else if (d.on) { p.mirror = 'on'; this.o.mirrorState(p.id, { state: 'on' }); }
+        else { p.mirror = 'off'; this.o.mirrorState(p.id, { state: 'off' }); }
+        break;
+      }
       case 'dial-error': this.o.push('phone-error', { id: p.id, error: str(d.error, 200) }); return;
       case 'calllog': {
         p.calls = (Array.isArray(d.list) ? d.list : []).slice(0, 100).map((c) => ({
@@ -322,6 +330,39 @@ class PhoneHub {
     const pick = [...new Set(ids)].map((x) => ph.items.find((it) => it.id === x)).filter(Boolean).slice(0, 500);
     return this.#download(p, pick, (token) => ({ type: 'photo-get', ids: pick.map((x) => x.id), token }),
       (saved) => this.o.push('photos-saved', { id: p.id, saved }));
+  }
+
+  // ---------- phone screen on PC ----------
+
+  /** Ask the phone to show its screen here (the phone shows Android's consent prompt first). */
+  mirrorStart(id) {
+    const p = this.#need(id);
+    const token = crypto.randomBytes(16).toString('hex');
+    this.o.web().allowMirror(token, {
+      clientId: id,
+      onFrame: (type, pts, data) => this.o.mirrorFrame(id, type, pts, data),
+      onEnd: () => { p.mirror = 'off'; this.o.mirrorState(id, { state: 'off' }); this.#emit(p); },
+    });
+    if (!this.o.web().sendPhone(id, { type: 'mirror-start', token })) throw new Error('The phone is not connected right now. Open DropWave on the phone.');
+    p.mirror = 'asking';
+    this.o.openMirror(p);
+    this.o.mirrorState(id, { state: 'asking' });
+    this.#emit(p);
+    return true;
+  }
+
+  mirrorStop(id) {
+    const p = this.phones.get(id);
+    this.o.web()?.sendPhone(id, { type: 'mirror-stop' });
+    if (p) { p.mirror = 'off'; this.#emit(p); }
+  }
+
+  /** A tap / swipe / key from the mirror window. */
+  mirrorInput(id, ev) {
+    if (!ev || typeof ev !== 'object' || typeof ev.t !== 'string') return;
+    const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+    const e = { t: str(ev.t, 20), x: n(ev.x), y: n(ev.y), x2: n(ev.x2), y2: n(ev.y2), ms: Math.min(3000, Math.max(1, Number(ev.ms) || 200)), s: str(ev.s, 500) };
+    this.o.web()?.sendPhone(id, { type: 'mirror-input', ev: e });
   }
 
   // ---------- messages (SMS) ----------

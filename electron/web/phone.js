@@ -108,6 +108,8 @@
       'Show messages on PC', 'Read and reply to SMS from the PC. Android asks for SMS and Contacts (for names).', 'Allow messages') : '';
     const filesCard = DW && filesAccess !== 'all' ? card('pFilesOn', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
       'Browse phone files from PC', 'Open this phone’s folders on the PC and copy files. In Android settings, turn on “Allow access to manage all files” for DropWave.', 'Open settings') : '';
+    const ctlCard = DW && !controlAccess ? card('pCtlOn', '<path d="M4 4l7 17 2.5-7.5L21 11 4 4Z"/>',
+      'Control this phone from PC', 'When the PC shows this screen, use its mouse and keyboard here. In Accessibility, turn on “DropWave: control from PC”.', 'Open settings') : '';
     const photoCard = DW && photosAccess === 'none' ? `<div class="group pcard" style="margin-top:8px">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.shot)}</span><div><b>Share photos with PC</b>
         <small>See this phone’s photos and videos on the PC and save the ones you want. Nothing is copied until you pick it there.</small></div></div>
@@ -116,16 +118,17 @@
       box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Show phone notifications on PC</b>
         <small>Reply, copy one-time codes and control music from the PC. If Android says “Restricted setting”: App info › ⋮ › Allow restricted settings.</small></div></div>
-        <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}${callCard}${smsCard}${filesCard}`;
+        <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}${callCard}${smsCard}${filesCard}${ctlCard}`;
       $('#pNotifOn').addEventListener('click', () => DW.openNotifAccess().catch(() => {}));
     } else if (DW) {
       box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
-        <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}${callCard}${smsCard}${filesCard}`;
+        <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}${callCard}${smsCard}${filesCard}${ctlCard}`;
     }
     $('#pPhotosOn')?.addEventListener('click', () => DW.requestPhotos().catch(() => {}));
     $('#pCallsOn')?.addEventListener('click', () => DW.requestCalls().catch(() => {}));
     $('#pSmsOn')?.addEventListener('click', () => DW.requestSms().catch(() => {}));
     $('#pFilesOn')?.addEventListener('click', () => DW.openFilesAccess().catch(() => {}));
+    $('#pCtlOn')?.addEventListener('click', () => DW.openControlAccess().catch(() => {}));
     if (!DW) {
       box.innerHTML = `<div class="sec-h">Get more</div><a class="group pcard" href="https://github.com/lalitaryan1993/dropwave/releases/latest" target="_blank" rel="noopener">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Get the Android app</b><small>Phone notifications, clipboard sync, music and Find my phone on your PC.</small></div></div></a>`;
@@ -150,6 +153,7 @@
   let callsAccess = 'none';
   let smsAccess = 'none';
   let filesAccess = 'none';
+  let controlAccess = false;
   let lastClip = null; // last clipboard text seen or set here (no echo back to the PC)
   const sentIcons = new Set();
 
@@ -163,6 +167,7 @@
       callsAccess = s.callsAccess || 'none';
       smsAccess = s.smsAccess || 'none';
       filesAccess = s.filesAccess || 'none';
+      controlAccess = !!s.controlAccess;
       if (callsAccess !== 'none' && hadCalls !== callsAccess) sendCallLog(); // just allowed
       phone('status', { ...s, clip: true, app: 'android' });
       renderBox();
@@ -232,6 +237,7 @@
     DW.addListener('call', (d) => connected && phone('call', d));
     DW.addListener('appcall', (d) => connected && phone('appcall', d));
     DW.addListener('sms', (d) => connected && phone('sms', d));
+    DW.addListener('mirror', (d) => connected && phone('mirror', d));
     DW.addListener('photoUpload', (d) => { if (d.done === d.total) P().toast(`${d.total} sent to ${P().pcName()}`); });
     DW.addListener('ring', (d) => connected && phone('ring', { on: !!d.on }));
     DW.addListener('clip', (d) => { if (connected && d.text && d.text !== lastClip && !d.sensitive) { lastClip = d.text; phone('clip', { text: d.text }); } });
@@ -272,6 +278,15 @@
       const app = window.DW_APP || {};
       DW.uploadFiles({ paths: c.paths.map(String), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
         .then(() => P().toast(`Sending ${c.paths.length} file${c.paths.length > 1 ? 's' : ''} to ${P().pcName()}…`)).catch(() => P().toast('Couldn’t send the files'));
+    } else if (c.type === 'mirror-start') {
+      const app = window.DW_APP || {};
+      DW.mirrorStart({ token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .then((r) => { if (!r?.prompted) P().toast(`Tap the notification to show this screen on ${P().pcName()}`); })
+        .catch((e) => phone('mirror', { on: false, error: e?.message || 'Couldn’t start' }));
+    } else if (c.type === 'mirror-stop') {
+      DW.mirrorStop().catch(() => {});
+    } else if (c.type === 'mirror-input' && c.ev) {
+      DW.mirrorInput(c.ev).catch((e) => phone('mirror', { on: true, error: e?.message || '' }));
     } else if (c.type === 'calllog') {
       sendCallLog();
     } else if (c.type === 'volume') DW.volume({ action: String(c.action), value: Number(c.value) || 0 }).then(sendStatus).catch((e) => P().toast(e?.message || 'Couldn’t change the volume'));

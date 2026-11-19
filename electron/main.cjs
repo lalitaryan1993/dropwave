@@ -170,6 +170,27 @@ function openPlayer(src, name, local) {
   p.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }
 
+// ---- phone screen windows (one per phone) ----
+const mirrorWins = new Map(); // phone id -> BrowserWindow
+function openMirror(p) {
+  const old = mirrorWins.get(p.id);
+  if (old && !old.isDestroyed()) { old.show(); old.focus(); return; }
+  const c = themeColors();
+  const w = new BrowserWindow({
+    width: 430, height: 880, minWidth: 260, minHeight: 360,
+    backgroundColor: '#05060a', title: `${p.name} · DropWave`, icon: iconPath(),
+    titleBarStyle: 'hidden', titleBarOverlay: { color: '#05060a', symbolColor: '#e6e8f0', height: 40 },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false },
+  });
+  void c;
+  const hash = `mirror=${encodeURIComponent(p.id)}&name=${encodeURIComponent(p.name)}`;
+  if (DEV_URL) w.loadURL(`${DEV_URL}#${hash}`);
+  else w.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash });
+  w.webContents.on('will-navigate', (e) => e.preventDefault());
+  mirrorWins.set(p.id, w);
+  w.on('closed', () => { mirrorWins.delete(p.id); phoneHub?.mirrorStop(p.id); });
+}
+
 function showWindow() {
   if (!win) createWindow();
   if (win.isMinimized()) win.restore();
@@ -516,6 +537,18 @@ function registerIpc() {
   ipcMain.handle('photos:get', (_e, id) => phoneHub.photos(String(id)));
   ipcMain.handle('photos:load', (_e, id, opts) => phoneHub.photosLoad(String(id), opts || {}));
   ipcMain.handle('photos:download', (_e, id, ids) => phoneHub.photosGet(String(id), Array.isArray(ids) ? ids.map(String) : []));
+  ipcMain.handle('mirror:start', (_e, id) => phoneHub.mirrorStart(String(id)));
+  ipcMain.handle('mirror:stop', (_e, id) => phoneHub.mirrorStop(String(id)));
+  ipcMain.on('mirror:input', (_e, id, ev) => phoneHub.mirrorInput(String(id), ev));
+  ipcMain.handle('mirror:shot', async (_e, name, dataUrl) => {
+    const m = /^data:image\/png;base64,(.+)$/.exec(String(dataUrl || ''));
+    if (!m) return null;
+    const dir = path.join(settings.saveDir, 'Phone');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `Screenshot ${String(name || 'phone').replace(/[<>:"/\\|?*]/g, '_')} ${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`);
+    fs.writeFileSync(file, Buffer.from(m[1], 'base64'));
+    return file;
+  });
   ipcMain.handle('sms:get', (_e, id) => phoneHub.sms(String(id)));
   ipcMain.handle('sms:load', (_e, id) => phoneHub.smsLoad(String(id)));
   ipcMain.handle('sms:open', (_e, id, thread, address) => phoneHub.smsOpen(String(id), thread, address));
@@ -719,6 +752,9 @@ app.whenReady().then(async () => {
     focused: () => !!win && win.isVisible() && win.isFocused(),
     attention: (title, body) => { notify(title, body); win?.flashFrame(true); },
     transfer: handleTransfer,
+    openMirror,
+    mirrorFrame: (id, type, pts, data) => { const w = mirrorWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-frame', { type, pts, data }); },
+    mirrorState: (id, s) => { const w = mirrorWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-state', s); },
     inputLog: process.env.DROPWAVE_INPUT_LOG,
   });
   phoneHub.start();

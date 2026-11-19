@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Smartphone, BatteryCharging, BellRing, Bell, ClipboardPaste, ClipboardCopy, Send, Phone, MessageSquare,
   Play, Pause, SkipBack, SkipForward, Music2, X, Copy, Reply, MousePointer2, Lock, History, QrCode, Download,
-  Check, ArrowUpRight, ArrowDownLeft, ShieldCheck, Keyboard, Sparkles, BellOff, Volume2, Volume1, VolumeX, Plus, Minus,
+  Check, ArrowUpRight, ArrowDownLeft, ShieldCheck, Keyboard, Sparkles, BellOff, Volume2, Volume1, VolumeX, Plus, Minus, MonitorSmartphone,
 } from 'lucide-react';
 import { api, timeAgo } from './lib.js';
 import { Avatar, Button, Modal } from './components.jsx';
@@ -275,6 +275,7 @@ function Tiles({ phone, onPick, onText, onCall, toast }) {
     try { await api.phoneCmd(phone.id, { type: 'ring', on: !phone.ringing }); } catch (e) { toast(e.message, 'error'); }
   };
   const tiles = [
+    { Icon: MonitorSmartphone, label: 'Phone screen', sub: 'see and control it', onClick: () => api.mirrorStart(phone.id).catch((e) => toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error')) },
     { Icon: Send, label: 'Send files', sub: 'or drop them here', onClick: () => onPick(peer, 'files') },
     { Icon: ClipboardCopy, label: 'Send clipboard', sub: 'copied on this PC', onClick: sendClip },
     { Icon: BellRing, label: phone.ringing ? 'Stop ringing' : 'Find phone', sub: phone.ringing ? 'ringing now…' : 'even on silent', onClick: ring, on: phone.ringing },

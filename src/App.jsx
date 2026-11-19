@@ -237,6 +237,8 @@ export default function App() {
       list.push(
         { id: `ring-${ph.id}`, title: ph.ringing ? `Stop ringing ${ph.name}` : `Find ${ph.name}`, hint: 'Rings the phone, even on silent', Icon: BellRing, group: ph.name, keywords: 'find phone ring lost',
           run: () => api.phoneCmd(ph.id, { type: 'ring', on: !ph.ringing }).catch((e) => toast(cleanErr(e), 'error')) },
+        { id: `mirror-${ph.id}`, title: `Show ${ph.name}’s screen`, hint: 'See and control the phone in a window', Icon: MonitorSmartphone, group: ph.name, keywords: 'mirror cast screen',
+          run: () => api.mirrorStart(ph.id).catch((e) => toast(cleanErr(e), 'error')) },
         { id: `phone-${ph.id}`, title: `Open ${ph.name}`, hint: 'Notifications, battery and music', Icon: Smartphone, group: ph.name, run: () => { setHomePhone(ph.id); setView('home'); } },
       );
     }

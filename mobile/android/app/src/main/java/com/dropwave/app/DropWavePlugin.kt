@@ -216,7 +216,53 @@ class DropWavePlugin : Plugin() {
             .put("photosAccess", PhotoLibrary.access(context))
             .put("callsAccess", Calls.access(context))
             .put("smsAccess", Sms.access(context))
-            .put("filesAccess", PhoneFiles.access()))
+            .put("filesAccess", PhoneFiles.access())
+            .put("controlAccess", ControlService.enabled(context))
+            .put("mirroring", MirrorService.running))
+    }
+
+    // ---------- phone screen on PC ----------
+
+    /** The PC asked to see this screen: Android's consent prompt now (app on screen) or via a notification. */
+    @PluginMethod
+    fun mirrorStart(call: PluginCall) {
+        val base = call.getString("base", "")!!
+        if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
+        MirrorService.pending = MirrorService.Request(base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!)
+        val open = Intent(context, MirrorConsentActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (onScreen) {
+            activity.startActivity(open)
+        } else {
+            val pi = android.app.PendingIntent.getActivity(context, MirrorConsentActivity.MIRROR_ASK_ID, open, android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
+            Notifs.post(context, MirrorConsentActivity.MIRROR_ASK_ID, androidx.core.app.NotificationCompat.Builder(context, Notifs.CH_TRANSFERS)
+                .setSmallIcon(R.drawable.ic_stat_dropwave)
+                .setContentTitle("Your PC wants to see this screen")
+                .setContentText("Tap to start showing it on the PC")
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pi))
+        }
+        call.resolve(JSObject().put("prompted", onScreen))
+    }
+
+    @PluginMethod
+    fun mirrorStop(call: PluginCall) {
+        MirrorService.pending = null
+        MirrorService.stop(context)
+        call.resolve()
+    }
+
+    /** Settings › Accessibility, where the user turns on "DropWave: control from PC". */
+    @PluginMethod
+    fun openControlAccess(call: PluginCall) {
+        activity.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun mirrorInput(call: PluginCall) {
+        val s = ControlService.instance ?: return call.reject("Turn on “DropWave: control from PC” in Accessibility settings")
+        if (s.handle(call.data)) call.resolve() else call.reject("Couldn’t do that")
     }
 
     // ---------- messages (SMS) ----------

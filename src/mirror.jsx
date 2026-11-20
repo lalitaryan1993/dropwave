@@ -2,7 +2,7 @@
 // Mouse: click = tap, hold = long press, drag = swipe, wheel = scroll, right-click = Back.
 // Keyboard: type into the focused field, Enter, Backspace; Esc = Back; Ctrl+V pastes the PC clipboard.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Circle, Square, Camera, X, Loader2, MousePointer2, Smartphone, Bell } from 'lucide-react';
+import { ArrowLeft, Circle, Square, Camera, X, Loader2, MousePointer2, Smartphone, Bell, Volume2, VolumeX } from 'lucide-react';
 import { api } from './lib.js';
 
 // "avc1.PPCCLL" from the SPS (first NAL of type 7 in the Annex B config).
@@ -26,6 +26,36 @@ export function MirrorApp() {
   const [fps, setFps] = useState(0);
   const [control, setControl] = useState(null); // phone's controlAccess
   const [toast, setToast] = useState('');
+  const [muted, setMuted] = useState(false);
+  const [hasSound, setHasSound] = useState(false);
+  const audio = useRef({ ctx: null, gain: null, next: 0 });
+
+  // The phone's sound: 16-bit stereo 48 kHz PCM chunks, played back to back with a little headroom.
+  const play = (bytes) => {
+    const a = audio.current;
+    if (!a.ctx) {
+      a.ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+      a.gain = a.ctx.createGain();
+      a.gain.connect(a.ctx.destination);
+      setHasSound(true);
+    }
+    const n = bytes.byteLength >> 2;
+    if (!n) return;
+    const v = new DataView(bytes.buffer, bytes.byteOffset, n * 4);
+    const buf = a.ctx.createBuffer(2, n, 48000);
+    const l = buf.getChannelData(0), r = buf.getChannelData(1);
+    for (let i = 0; i < n; i++) { l[i] = v.getInt16(i * 4, true) / 32768; r[i] = v.getInt16(i * 4 + 2, true) / 32768; }
+    const src = a.ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(a.gain);
+    const now = a.ctx.currentTime;
+    // Too far behind (or ahead after a hiccup): restart close to now so the sound stays in sync with the picture.
+    if (a.next < now + 0.02 || a.next > now + 0.4) a.next = now + 0.08;
+    src.start(a.next);
+    a.next += buf.duration;
+  };
+  useEffect(() => { const a = audio.current; if (a.gain) a.gain.gain.value = muted ? 0 : 1; }, [muted]);
+  useEffect(() => () => { audio.current.ctx?.close(); }, []);
 
   useEffect(() => { document.title = `${name} · DropWave`; document.documentElement.classList.add('dark'); }, [name]);
 
@@ -60,6 +90,7 @@ export function MirrorApp() {
       api.onMirrorFrame(({ type, pts, data }) => {
         const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
         if (type === 3) { const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); setSize({ w: v.getUint32(0), h: v.getUint32(4) }); return; }
+        if (type === 4) { playRef.current(bytes); return; }
         if (type === 1) { config = bytes.slice(); make(); setState({ state: 'on' }); return; }
         if (!decoder || decoder.state !== 'configured') return;
         if (type === 2) {
@@ -76,6 +107,8 @@ export function MirrorApp() {
     return () => { offs.forEach((f) => f()); clearInterval(fpsTimer); decoder?.close?.(); };
   }, []);
 
+  const playRef = useRef(play);
+  playRef.current = play;
   const send = (ev) => api.mirrorInput(id, ev);
   const flash = (t) => { setToast(t); setTimeout(() => setToast(''), 1800); };
 
@@ -171,6 +204,9 @@ export function MirrorApp() {
         <Btn title="Recent apps" onClick={() => send({ t: 'recents' })}><Square className="h-4.5 w-4.5" /></Btn>
         <Btn title="Notifications" onClick={() => send({ t: 'notifications' })}><Bell className="h-5 w-5" /></Btn>
         <Btn title="Screenshot to this PC" onClick={shot}><Camera className="h-5 w-5" /></Btn>
+        <Btn title={hasSound ? (muted ? 'Unmute the phone’s sound' : 'Mute the phone’s sound') : 'No sound from the phone (allow the microphone on the phone to get it)'} onClick={() => setMuted((m) => !m)}>
+          {muted || !hasSound ? <VolumeX className={`h-5 w-5 ${hasSound ? '' : 'opacity-40'}`} /> : <Volume2 className="h-5 w-5" />}
+        </Btn>
         <Btn title="Stop showing the screen" danger onClick={() => { api.mirrorStop(id); window.close(); }}><X className="h-5 w-5" /></Btn>
       </div>
     </div>

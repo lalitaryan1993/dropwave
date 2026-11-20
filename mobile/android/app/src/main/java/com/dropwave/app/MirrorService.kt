@@ -65,7 +65,10 @@ class MirrorService : Service() {
             .addAction(0, "Stop", stopPi)
             .setContentIntent(Notifs.openApp(this))
             .build()
-        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION) else startForeground(NOTIF_ID, n)
+        // With the microphone permission the phone's sound comes along (playback capture is an audio recording to Android).
+        val mic = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or (if (mic && Build.VERSION.SDK_INT >= 30) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, n, types) else startForeground(NOTIF_ID, n)
 
         val mpm = getSystemService(MediaProjectionManager::class.java)
         val p = mpm.getMediaProjection(code, data) ?: run { stopSelf(); return START_NOT_STICKY }
@@ -79,6 +82,8 @@ class MirrorService : Service() {
 
     override fun onDestroy() {
         stopping = true
+        // Optional: control from the PC only while the PC shows this screen.
+        if (Access.prefs(this).getBoolean("controlAutoOff", false)) ControlService.instance?.off()
         runCatching { projection?.stop() }
         projection = null
         running = false
@@ -117,7 +122,8 @@ class MirrorService : Service() {
             }
             val out = DataOutputStream(conn.outputStream.buffered(256 * 1024))
             listenForInput(req)
-            fun frame(type: Int, pts: Long, data: ByteArray, off: Int = 0, len: Int = data.size) {
+            // Video and audio threads share the stream: one whole frame at a time.
+            fun frame(type: Int, pts: Long, data: ByteArray, off: Int = 0, len: Int = data.size) = synchronized(out) {
                 out.writeInt(len); out.writeByte(type); out.writeLong(pts); out.write(data, off, len); out.flush()
             }
 
@@ -145,6 +151,7 @@ class MirrorService : Service() {
                 frame(3, 0, java.nio.ByteBuffer.allocate(8).putInt(w).putInt(h).array())
             }
             startEncoder()
+            captureAudio(p) { buf, n -> frame(4, System.nanoTime() / 1000, buf, 0, n) }
             var lastCheck = 0L
             while (!stopping) {
                 // Rotated? Start a new encoder at the new size (the PC reconfigures from the new SPS).
@@ -182,6 +189,45 @@ class MirrorService : Service() {
             codec?.let { runCatching { it.stop() }; runCatching { it.release() } }
             runCatching { conn?.outputStream?.close(); conn?.responseCode; conn?.disconnect() }
             main.post { stopSelf() }
+        }
+    }
+
+    /**
+     * The phone's sound (media, games) while mirroring: Android 10+ playback capture, sent as
+     * 16-bit stereo 48 kHz PCM frames (type 4). Apps that opt out of capture stay silent.
+     * Needs the microphone permission (Android's rule for any audio capture).
+     */
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun captureAudio(p: MediaProjection, send: (ByteArray, Int) -> Unit) = thread(name = "dropwave-mirror-audio") {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Log.i(TAG, "mirror audio: microphone permission not granted, video only")
+            return@thread
+        }
+        var rec: android.media.AudioRecord? = null
+        try {
+            val cfg = android.media.AudioPlaybackCaptureConfiguration.Builder(p)
+                .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(android.media.AudioAttributes.USAGE_GAME)
+                .addMatchingUsage(android.media.AudioAttributes.USAGE_UNKNOWN)
+                .build()
+            val fmt = android.media.AudioFormat.Builder()
+                .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(48000)
+                .setChannelMask(android.media.AudioFormat.CHANNEL_IN_STEREO)
+                .build()
+            val min = android.media.AudioRecord.getMinBufferSize(48000, android.media.AudioFormat.CHANNEL_IN_STEREO, android.media.AudioFormat.ENCODING_PCM_16BIT)
+            rec = android.media.AudioRecord.Builder().setAudioFormat(fmt).setBufferSizeInBytes(maxOf(min, 48000 * 4 / 5)).setAudioPlaybackCaptureConfig(cfg).build()
+            rec.startRecording()
+            val chunk = ByteArray(48000 * 4 / 25) // 40 ms
+            while (!stopping) {
+                val n = rec.read(chunk, 0, chunk.size)
+                if (n > 0) send(chunk, n) else if (n < 0) break
+            }
+        } catch (e: Exception) {
+            if (!stopping) Log.w(TAG, "mirror audio: ${e.message}")
+        } finally {
+            runCatching { rec?.stop() }
+            rec?.release()
         }
     }
 

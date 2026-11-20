@@ -1,7 +1,7 @@
 {
   "name": "dropwave",
   "productName": "DropWave",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Drag and drop files between computers on your local network",
   "main": "electron/main.cjs",
   "author": "LALIT ARYAN",
@@ -14,7 +14,8 @@
     "start": "electron .",
     "test:engine": "node test/engine.test.cjs",
     "icon": "electron scripts/process-icons.cjs",
-    "dist": "vite build && electron-builder --win nsis",
+    "vcam": "native\\vcam\\build.cmd",
+    "dist": "npm run vcam && vite build && electron-builder --win nsis",
     "test:web": "node test/web.test.cjs",
     "test": "node test/engine.test.cjs && node test/web.test.cjs"
   },
@@ -33,6 +34,16 @@
       "build/icon.ico",
       "build/tray.png",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/vcam",
+        "to": "vcam",
+        "filter": [
+          "dwcam.exe",
+          "DropWaveCam.dll"
+        ]
+      }
     ],
     "win": {
       "target": [

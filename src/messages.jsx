@@ -30,6 +30,10 @@ export function MessagesView({ phones, selected, onSelect, toast }) {
   // Messages were just allowed on the phone: load.
   const prev = useRef(access);
   useEffect(() => { if (id && prev.current !== 'all' && phone?.status?.smsAccess === 'all') api.smsLoad(id); prev.current = phone?.status?.smsAccess; }, [phone?.status?.smsAccess, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Switched on again in DropWave › Privacy on the phone: load.
+  const smsOff = !!phone?.status?.off?.includes('sms');
+  const wasOff = useRef(smsOff);
+  useEffect(() => { if (id && wasOff.current && !smsOff) api.smsLoad(id).catch(() => {}); wasOff.current = smsOff; }, [smsOff, id]);
 
   const threads = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -38,6 +42,7 @@ export function MessagesView({ phones, selected, onSelect, toast }) {
   const open = m?.open;
 
   if (!phone) return <Empty Icon={Smartphone} title="No phone connected" text="Open the DropWave app on your Android phone. Its text messages show up here." />;
+  if (smsOff) return <Empty Icon={MessageSquareOff} title="Switched off on the phone" text={`Messages sharing is off in DropWave › Privacy on ${phone.name}. Turn it on there and this page fills in by itself.`} />;
   if (access && access !== 'all' && !(m?.threads || []).length) {
     return <Empty Icon={MessageSquareOff} title="Allow messages on the phone" text={`In the DropWave app on ${phone.name}, tap “Allow messages” on Home. Android asks for SMS and Contacts (for names).`} />;
   }

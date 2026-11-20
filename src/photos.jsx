@@ -2,8 +2,8 @@
 // originals are only copied when you pick them (saved to <save folder>\Phone).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Images, Download, Check, X, Play, Loader2, RefreshCw, FolderOpen, ImageOff, Smartphone, ExternalLink } from 'lucide-react';
-import { api, fmtSize } from './lib.js';
+import { Images, Download, Check, X, Play, Loader2, RefreshCw, FolderOpen, ImageOff, Smartphone, ExternalLink, CloudUpload } from 'lucide-react';
+import { api, fmtSize, timeAgo } from './lib.js';
 import { Button, Modal } from './components.jsx';
 
 const KINDS = [['all', 'All'], ['photos', 'Photos'], ['videos', 'Videos'], ['screenshots', 'Screenshots']];
@@ -29,6 +29,12 @@ export function PhotosView({ phones, selected, onSelect, toast }) {
   const [preview, setPreview] = useState(null);
   const sentinel = useRef(null);
   const access = data?.access ?? phone?.status?.photosAccess ?? null;
+  const [backup, setBackup] = useState(null);
+  useEffect(() => {
+    if (!id) return;
+    api.backupGet(id).then(setBackup);
+    return api.onBackup((b) => b.id === id && setBackup(b));
+  }, [id]);
 
   // Load / follow this phone's photos.
   useEffect(() => {
@@ -36,7 +42,7 @@ export function PhotosView({ phones, selected, onSelect, toast }) {
     setSel(new Set()); setData(null);
     api.photosGet(id).then((d) => {
       setData(d);
-      if (d && !d.items.length && d.hasMore && !d.loading) api.photosLoad(id, { kind: d.kind }).then(setData).catch(() => {});
+      if (d && !d.items.length && d.hasMore && !d.loading && !d.error) api.photosLoad(id, { kind: d.kind }).then(setData).catch(() => {});
     });
     const offs = [
       api.onPhotos((d) => d.id === id && setData(d)),
@@ -52,12 +58,20 @@ export function PhotosView({ phones, selected, onSelect, toast }) {
     prevAccess.current = access;
   }, [access, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Photos switched on again in DropWave › Privacy on the phone: load.
+  const isOff = !!phone?.status?.off?.includes('photos');
+  const wasOff = useRef(isOff);
+  useEffect(() => {
+    if (id && wasOff.current && !isOff) api.photosLoad(id, { kind: data?.kind || 'all', reset: true }).then(setData).catch(() => {});
+    wasOff.current = isOff;
+  }, [isOff, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Endless scroll
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !id) return;
     const io = new IntersectionObserver((e) => {
-      if (e[0].isIntersecting && data?.hasMore && !data?.loading) api.photosLoad(id, { kind: data.kind }).then(setData).catch(() => {});
+      if (e[0].isIntersecting && data?.hasMore && !data?.loading && !data?.error) api.photosLoad(id, { kind: data.kind }).then(setData).catch(() => {});
     }, { rootMargin: '600px' });
     io.observe(el);
     return () => io.disconnect();
@@ -122,10 +136,34 @@ export function PhotosView({ phones, selected, onSelect, toast }) {
       <div className="min-h-0 flex-1 overflow-auto px-7 pb-28">
         {!phone ? (
           <Empty Icon={Smartphone} title="No phone connected" text="Open the DropWave app on your Android phone. Its photos and videos show up here." />
+        ) : isOff ? (
+          <Empty Icon={ImageOff} title="Switched off on the phone" text={`Photos sharing is off in DropWave › Privacy on ${phone.name}. Turn it on there and this page fills in by itself.`} />
         ) : access === 'none' ? (
           <Empty Icon={ImageOff} title="Allow photos on the phone" text={`In the DropWave app on ${phone.name}, tap “Allow photos” on Home. Nothing is copied until you pick it here.`} />
         ) : (
           <>
+            {backup && (
+              <div className={`mb-4 flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3 ${backup.on ? 'border-accent/40 bg-accent/8' : 'border-line bg-raised/50'}`}>
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${backup.on ? 'grad-bg text-white' : 'bg-[var(--line)] text-faint'}`}>
+                  {backup.running ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <CloudUpload className="h-[18px] w-[18px]" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13.5px] font-semibold">Auto-backup new photos to this PC</div>
+                  <div className="truncate text-[12px] text-faint" title={backup.dir}>
+                    {backup.error ? <span className="text-bad">{backup.error}</span>
+                      : backup.running ? 'Backing up…'
+                      : backup.on ? `${backup.count} backed up${backup.last ? ` · checked ${timeAgo(backup.last)}` : ''} · ${backup.dir}\\<year>\\<month>`
+                      : 'New photos and videos are copied by year and month. Nothing is ever deleted.'}
+                  </div>
+                </div>
+                {backup.on && <Button variant="ghost" className="h-8" onClick={() => api.openPath(backup.dir)} title="Open the backup folder"><FolderOpen className="h-4 w-4" /></Button>}
+                {backup.on && !backup.running && <Button variant="soft" className="h-8" onClick={() => api.backupNow(id)}>Check now</Button>}
+                <button role="switch" aria-checked={backup.on} aria-label="Auto-backup" onClick={() => api.backupSet(id, !backup.on).then(setBackup)}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${backup.on ? 'grad-bg' : 'bg-[var(--line-strong)]'}`}>
+                  <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ left: backup.on ? 22 : 2 }} />
+                </button>
+              </div>
+            )}
             {access === 'partial' && (
               <div className="mb-4 rounded-2xl border border-warn/40 bg-warn/10 px-4 py-3 text-[12.5px] text-muted">
                 Only the photos you picked on the phone are shared. To share all, open Android settings › Apps › DropWave › Photos and videos › Always allow all.

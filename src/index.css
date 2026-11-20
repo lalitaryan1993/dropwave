@@ -148,3 +148,82 @@ input[type="text"], input:not([type]) { user-select: text; }
   --aurora-a: color-mix(in oklab, var(--accent) 15%, transparent);
   --aurora-b: color-mix(in oklab, var(--accent-2) 13%, transparent);
 }
+
+/* ---------- Styles (Settings > Appearance > Style). Each has light and dark; "wave" accent = the style's own colours. ---------- */
+
+/* Frost: see-through panels over the Windows Mica backdrop. */
+:root[data-style="frost"] {
+  --bg: transparent; --bg-2: rgba(255, 255, 255, 0.55);
+  --panel: rgba(255, 255, 255, 0.7); --panel-solid: #f7f8fc; --raised: rgba(255, 255, 255, 0.72);
+  --line: rgba(20, 24, 40, 0.08); --line-strong: rgba(20, 24, 40, 0.15);
+}
+.dark[data-style="frost"] {
+  --bg: transparent; --bg-2: rgba(30, 33, 45, 0.55);
+  --panel: rgba(22, 25, 36, 0.72); --panel-solid: #1a1d29; --raised: rgba(40, 44, 60, 0.6);
+  --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.16);
+}
+:root[data-style="frost"] body, :root[data-style="frost"] .aurora { background: transparent; }
+:root[data-style="frost"] .glass { backdrop-filter: blur(28px) saturate(160%); }
+
+/* Petal: soft and colourful. */
+:root[data-style="petal"] {
+  --bg: #fff3f4; --bg-2: #ffe8ea; --panel: rgba(255, 255, 255, 0.74); --panel-solid: #fff; --raised: #fffafa;
+  --line: rgba(120, 30, 50, 0.09); --line-strong: rgba(120, 30, 50, 0.17);
+  --fg: #2a1520; --muted: #7a5562; --faint: #a6838f;
+}
+.dark[data-style="petal"] {
+  --bg: #170c13; --bg-2: #1e1019; --panel: rgba(38, 20, 31, 0.74); --panel-solid: #241420; --raised: #2d1828;
+  --line: rgba(255, 200, 220, 0.08); --line-strong: rgba(255, 200, 220, 0.15);
+  --fg: #f8e8ee; --muted: #c5a2b0; --faint: #8e6b7a;
+}
+:root[data-style="petal"][data-accent="wave"] { --accent: #e5486e; --accent-2: #ff9a5c; --glow: rgba(229, 72, 110, 0.28); }
+.dark[data-style="petal"][data-accent="wave"] { --accent: #ff6b8e; --accent-2: #ffb07a; --glow: rgba(255, 107, 142, 0.3); }
+:root[data-style="petal"] { --aurora-a: color-mix(in oklab, var(--accent) 20%, transparent); --aurora-b: color-mix(in oklab, var(--accent-2) 22%, transparent); }
+:root[data-style="petal"] .aurora {
+  background:
+    radial-gradient(800px 500px at 90% -10%, var(--aurora-a), transparent 60%),
+    radial-gradient(700px 520px at 0% 100%, var(--aurora-b), transparent 60%),
+    radial-gradient(500px 400px at 45% 50%, color-mix(in oklab, #b78bff 12%, transparent), transparent 70%),
+    var(--bg);
+}
+
+/* Ink: black on paper (white on charcoal), no glow, sharp lines. */
+:root[data-style="ink"] {
+  --bg: #f3f0e8; --bg-2: #ebe7dc; --panel: #faf8f2; --panel-solid: #fffdf8; --raised: #fffdf8;
+  --line: rgba(30, 28, 22, 0.14); --line-strong: rgba(30, 28, 22, 0.32);
+  --fg: #1d1b16; --muted: #5d584c; --faint: #8f897a;
+  --glow: transparent; --aurora-a: transparent; --aurora-b: transparent;
+}
+.dark[data-style="ink"] {
+  --bg: #121212; --bg-2: #181818; --panel: #191919; --panel-solid: #1d1d1d; --raised: #202020;
+  --line: rgba(255, 255, 255, 0.12); --line-strong: rgba(255, 255, 255, 0.28);
+  --fg: #ecebe6; --muted: #a9a69c; --faint: #75736b;
+  --glow: transparent; --aurora-a: transparent; --aurora-b: transparent;
+}
+:root[data-style="ink"][data-accent="wave"] { --accent: #1d1b16; --accent-2: #1d1b16; }
+.dark[data-style="ink"][data-accent="wave"] { --accent: #ecebe6; --accent-2: #ecebe6; }
+:root[data-style="ink"] .glass { backdrop-filter: none; }
+:root[data-style="ink"] .grad-bg { background: var(--accent); color: var(--bg); }
+:root[data-style="ink"] .grad-bg * { color: inherit; }
+:root[data-style="ink"] h1, :root[data-style="ink"] h2, :root[data-style="ink"] h3 { letter-spacing: 0.01em; }
+:root[data-style="ink"] .rounded-2xl, :root[data-style="ink"] .rounded-3xl, :root[data-style="ink"] .rounded-\[22px\] { border-radius: 10px; }
+
+/* Dots: warm, with a quiet dot grid behind everything. */
+:root[data-style="dots"] {
+  --bg: #fbf6ec; --bg-2: #f4ecdc; --panel: rgba(255, 252, 245, 0.8); --panel-solid: #fffcf5; --raised: #fffaf0;
+  --line: rgba(90, 60, 10, 0.1); --line-strong: rgba(90, 60, 10, 0.2);
+  --fg: #2b2213; --muted: #6f604a; --faint: #a08f74; --dot: rgba(150, 110, 40, 0.18);
+}
+.dark[data-style="dots"] {
+  --bg: #13110d; --bg-2: #1a1711; --panel: rgba(30, 26, 19, 0.82); --panel-solid: #1f1b14; --raised: #27221a;
+  --line: rgba(255, 220, 160, 0.08); --line-strong: rgba(255, 220, 160, 0.16);
+  --fg: #f3ead9; --muted: #bcae94; --faint: #847760; --dot: rgba(255, 200, 110, 0.1);
+}
+:root[data-style="dots"][data-accent="wave"] { --accent: #e08a00; --accent-2: #f2b705; --glow: rgba(224, 138, 0, 0.28); }
+.dark[data-style="dots"][data-accent="wave"] { --accent: #ffa31a; --accent-2: #ffcc33; --glow: rgba(255, 163, 26, 0.3); }
+:root[data-style="dots"] .aurora {
+  background:
+    radial-gradient(circle at 1px 1px, var(--dot) 1.2px, transparent 1.6px) 0 0 / 18px 18px,
+    radial-gradient(800px 500px at 90% -10%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
+    var(--bg);
+}

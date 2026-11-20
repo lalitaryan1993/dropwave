@@ -63,7 +63,8 @@ object PhotoLibrary {
     }
 
     /** kind: all | photos | videos | screenshots. Newest first. */
-    fun page(ctx: Context, offset: Int, limit: Int, kind: String): JSObject {
+    /** after: only items added after this time (ms), oldest first — for auto-backup. thumbs: false skips thumbnails. */
+    fun page(ctx: Context, offset: Int, limit: Int, kind: String, after: Long = 0, thumbs: Boolean = true): JSObject {
         val img = MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE
         val vid = MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
         val type = MediaStore.Files.FileColumns.MEDIA_TYPE
@@ -72,12 +73,12 @@ object PhotoLibrary {
             "videos" -> "$type = ?" to arrayOf("$vid")
             "screenshots" -> "$type = ? AND (${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? OR ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?)" to arrayOf("$img", "%Screenshot%", "Screenshot%")
             else -> "$type IN (?, ?)" to arrayOf("$img", "$vid")
-        }
+        }.let { (s, a) -> if (after > 0) "($s) AND ${MediaStore.MediaColumns.DATE_ADDED} > ?" to (a + (after / 1000).toString()) else s to a }
         val q = Bundle().apply {
             putString(ContentResolver.QUERY_ARG_SQL_SELECTION, sel)
             putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
             putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.MediaColumns.DATE_ADDED))
-            putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, if (after > 0) ContentResolver.QUERY_SORT_DIRECTION_ASCENDING else ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
             putInt(ContentResolver.QUERY_ARG_LIMIT, limit + 1) // one extra: is there a next page?
             putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
         }
@@ -100,8 +101,9 @@ object PhotoLibrary {
                     .put("size", c.getLong(7))
                     .put("mime", c.getString(8) ?: "")
                     .put("video", video)
+                    .put("added", c.getLong(4) * 1000)
                 if (video) o.put("dur", c.getLong(9) / 1000.0)
-                thumb(cr, uriOf(video, id))?.let { o.put("thumb", it) }
+                if (thumbs) thumb(cr, uriOf(video, id))?.let { o.put("thumb", it) }
                 items.put(o)
             }
         }

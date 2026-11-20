@@ -5,6 +5,7 @@ import {
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
   Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
+  Contact, LayoutGrid, Camera,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
@@ -16,6 +17,8 @@ import { CommandPalette } from './palette.jsx';
 import { PhotosView } from './photos.jsx';
 import { MessagesView } from './messages.jsx';
 import { FilesView } from './files.jsx';
+import { ContactsView } from './contacts.jsx';
+import { AppsView } from './apps.jsx';
 import { CallBanner } from './phonecalls.jsx';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -29,8 +32,18 @@ const ACCENTS = [
   ['graphite', 'Graphite', '#3f4656', '#8a94a8'],
 ];
 
-function useTheme(theme, accent) {
+// Looks (Settings > Appearance > Style). Each works in light and dark; preview = [light bg, dark bg, card].
+const STYLES = [
+  ['aurora', 'Aurora', 'Soft glow, the DropWave classic', ['#f5f6fa', '#0b0d14', '#6d5dfc']],
+  ['frost', 'Frost', 'See-through, over your Windows backdrop', ['#dfe6f2', '#1c2230', '#8fb3e8']],
+  ['petal', 'Petal', 'Soft and colourful', ['#fff3f4', '#170c13', '#e5486e']],
+  ['ink', 'Ink', 'Black on paper, no glow', ['#f3f0e8', '#121212', '#1d1b16']],
+  ['dots', 'Dots', 'Warm, with a dot grid', ['#fbf6ec', '#13110d', '#e08a00']],
+];
+
+function useTheme(theme, accent, style) {
   useEffect(() => { document.documentElement.dataset.accent = accent || 'wave'; }, [accent]);
+  useEffect(() => { document.documentElement.dataset.style = style || 'aurora'; }, [style]);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && mq.matches));
@@ -82,6 +95,12 @@ export default function App() {
       api.onClipIn(({ peer }) => toast(`Copied from ${peer.name}: paste it anywhere`)),
       api.onOpenHome((id) => { setHomePhone(id); setView('home'); }),
       api.onPhoneError((e) => toast(e.error, 'error')),
+      // Camera: the photo goes to the clipboard too, ready for Ctrl+V.
+      api.onCamera((d) => {
+        if (d.state !== 'done' || !d.path) return;
+        if (d.video) toast('Video saved from the phone');
+        else api.cameraCopy(d.path).then((ok) => toast(ok ? 'Photo saved and copied: paste it with Ctrl+V' : 'Photo saved'));
+      }),
     ];
     // Ctrl+K (or Ctrl+Alt+Space): command palette
     const key = (e) => {
@@ -118,7 +137,7 @@ export default function App() {
     return () => offs.forEach((f) => f());
   }, [toast]);
 
-  useTheme(state?.settings.theme || 'system', state?.settings.accent);
+  useTheme(state?.settings.theme || 'system', state?.settings.accent, state?.settings.style);
 
   // Chat list + "message arrived" toast when that conversation isn't on screen.
   where.current = { view, chatPeer };
@@ -208,6 +227,8 @@ export default function App() {
       go('photos', 'Photos', Images, 'The phone’s photos and videos'),
       go('messages', 'Messages', MessageSquareText, 'The phone’s SMS: read and reply'),
       go('files', 'Phone files', FolderTree, 'Browse the phone’s storage'),
+      go('contacts', 'Contacts', Contact, 'Call or text from the phone’s contacts'),
+      go('apps', 'Apps', LayoutGrid, 'The phone’s apps: open, info, APK'),
       go('nearby', 'Nearby devices', RadarIcon, 'Send files by drag and drop'),
       go('chats', 'Chats', MessagesSquare),
       go('activity', 'Activity', History, 'Everything sent and received'),
@@ -218,6 +239,7 @@ export default function App() {
       { id: 'check', title: 'Network check', hint: 'Find and fix why a device can’t be seen', Icon: Stethoscope, group: 'Actions', keywords: 'firewall doctor fix', run: () => { setView('settings'); setCheckSignal((n) => n + 1); } },
       { id: 'theme', title: document.documentElement.classList.contains('dark') ? 'Switch to light mode' : 'Switch to dark mode', Icon: Moon, group: 'Appearance', keywords: 'theme dark light',
         run: () => updateSettings({ theme: document.documentElement.classList.contains('dark') ? 'light' : 'dark' }) },
+      ...STYLES.map(([id, name, hint]) => ({ id: `style-${id}`, title: `${name} style`, hint, Icon: Palette, group: 'Appearance', keywords: 'theme look design style', run: () => updateSettings({ style: id }) })),
       ...ACCENTS.map(([id, name]) => ({ id: `accent-${id}`, title: `${name} colours`, Icon: Palette, group: 'Appearance', keywords: 'theme accent color', run: () => updateSettings({ accent: id }) })),
       { id: 'update', title: 'Check for updates', Icon: Download, group: 'Actions', run: () => api.checkUpdate().then(setUpdate) },
     ];
@@ -239,6 +261,10 @@ export default function App() {
           run: () => api.phoneCmd(ph.id, { type: 'ring', on: !ph.ringing }).catch((e) => toast(cleanErr(e), 'error')) },
         { id: `mirror-${ph.id}`, title: `Show ${ph.name}’s screen`, hint: 'See and control the phone in a window', Icon: MonitorSmartphone, group: ph.name, keywords: 'mirror cast screen',
           run: () => api.mirrorStart(ph.id).catch((e) => toast(cleanErr(e), 'error')) },
+        { id: `photo-${ph.id}`, title: `Take a photo with ${ph.name}`, hint: 'Lands on this PC and in the clipboard', Icon: Camera, group: ph.name, keywords: 'camera scan picture continuity',
+          run: () => api.cameraTake(ph.id, 'photo').catch((e) => toast(cleanErr(e), 'error')) },
+        { id: `webcam-${ph.id}`, title: `Use ${ph.name} as a webcam`, hint: 'Live camera in a window, front or back', Icon: Camera, group: ph.name, keywords: 'webcam camera video call live',
+          run: () => api.webcamStart(ph.id, false).catch((e) => toast(cleanErr(e), 'error')) },
         { id: `phone-${ph.id}`, title: `Open ${ph.name}`, hint: 'Notifications, battery and music', Icon: Smartphone, group: ph.name, run: () => { setHomePhone(ph.id); setView('home'); } },
       );
     }
@@ -254,6 +280,8 @@ export default function App() {
     { id: 'home', label: 'Home', Icon: House, badge: notifCount || null },
     { id: 'photos', label: 'Photos', Icon: Images },
     { id: 'messages', label: 'Messages', Icon: MessageSquareText },
+    { id: 'contacts', label: 'Contacts', Icon: Contact },
+    { id: 'apps', label: 'Apps', Icon: LayoutGrid },
     { id: 'files', label: 'Phone files', Icon: FolderTree },
     { id: 'nearby', label: 'Nearby', Icon: RadarIcon, badge: peers.length || null },
     { id: 'chats', label: 'Chats', Icon: MessagesSquare, badge: chatList.reduce((a, c) => a + (c.unread || 0), 0) || null },
@@ -353,6 +381,11 @@ export default function App() {
                 {view === 'photos' && <PhotosView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
                 {view === 'messages' && <MessagesView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
                 {view === 'files' && <FilesView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
+                {view === 'contacts' && (
+                  <ContactsView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast}
+                    onMessage={(n) => { const ph = phones[homePhone] || Object.values(phones)[0]; if (!ph) return; setView('messages'); api.smsOpen(ph.id, null, n).catch((e) => toast(cleanErr(e), 'error')); }} />
+                )}
+                {view === 'apps' && <AppsView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
                 {view === 'nearby' && (
                   <Nearby
                     me={state.me} peers={peers} dragging={dragging} busyPeers={busyPeers}
@@ -719,7 +752,30 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2.5 pt-1">
+          <div className="pt-1 text-[12px] font-semibold text-muted">Style</div>
+          <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
+            {STYLES.map(([id, l, hint, [lb, db, card]]) => {
+              const on = (s.style || 'aurora') === id;
+              return (
+                <button key={id} onClick={() => update({ style: id })} title={hint}
+                  className={`overflow-hidden rounded-2xl border text-left transition ${on ? 'border-accent shadow-[0_0_0_3px_var(--glow)]' : 'border-line hover:border-line-strong'}`}>
+                  <span className="relative flex h-[68px]" style={id === 'dots' ? { background: `radial-gradient(circle at 1px 1px, #c9a25a55 1.2px, transparent 1.6px) 0 0/10px 10px, ${lb}` } : { background: lb }}>
+                    <span className="absolute inset-y-0 right-0 w-1/2" style={{ background: id === 'frost' ? 'linear-gradient(135deg,#2a3346cc,#151a26cc)' : db }} />
+                    <span className="absolute left-3 top-3 h-5 w-16 rounded-md shadow-sm" style={{ background: id === 'frost' ? '#ffffff99' : id === 'ink' ? '#fffdf8' : '#ffffffd9', border: id === 'ink' ? '1px solid #1d1b1655' : 'none' }} />
+                    <span className="absolute bottom-3 left-3 h-3 w-10 rounded-full" style={{ background: card }} />
+                    <span className="absolute right-3 top-3 h-5 w-14 rounded-md" style={{ background: id === 'ink' ? '#202020' : '#ffffff1f', border: id === 'ink' ? '1px solid #ffffff44' : 'none' }} />
+                    <span className="absolute bottom-3 right-3 h-3 w-8 rounded-full" style={{ background: card, opacity: 0.85 }} />
+                  </span>
+                  <span className="block px-3 py-2">
+                    <span className={`block text-[13px] font-semibold ${on ? 'text-accent' : ''}`}>{l}</span>
+                    <span className="block truncate text-[11.5px] text-faint">{id === 'frost' && !state.me.mica ? 'Needs Windows 11 (plain colour here)' : hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="pt-1 text-[12px] font-semibold text-muted">Accent colour</div>
+          <div className="flex flex-wrap gap-2.5">
             {ACCENTS.map(([id, l, a, b]) => {
               const on = (s.accent || 'wave') === id;
               return (

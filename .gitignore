@@ -16,3 +16,6 @@ keystore.properties
 
 # LinkedIn post drafts (not part of the app)
 marketing/
+
+# DropWave Camera binaries (built by npm run vcam)
+build/vcam/

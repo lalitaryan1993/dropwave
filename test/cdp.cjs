@@ -6,7 +6,8 @@ const [port, a, b] = process.argv.slice(2);
 
 async function call(method, params) {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  const page = targets.find((t) => t.type === 'page');
+  const want = process.env.CDP_URL; // pick a window by URL part, e.g. CDP_URL=webcam=
+  const page = targets.find((t) => t.type === 'page' && (!want || t.url.includes(want))) || targets.find((t) => t.type === 'page' && !/mirror=|webcam=/.test(t.url));
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((r) => ws.addEventListener('open', r));
   ws.send(JSON.stringify({ id: 1, method, params }));

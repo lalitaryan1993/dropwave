@@ -7,6 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { spawn } = require('node:child_process');
 const QRCode = require('qrcode');
 const { Engine, localIPv4s, collectFiles, DEFAULT_TCP_PORT } = require('./engine.cjs');
 const { WebShare, DEFAULT_WEB_PORT } = require('./webshare.cjs');
@@ -71,6 +72,7 @@ function defaultSettings() {
     identityKey: Engine.generateIdentityKey(), // this PC's long-term signing key (never leaves the PC)
     knownKeys: {}, // device id -> identity key, pinned on first contact
     accent: 'wave', // colour theme: wave, ocean, sunset, forest, graphite
+    style: 'aurora', // look: aurora, frost (Windows Mica), petal, ink, dots
     clipSync: true, // copy on the phone, paste on the PC (and back) with the Android app
     phoneNotifs: true, // the phone's new notifications pop up on this PC too
     remoteAllowed: [], // [{ id, name }] phones that may always use this PC's mouse and keyboard
@@ -93,7 +95,7 @@ const publicState = () => ({
   settings: (({ identityKey: _k, knownKeys: _kk, ...rest }) => rest)(settings),
   me: {
     id: settings.deviceId, name: settings.deviceName, ips: localIPv4s().map((i) => i.address), port: engine?.port,
-    platform: process.platform, fingerprint: engine?.fingerprint,
+    platform: process.platform, fingerprint: engine?.fingerprint, mica: canMica(),
   },
   web: webInfo(),
   peers: allPeers(),
@@ -106,9 +108,17 @@ const publicState = () => ({
 const push = (channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); };
 
 // ---- window ----
+const STYLE_BG = {
+  aurora: ['#f5f6fa', '#0b0d14'], petal: ['#fff3f4', '#170c13'], ink: ['#f3f0e8', '#121212'], dots: ['#fbf6ec', '#13110d'],
+};
+// Frost lets the Windows 11 Mica backdrop show through (older Windows: a plain colour).
+const canMica = () => process.platform === 'win32' && Number(os.release().split('.')[2] || 0) >= 22621;
 function themeColors() {
   const dark = settings.theme === 'dark' || (settings.theme === 'system' && nativeTheme.shouldUseDarkColors);
-  return dark ? { bg: '#0b0d14', symbol: '#e6e8f0' } : { bg: '#f5f6fa', symbol: '#1d2030' };
+  const symbol = dark ? '#e6e8f0' : '#1d2030';
+  if (settings.style === 'frost' && canMica()) return { bg: '#00000000', symbol, mica: true };
+  const pair = STYLE_BG[settings.style] || STYLE_BG.aurora;
+  return { bg: dark ? pair[1] : pair[0], symbol, mica: false };
 }
 
 function createWindow() {
@@ -137,6 +147,7 @@ function createWindow() {
   if (DEV_URL) win.loadURL(DEV_URL);
   else win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 
+  if (c.mica) { try { win.setBackgroundMaterial('mica'); } catch {} }
   win.once('ready-to-show', () => { if (!START_HIDDEN || pendingSend) win.show(); });
 
   // Dev-only: save window screenshots for visual checks.
@@ -180,7 +191,7 @@ function openMirror(p) {
     width: 430, height: 880, minWidth: 260, minHeight: 360,
     backgroundColor: '#05060a', title: `${p.name} · DropWave`, icon: iconPath(),
     titleBarStyle: 'hidden', titleBarOverlay: { color: '#05060a', symbolColor: '#e6e8f0', height: 40 },
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
   });
   void c;
   const hash = `mirror=${encodeURIComponent(p.id)}&name=${encodeURIComponent(p.name)}`;
@@ -189,6 +200,101 @@ function openMirror(p) {
   w.webContents.on('will-navigate', (e) => e.preventDefault());
   mirrorWins.set(p.id, w);
   w.on('closed', () => { mirrorWins.delete(p.id); phoneHub?.mirrorStop(p.id); });
+}
+
+// ---- "DropWave Camera": the phone's camera as a Windows 11 webcam (Zoom, Meet, Teams…) ----
+// dwcam.exe adds the camera while it runs and gets the pictures from the webcam window.
+const vcamDir = () => (app.isPackaged ? path.join(process.resourcesPath, 'vcam') : path.join(__dirname, '..', 'build', 'vcam'));
+const vcamExe = () => { const p = path.join(vcamDir(), 'dwcam.exe'); return process.platform === 'win32' && fs.existsSync(p) ? p : null; };
+const VCAM_FRAME = 1280 * 720 * 3 / 2;
+let vcam = null; // { child, ready }
+const vcamPush = (s) => { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send('vcam-state', s); };
+function vcamStatus() {
+  const exe = vcamExe();
+  if (!exe) return Promise.resolve({ status: 'missing', on: false });
+  return new Promise((resolve) => {
+    require('node:child_process').execFile(exe, ['status'], { windowsHide: true, timeout: 8000 }, (err, out) => {
+      resolve({ status: err ? 'missing' : String(out).trim(), on: !!vcam?.ready });
+    });
+  });
+}
+function vcamInstall() {
+  const exe = vcamExe();
+  if (!exe) return Promise.resolve({ status: 'missing', on: false });
+  // One Windows admin prompt: the camera is registered for the whole PC (Windows' camera service needs that).
+  const q = (s) => `'${s.replace(/'/g, "''")}'`;
+  const ps = `Start-Process -FilePath ${q(exe)} -ArgumentList @('install', ${q('"' + path.join(vcamDir(), 'DropWaveCam.dll') + '"')}) -Verb RunAs -Wait -WindowStyle Hidden`;
+  return new Promise((resolve) => {
+    require('node:child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 120000 }, () => resolve(vcamStatus()));
+  });
+}
+function vcamStart() {
+  const exe = vcamExe();
+  if (!exe) return Promise.resolve({ status: 'missing', on: false });
+  if (vcam) return Promise.resolve({ status: 'installed', on: vcam.ready });
+  return new Promise((resolve) => {
+    const child = spawn(exe, ['run'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+    vcam = { child, ready: false };
+    let out = '';
+    let answered = false;
+    const answer = (r) => { if (!answered) { answered = true; resolve(r); vcamPush(r); } };
+    child.stdout.on('data', (b) => {
+      out += b;
+      if (out.includes('ready')) { vcam && (vcam.ready = true); answer({ status: 'installed', on: true }); }
+      else if (out.includes('error')) answer({ status: /not-installed/.test(out) ? 'not-installed' : /unsupported/.test(out) ? 'unsupported' : 'error', on: false, error: out.trim().slice(0, 200) });
+    });
+    child.stdin.on('error', () => {});
+    child.on('exit', () => { vcam = null; answer({ status: 'error', on: false, error: 'The camera helper stopped' }); vcamPush({ status: 'installed', on: false }); });
+    setTimeout(() => answer({ status: 'error', on: false, error: 'The camera didn’t start' }), 15000);
+  });
+}
+function vcamStop() { if (vcam) { try { vcam.child.stdin.end(); } catch {} setTimeout(() => { try { vcam?.child.kill(); } catch {} }, 3000); } }
+function vcamFrame(data) {
+  if (!vcam?.ready || !data || data.byteLength !== VCAM_FRAME) return;
+  const s = vcam.child.stdin;
+  if (s.writableLength > VCAM_FRAME * 2) return; // the helper is behind: drop this one
+  const h = Buffer.alloc(4); h.writeUInt32LE(VCAM_FRAME, 0);
+  s.write(h); s.write(Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+}
+
+// A window that opens (or reloads) after the stream started missed its setup frames (size, codec
+// config): remember them and send them again before the next key frame.
+const streamMeta = new WeakMap(); // window -> { config, size, primed }
+function sendFrame(w, type, pts, data) {
+  if (!w || w.isDestroyed()) return;
+  let m = streamMeta.get(w);
+  if (!m) {
+    m = { config: null, size: null, primed: false };
+    streamMeta.set(w, m);
+    w.webContents.on('did-finish-load', () => { m.primed = false; });
+  }
+  if (type === 3) m.size = Buffer.from(data);
+  if (type === 1) { m.config = Buffer.from(data); m.primed = true; }
+  if (type === 2 && !m.primed && m.config) {
+    if (m.size) w.webContents.send('mirror-frame', { type: 3, pts: 0, data: m.size });
+    w.webContents.send('mirror-frame', { type: 1, pts: 0, data: m.config });
+    m.primed = true;
+  }
+  w.webContents.send('mirror-frame', { type, pts, data });
+}
+
+// ---- phone-as-webcam windows (one per phone) ----
+const camWins = new Map();
+function openCam(p) {
+  const old = camWins.get(p.id);
+  if (old && !old.isDestroyed()) { old.show(); old.focus(); return; }
+  const w = new BrowserWindow({
+    width: 960, height: 600, minWidth: 320, minHeight: 220,
+    backgroundColor: '#000000', title: `${p.name} camera · DropWave`, icon: iconPath(),
+    titleBarStyle: 'hidden', titleBarOverlay: { color: '#000000', symbolColor: '#e6e8f0', height: 36 },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false },
+  });
+  const hash = `webcam=${encodeURIComponent(p.id)}&name=${encodeURIComponent(p.name)}`;
+  if (DEV_URL) w.loadURL(`${DEV_URL}#${hash}`);
+  else w.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash });
+  w.webContents.on('will-navigate', (e) => e.preventDefault());
+  camWins.set(p.id, w);
+  w.on('closed', () => { camWins.delete(p.id); phoneHub?.webcamStop(p.id); });
 }
 
 function showWindow() {
@@ -204,6 +310,7 @@ function applyTheme() {
     const c = themeColors();
     try { win.setTitleBarOverlay({ color: c.bg, symbolColor: c.symbol, height: 44 }); } catch {}
     win.setBackgroundColor(c.bg);
+    try { win.setBackgroundMaterial(c.mica ? 'mica' : 'none'); } catch {}
   }
 }
 
@@ -425,7 +532,7 @@ function registerIpc() {
   ipcMain.handle('state', () => publicState());
 
   ipcMain.handle('settings:update', async (_e, patch) => {
-    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent'];
+    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent', 'style'];
     if ('trusted' in patch) {
       // Removing a trusted device also forgets its pinned identity (e.g. after a reinstall).
       const keep = new Set((patch.trusted || []).map((d) => d.id));
@@ -436,7 +543,8 @@ function registerIpc() {
       settings.deviceName = String(patch.deviceName).trim().slice(0, 40) || os.hostname();
       engine.setName(settings.deviceName);
     }
-    if ('theme' in patch) applyTheme();
+    if ('style' in patch && !['aurora', 'frost', 'petal', 'ink', 'dots'].includes(settings.style)) settings.style = 'aurora';
+    if ('theme' in patch || 'style' in patch) applyTheme();
     if ('autoStart' in patch && app.isPackaged) {
       app.setLoginItemSettings({ openAtLogin: !!settings.autoStart, args: ['--hidden'] });
     }
@@ -539,6 +647,15 @@ function registerIpc() {
   ipcMain.handle('photos:download', (_e, id, ids) => phoneHub.photosGet(String(id), Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('mirror:start', (_e, id) => phoneHub.mirrorStart(String(id)));
   ipcMain.handle('mirror:stop', (_e, id) => phoneHub.mirrorStop(String(id)));
+  ipcMain.handle('webcam:start', (_e, id, front) => phoneHub.webcamStart(String(id), !!front));
+  ipcMain.handle('webcam:stop', (_e, id) => phoneHub.webcamStop(String(id)));
+  ipcMain.handle('webcam:set', (_e, id, patch) => phoneHub.webcamSet(String(id), patch && typeof patch === 'object' ? patch : {}));
+  ipcMain.handle('vcam:status', () => vcamStatus());
+  ipcMain.handle('vcam:install', () => vcamInstall());
+  ipcMain.handle('vcam:start', () => vcamStart());
+  ipcMain.handle('vcam:stop', () => { vcamStop(); return { on: false }; });
+  ipcMain.on('vcam:frame', (_e, data) => vcamFrame(data));
+  ipcMain.handle('win:top', (e, on) => { const w = BrowserWindow.fromWebContents(e.sender); if (w && w !== win) w.setAlwaysOnTop(!!on, 'floating'); return !!on; });
   ipcMain.on('mirror:input', (_e, id, ev) => phoneHub.mirrorInput(String(id), ev));
   ipcMain.handle('mirror:shot', async (_e, name, dataUrl) => {
     const m = /^data:image\/png;base64,(.+)$/.exec(String(dataUrl || ''));
@@ -549,10 +666,33 @@ function registerIpc() {
     fs.writeFileSync(file, Buffer.from(m[1], 'base64'));
     return file;
   });
+  ipcMain.handle('backup:get', (_e, id) => phoneHub.backupState(String(id)));
+  ipcMain.handle('backup:set', (_e, id, on) => phoneHub.backupSet(String(id), !!on));
+  ipcMain.handle('backup:now', (_e, id) => phoneHub.backupCheck(String(id)));
   ipcMain.handle('sms:get', (_e, id) => phoneHub.sms(String(id)));
   ipcMain.handle('sms:load', (_e, id) => phoneHub.smsLoad(String(id)));
   ipcMain.handle('sms:open', (_e, id, thread, address) => phoneHub.smsOpen(String(id), thread, address));
   ipcMain.handle('sms:send', (_e, id, to, text) => phoneHub.smsSend(String(id), to, text));
+  // Contacts, apps, phone controls: one question, one answer from the phone.
+  const RPC_OK = new Set(['contacts', 'contactPhoto', 'apps', 'appIcons', 'appAction', 'controls', 'controlsSet']);
+  ipcMain.handle('phone:rpc', (_e, id, method, args) => {
+    if (!RPC_OK.has(method)) throw new Error('Unknown request');
+    return phoneHub.rpc(String(id), method, args && typeof args === 'object' ? args : {}, method === 'contacts' || method === 'apps' ? 30000 : 20000);
+  });
+  ipcMain.handle('camera:take', (_e, id, mode) => phoneHub.cameraTake(String(id), mode === 'video' ? 'video' : 'photo'));
+  ipcMain.handle('camera:copy', (_e, p) => {
+    if (typeof p !== 'string' || !fs.existsSync(p) || !/\.(jpe?g|png|webp)$/i.test(p)) return false;
+    const img = nativeImage.createFromPath(p);
+    if (img.isEmpty()) return false;
+    clipboard.writeImage(img);
+    return true;
+  });
+  ipcMain.handle('image:preview', (_e, p) => {
+    if (typeof p !== 'string' || !fs.existsSync(p)) return null;
+    const img = nativeImage.createFromPath(p);
+    return img.isEmpty() ? null : img.resize({ width: 640, quality: 'good' }).toDataURL();
+  });
+  ipcMain.handle('apps:apk', (_e, id, pkg, name, size) => phoneHub.appApk(String(id), String(pkg || ''), String(name || ''), Number(size) || 0));
   ipcMain.handle('files:get', (_e, id) => phoneHub.files(String(id)));
   ipcMain.handle('files:list', (_e, id, rel, hidden) => phoneHub.filesList(String(id), String(rel || ''), hidden));
   ipcMain.handle('files:download', (_e, id, names) => phoneHub.filesGet(String(id), Array.isArray(names) ? names.map(String) : []));
@@ -753,7 +893,10 @@ app.whenReady().then(async () => {
     attention: (title, body) => { notify(title, body); win?.flashFrame(true); },
     transfer: handleTransfer,
     openMirror,
-    mirrorFrame: (id, type, pts, data) => { const w = mirrorWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-frame', { type, pts, data }); },
+    openCam,
+    camFrame: (id, type, pts, data) => sendFrame(camWins.get(id), type, pts, data),
+    camState: (id, s) => { const w = camWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-state', s); },
+    mirrorFrame: (id, type, pts, data) => sendFrame(mirrorWins.get(id), type, pts, data),
     mirrorState: (id, s) => { const w = mirrorWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-state', s); },
     inputLog: process.env.DROPWAVE_INPUT_LOG,
   });
@@ -768,7 +911,7 @@ app.whenReady().then(async () => {
   createTray();
 });
 
-app.on('before-quit', () => { quitting = true; controlOn = false; remoteInput.stop(); phoneHub?.stop(); });
+app.on('before-quit', () => { quitting = true; vcamStop(); controlOn = false; remoteInput.stop(); phoneHub?.stop(); });
 app.on('will-quit', (e) => {
   if (engine || web) {
     e.preventDefault();

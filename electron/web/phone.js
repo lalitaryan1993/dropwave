@@ -97,6 +97,12 @@
     $('#slotPower').querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => quickAction(btn.dataset.act)));
 
     const box = $('#phoneBox');
+    // Without this, Android cuts DropWave's Wi-Fi a few minutes after the screen goes off.
+    const bgCard = DW && unrestricted === false ? `<div class="group pcard" style="margin-top:8px">
+        <div class="pcard-row"><span class="pcard-ic">${I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>')}</span><div><b>Keep working when the phone is locked</b>
+        <small>Android pauses apps a few minutes after the screen goes off, so the PC stops reaching this phone. Tap Allow on Android’s question. On Realme / Oppo / Vivo / Xiaomi also set App info › Battery › “Allow background activity”.</small></div></div>
+        <button class="pbtn primary wide" id="pBgOn" style="width:100%;justify-content:center">Allow</button>
+        <button class="pbtn wide" id="pBgMore" style="width:100%;justify-content:center;margin-top:6px">App battery settings</button></div>` : '';
     const callCard = DW && callsAccess !== 'all' ? `<div class="group pcard" style="margin-top:8px">
         <div class="pcard-row"><span class="pcard-ic">${I('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>')}</span><div><b>Show calls on PC</b>
         <small>See who’s calling, answer, decline or dial from the PC, and recent calls. Android asks for Phone and Call log.</small></div></div>
@@ -115,13 +121,13 @@
         <small>See this phone’s photos and videos on the PC and save the ones you want. Nothing is copied until you pick it there.</small></div></div>
         <button class="pbtn primary wide" id="pPhotosOn" style="width:100%;justify-content:center">Allow photos</button></div>` : '';
     if (DW && !notifAccess) {
-      box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard">
+      box.innerHTML = `<div class="sec-h">Phone on PC</div>${bgCard}<div class="group pcard">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Show phone notifications on PC</b>
         <small>Reply, copy one-time codes and control music from the PC. If Android says “Restricted setting”: App info › ⋮ › Allow restricted settings.</small></div></div>
         <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}${callCard}${smsCard}${filesCard}${ctlCard}`;
       $('#pNotifOn').addEventListener('click', () => DW.openNotifAccess().catch(() => {}));
     } else if (DW) {
-      box.innerHTML = `<div class="sec-h">Phone on PC</div><div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
+      box.innerHTML = `<div class="sec-h">Phone on PC</div>${bgCard}<div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
         <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}${callCard}${smsCard}${filesCard}${ctlCard}`;
     }
     $('#pPhotosOn')?.addEventListener('click', () => DW.requestPhotos().catch(() => {}));
@@ -129,6 +135,8 @@
     $('#pSmsOn')?.addEventListener('click', () => DW.requestSms().catch(() => {}));
     $('#pFilesOn')?.addEventListener('click', () => DW.openFilesAccess().catch(() => {}));
     $('#pCtlOn')?.addEventListener('click', () => DW.openControlAccess().catch(() => {}));
+    $('#pBgOn')?.addEventListener('click', () => DW.requestAccess({ group: 'battery' }).catch(() => {}));
+    $('#pBgMore')?.addEventListener('click', () => DW.openAppSettings().catch(() => {}));
     if (!DW) {
       box.innerHTML = `<div class="sec-h">Get more</div><a class="group pcard" href="https://github.com/lalitaryan1993/dropwave/releases/latest" target="_blank" rel="noopener">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Get the Android app</b><small>Phone notifications, clipboard sync, music and Find my phone on your PC.</small></div></div></a>`;
@@ -149,6 +157,7 @@
 
   // ---------- Android app: share this phone with the PC ----------
   let notifAccess = false;
+  let unrestricted = null; // battery limits off ("Work when locked")
   let photosAccess = 'none';
   let callsAccess = 'none';
   let smsAccess = 'none';
@@ -156,6 +165,52 @@
   let controlAccess = false;
   let lastClip = null; // last clipboard text seen or set here (no echo back to the PC)
   const sentIcons = new Set();
+
+  // ---------- what this phone shares with PCs (Privacy tab) ----------
+  // Two layers: DropWave's own "Share with PC" switch per feature (instant, nothing to re-allow), and
+  // Android's access, which can be given back from here too.
+  const SHARE_KEYS = ['notifs', 'clip', 'photos', 'calls', 'sms', 'contacts', 'files', 'apps', 'controls', 'camera', 'mirror', 'ring'];
+  let share = { paused: false };
+  try { share = { ...share, ...JSON.parse(store.get('dw_share') || '{}') }; } catch {}
+  const on = (k) => !share.paused && share[k] !== false;
+  function setShare(k, v) {
+    share = { ...share, [k]: v };
+    store.set('dw_share', JSON.stringify(share));
+    DW?.setShare({ json: JSON.stringify(share) }).catch(() => {});
+    if (connected) {
+      sendStatus(); sendNotifs(); sendMedia();
+      if (on('calls')) sendCallLog(); else phone('calllog', { list: [] });
+    }
+    renderPrivacy();
+  }
+  // Which switch a PC command needs.
+  const NEEDS = {
+    ring: 'ring', media: 'notifs', notif: 'notifs', clip: 'clip', photos: 'photos', 'photo-get': 'photos',
+    call: 'calls', dial: 'calls', calllog: 'calls', 'sms-threads': 'sms', 'sms-thread': 'sms', 'sms-send': 'sms',
+    'files-list': 'files', 'files-get': 'files', 'mirror-start': 'mirror', 'mirror-input': 'mirror',
+    camera: 'camera', 'app-apk': 'apps', 'webcam-start': 'camera', 'webcam-set': 'camera',
+  };
+  // Requests from the PC that expect one answer ({ type: 'rpc', rid, method, args } -> phone('rpc', { rid, ... })).
+  const RPC = {
+    contacts: ['contacts', () => DW.contacts()],
+    contactPhoto: ['contacts', (a) => DW.contactPhoto({ id: Number(a.id) })],
+    apps: ['apps', () => DW.apps()],
+    appIcons: ['apps', async (a) => {
+      const out = {};
+      for (const pkg of (Array.isArray(a.pkgs) ? a.pkgs : []).slice(0, 40)) { try { out[pkg] = (await DW.appIcon({ pkg: String(pkg) })).data || null; } catch {} }
+      return { icons: out };
+    }],
+    appAction: ['apps', (a) => DW.appAction({ pkg: String(a.pkg || ''), action: String(a.action || '') })],
+    controls: ['controls', () => DW.controlsState()],
+    controlsSet: ['controls', (a) => DW.controlsSet({ what: String(a.what || ''), value: a.value })],
+  };
+  async function onRpc(c) {
+    const m = RPC[c.method];
+    if (!m) return phone('rpc', { rid: c.rid, error: 'This phone’s DropWave needs an update for that' });
+    if (!on(m[0])) return phone('rpc', { rid: c.rid, error: 'blocked', what: m[0] });
+    try { phone('rpc', { rid: c.rid, result: (await m[1](c.args || {})) || {} }); }
+    catch (e) { phone('rpc', { rid: c.rid, error: e?.message || 'Couldn’t do that' }); }
+  }
 
   async function sendStatus() {
     if (!DW) return;
@@ -168,13 +223,24 @@
       smsAccess = s.smsAccess || 'none';
       filesAccess = s.filesAccess || 'none';
       controlAccess = !!s.controlAccess;
+      unrestricted = s.unrestricted === undefined ? null : !!s.unrestricted;
       if (callsAccess !== 'none' && hadCalls !== callsAccess) sendCallLog(); // just allowed
-      phone('status', { ...s, clip: true, app: 'android' });
+      // What's switched off in Privacy looks "not allowed" to the PC.
+      phone('status', {
+        ...s, app: 'android', clip: on('clip'),
+        notifAccess: !!s.notifAccess && on('notifs'),
+        photosAccess: on('photos') ? s.photosAccess : 'none',
+        callsAccess: on('calls') ? s.callsAccess : 'none',
+        smsAccess: on('sms') ? s.smsAccess : 'none',
+        filesAccess: on('files') ? s.filesAccess : 'none',
+        off: SHARE_KEYS.filter((k) => !on(k)),
+      });
       renderBox();
     } catch {}
   }
 
   async function sendNotifs(list) {
+    if (!on('notifs')) { phone('notifs', { list: [] }); return; }
     if (!list) { try { list = (await DW.notifSnapshot()).list; } catch { return; } }
     list = list || [];
     phone('notifs', { list });
@@ -186,16 +252,18 @@
   }
 
   function sendCallLog() {
-    if (!DW) return;
+    if (!DW || !on('calls')) return;
     DW.callLog({ limit: 50 }).then((r) => phone('calllog', r)).catch(() => {});
   }
 
   async function sendMedia(m) {
+    if (!on('notifs')) { phone('media', null); return; }
     if (m === undefined) { try { m = (await DW.mediaSnapshot()).media; } catch { return; } }
     phone('media', m || null);
   }
 
   async function sendClipboard() {
+    if (!on('clip')) return P().toast('Clipboard is switched off in Privacy');
     try {
       const r = await DW.readClipboard();
       if (!r?.text) return P().toast('The clipboard is empty');
@@ -207,7 +275,7 @@
 
   // Android only lets apps read the clipboard while they're on screen: check when DropWave comes back.
   async function checkClipboard() {
-    if (!DW || !connected) return;
+    if (!DW || !connected || !on('clip')) return;
     try {
       const r = await DW.readClipboard();
       if (r?.text && r.text !== lastClip && !r.sensitive) { lastClip = r.text; phone('clip', { text: r.text }); }
@@ -220,6 +288,10 @@
     connected = true;
     sentIcons.clear();
     if (!DW) return;
+    // The native link keeps answering the PC while this page sleeps (phone locked, other app open).
+    const app = window.DW_APP || {};
+    DW.setShare({ json: JSON.stringify(share) }).catch(() => {});
+    if (app.base) DW.linkStart({ base: app.base, key: app.key || '', id: P().myId, name: store.get('ld_name') || '' }).catch(() => {});
     sendStatus();
     sendNotifs();
     sendMedia();
@@ -234,28 +306,38 @@
     DW.addListener('battery', () => connected && sendStatus());
     DW.addListener('volume', () => connected && sendStatus());
     DW.addListener('access', () => connected && sendStatus()); // back from a permission dialog / settings
-    DW.addListener('call', (d) => connected && phone('call', d));
-    DW.addListener('appcall', (d) => connected && phone('appcall', d));
-    DW.addListener('sms', (d) => connected && phone('sms', d));
+    DW.addListener('call', (d) => connected && on('calls') && phone('call', d));
+    DW.addListener('appcall', (d) => connected && on('calls') && phone('appcall', d));
+    DW.addListener('sms', (d) => connected && on('sms') && phone('sms', d));
+    DW.addListener('access', () => renderPrivacy());
     DW.addListener('mirror', (d) => connected && phone('mirror', d));
+    DW.addListener('linkProbe', (d) => connected && DW.linkClaim({ id: String(d.id) }).catch(() => {})); // "I'm awake, I'll tell the PC myself"
+    DW.addListener('controls', (d) => connected && on('controls') && phone('controls', d));
+    DW.addListener('camera', (d) => connected && phone('camera', d));
+    DW.addListener('webcam', (d) => connected && phone('webcam', d));
     DW.addListener('photoUpload', (d) => { if (d.done === d.total) P().toast(`${d.total} sent to ${P().pcName()}`); });
     DW.addListener('ring', (d) => connected && phone('ring', { on: !!d.on }));
-    DW.addListener('clip', (d) => { if (connected && d.text && d.text !== lastClip && !d.sensitive) { lastClip = d.text; phone('clip', { text: d.text }); } });
+    DW.addListener('clip', (d) => { if (connected && on('clip') && d.text && d.text !== lastClip && !d.sensitive) { lastClip = d.text; phone('clip', { text: d.text }); } });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { setTimeout(checkClipboard, 400); sendStatus(); } });
     window.addEventListener('focus', () => setTimeout(checkClipboard, 300));
   }
 
   // Commands from the PC
-  function onCommand(c) {
+  async function onCommand(c) {
     if (!c || typeof c !== 'object') return;
     if (c.type === 'remote') { remoteAllowed(!!c.allowed); return; }
     if (!DW) return;
+    // The native link may have handled it already (while this page was asleep).
+    if (c.cid) { try { if (!(await DW.linkClaim({ id: String(c.cid) })).ok) return; } catch {} }
+    if (c.type === 'rpc') { onRpc(c); return; }
+    const need = NEEDS[c.type];
+    if (need && !on(need)) { phone('blocked', { type: c.type, what: need, purpose: c.purpose || null }); return; } // switched off in Privacy
     if (c.type === 'ring') DW.ring({ on: !!c.on }).catch(() => {});
     else if (c.type === 'media') DW.mediaControl({ action: String(c.action), pos: Number(c.pos) || 0 }).catch(() => P().toast('Nothing is playing on this phone'));
     else if (c.type === 'photos') {
-      DW.photoPage({ offset: Number(c.offset) || 0, limit: Number(c.limit) || 60, kind: String(c.kind || 'all') })
-        .then((r) => phone('photos', r))
-        .catch((e) => phone('photos', { error: e?.message || 'Couldn’t read the photos', offset: Number(c.offset) || 0, kind: c.kind }));
+      DW.photoPage({ offset: Number(c.offset) || 0, limit: Number(c.limit) || 60, kind: String(c.kind || 'all'), after: Number(c.after) || 0, thumbs: c.thumbs !== false })
+        .then((r) => phone('photos', { ...r, purpose: c.purpose || null }))
+        .catch((e) => phone('photos', { error: e?.message || 'Couldn’t read the photos', offset: Number(c.offset) || 0, kind: c.kind, purpose: c.purpose || null }));
     } else if (c.type === 'photo-get' && Array.isArray(c.ids)) {
       const app = window.DW_APP || {};
       DW.uploadPhotos({ ids: c.ids.map(String), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
@@ -283,6 +365,24 @@
       DW.mirrorStart({ token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
         .then((r) => { if (!r?.prompted) P().toast(`Tap the notification to show this screen on ${P().pcName()}`); })
         .catch((e) => phone('mirror', { on: false, error: e?.message || 'Couldn’t start' }));
+    } else if (c.type === 'camera') {
+      const app = window.DW_APP || {};
+      DW.cameraOpen({ mode: c.mode === 'video' ? 'video' : 'photo', token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .then((r) => phone('camera', { opened: r?.result || 'opened' }))
+        .catch((e) => phone('camera', { cancelled: true, error: e?.message || 'Couldn’t open the camera' }));
+    } else if (c.type === 'webcam-start') {
+      const app = window.DW_APP || {};
+      DW.webcamStart({ front: !!c.front, token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .then((r) => phone('webcam', { asked: r?.result || 'opened' }))
+        .catch((e) => phone('webcam', { on: false, error: e?.message || 'Couldn’t start the camera' }));
+    } else if (c.type === 'webcam-stop') {
+      DW.webcamStop().catch(() => {});
+    } else if (c.type === 'webcam-set') {
+      DW.webcamSet({ ...(c.front !== undefined ? { front: !!c.front } : {}), ...(c.torch !== undefined ? { torch: !!c.torch } : {}) }).catch(() => {});
+    } else if (c.type === 'app-apk') {
+      const app = window.DW_APP || {};
+      DW.appApk({ pkg: String(c.pkg || ''), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .catch((e) => phone('apk', { pkg: c.pkg, error: e?.message || 'Couldn’t copy that app' }));
     } else if (c.type === 'mirror-stop') {
       DW.mirrorStop().catch(() => {});
     } else if (c.type === 'mirror-input' && c.ev) {
@@ -477,6 +577,129 @@
     input.addEventListener('blur', () => { input.value = ''; last = ''; });
   }
 
-  window.dwPhone = { connected: onConnected, disconnected: () => { connected = false; }, command: onCommand, render: renderBox };
+  // ---------- Privacy tab ----------
+  const SVG = {
+    bell: ICONS.bell, clip: ICONS.clip, photo: ICONS.shot, files: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>',
+    msg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>', screen: ICONS.desk, ring: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M2 8c0-2 .7-3.8 2-5M22 8c0-2-.7-3.8-2-5"/>',
+    pointer: '<path d="M4 4l7 17 2.5-7.5L21 11 4 4Z"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', cam: '<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  };
+  const ROWS = [
+    { k: 'notifs', icon: 'bell', t: 'Notifications & music', d: 'The phone’s notifications and what’s playing, on the PC. Reply and copy codes from there.', acc: 'notifAccess', accT: 'Notification access' },
+    { k: 'clip', icon: 'clip', t: 'Clipboard', d: 'Copy on one, paste on the other. Passwords from password managers are never sent.' },
+    { k: 'photos', icon: 'photo', t: 'Photos & videos', d: 'The PC’s Photos page and auto-backup. Nothing is copied until the PC picks it.', acc: 'photos', accT: 'Photos and videos' },
+    { k: 'calls', icon: 'phone', t: 'Calls', d: 'Who’s calling, answer / decline / dial from the PC, recent calls.', acc: 'calls', accT: 'Phone and call log' },
+    { k: 'sms', icon: 'msg', t: 'Messages (SMS)', d: 'Read and reply to SMS on the PC.', acc: 'sms', accT: 'SMS' },
+    { k: 'contacts', icon: 'user', t: 'Contacts', d: 'Your contacts on the PC: search, call and text them. Also gives names to calls and messages.', acc: 'contacts', accT: 'Contacts' },
+    { k: 'files', icon: 'files', t: 'Phone files', d: 'Browse this phone’s storage from the PC.', acc: 'files', accT: 'All files access' },
+    { k: 'apps', icon: 'grid', t: 'Apps', d: 'See this phone’s apps on the PC, open them, copy an APK. Uninstall always asks on the phone.' },
+    { k: 'controls', icon: 'sliders', t: 'Phone controls', d: 'Flashlight, Do Not Disturb, ring / vibrate, volumes, brightness from the PC.' },
+    { k: 'camera', icon: 'cam', t: 'Camera for the PC', d: 'Photos and videos for the PC, and this phone as the PC’s webcam. A notification shows whenever the camera is on.', acc: 'camera', accT: 'Camera' },
+    { k: 'mirror', icon: 'screen', t: 'Screen on PC', d: 'Android asks “Start recording or casting?” every time. Sound needs the microphone permission.', acc: 'mic', accT: 'Sound (microphone)' },
+    { k: 'ring', icon: 'ring', t: 'Find my phone', d: 'Let the PC ring this phone, even on silent.' },
+  ];
+  const EXTRA = [
+    { acc: 'battery', icon: 'shield', t: 'Work when locked', d: 'Lets DropWave skip Android’s battery limits so the PC can still reach this phone while it’s locked or another app is open.' },
+    { acc: 'notifPost', icon: 'bell', t: 'DropWave’s own notifications', d: 'Files and messages arriving from the PC.' },
+  ];
+  const SETTINGS_ONLY = new Set(['notifAccess', 'files', 'battery']); // Android only lets you change these in its settings
+  let access = null;
+
+  css.textContent += `
+  .pv-top { display:flex; align-items:center; gap:12px; padding:16px; border-radius:24px; color:#fff; margin-bottom:6px;
+    background:linear-gradient(140deg,var(--accent),color-mix(in oklab, var(--accent) 55%, #0b0d14)); }
+  .pv-top.paused { background:linear-gradient(140deg,#e5484d,#8a1f22); }
+  .pv-top .ic { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; background:rgba(255,255,255,.18); flex:none; }
+  .pv-top b { display:block; font-size:16px; } .pv-top small { display:block; font-size:12.5px; opacity:.85; margin-top:2px; }
+  .prow { padding:12px; border-radius:18px; background:var(--raised); border:1px solid var(--line); }
+  .prow + .prow { margin-top:8px; }
+  .prow-h { display:flex; align-items:flex-start; gap:12px; }
+  .prow-h .ic { width:38px; height:38px; border-radius:12px; flex:none; display:grid; place-items:center; color:var(--accent); background:color-mix(in oklab, var(--accent) 14%, transparent); }
+  .prow-h .ic.off { color:var(--faint); background:var(--line); }
+  .prow-h b { display:block; font-size:14.5px; } .prow-h small { display:block; font-size:12px; color:var(--faint); margin-top:2px; line-height:1.4; }
+  .prow-a { display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted); }
+  .prow-a .lbl { flex:1; min-width:0; }
+  .tag { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:999px; font-size:11.5px; font-weight:700; margin-left:6px; }
+  .tag.ok { background:color-mix(in oklab, var(--good) 18%, transparent); color:var(--good); }
+  .tag.part { background:color-mix(in oklab, #f5a524 20%, transparent); color:#d9861a; }
+  .tag.no { background:var(--line); color:var(--faint); }
+  .mini { height:32px; padding:0 12px; border-radius:10px; font-size:12.5px; font-weight:700; border:1px solid var(--line2); background:var(--raised); flex:none; }
+  .mini.go { color:#fff; border-color:transparent; background:linear-gradient(120deg,var(--accent),var(--accent2)); }
+  .mini.stop { color:var(--bad); border-color:color-mix(in oklab, var(--bad) 40%, var(--line)); }
+  .sw { position:relative; width:46px; height:28px; border-radius:999px; background:var(--line2); flex:none; transition:background .2s; }
+  .sw::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:left .2s; }
+  .sw.on { background:linear-gradient(120deg,var(--accent),var(--accent2)); } .sw.on::after { left:21px; }
+  .sw.big.on { background:rgba(255,255,255,.35); }
+  .pnote { font-size:12px; color:var(--faint); margin:10px 6px 0; line-height:1.5; }
+  `;
+
+  const tag = (v) => v === 'all' || v === true ? '<span class="tag ok">On</span>' : v === 'partial' ? '<span class="tag part">Partly</span>' : '<span class="tag no">Off</span>';
+  const isOn = (v) => v === 'all' || v === 'partial' || v === true;
+
+  function accessLine(accKey, label) {
+    if (!access) return '';
+    const v = access[accKey];
+    const btn = isOn(v)
+      ? `<button class="mini stop" data-revoke="${accKey}">${SETTINGS_ONLY.has(accKey) || !access.canRevoke ? 'Manage' : 'Turn off'}</button>`
+      : `<button class="mini go" data-allow="${accKey}">Allow</button>`;
+    return `<div class="prow-a"><span class="lbl">Android: ${esc(label)} ${tag(v)}</span>${btn}</div>`;
+  }
+
+  async function renderPrivacy() {
+    const box = $('#slotPrivacy');
+    if (!box) return;
+    if (!DW) {
+      box.innerHTML = `<div class="sec-h">Privacy</div><div class="group pcard"><div class="pcard-row"><span class="pcard-ic">${I(SVG.shield)}</span><div><b>This browser shares only what you send</b>
+        <small>Files, messages and calls you start yourself. The Android app adds notifications, photos, calls and more, each with its own switch here.</small></div></div></div>`;
+      return;
+    }
+    try { access = await DW.accessState(); } catch { access = null; }
+    const paused = !!share.paused;
+    box.innerHTML = `
+      <div class="pv-top ${paused ? 'paused' : ''}"><span class="ic">${I(SVG.shield)}</span>
+        <div style="flex:1;min-width:0"><b>${paused ? 'Sharing is paused' : 'Shared with your PCs'}</b><small>${paused ? 'PCs can’t see notifications, photos, calls, messages, files or the screen.' : 'Everything stays on your Wi-Fi. Switch any feature off below.'}</small></div>
+        <button class="sw big ${paused ? '' : 'on'}" data-pause aria-label="Pause sharing"></button></div>
+      <div class="sec-h">Features</div>
+      ${ROWS.map((r) => {
+        const sOn = share[r.k] !== false;
+        return `<div class="prow"><div class="prow-h"><span class="ic ${sOn && !paused ? '' : 'off'}">${I(SVG[r.icon])}</span>
+          <div style="flex:1;min-width:0"><b>${r.t}</b><small>${r.d}</small></div>
+          <button class="sw ${sOn ? 'on' : ''}" data-share="${r.k}" aria-label="Share ${esc(r.t)} with PC"></button></div>
+          ${r.acc ? accessLine(r.acc, r.accT) : ''}</div>`;
+      }).join('')}
+      <div class="sec-h">Control from PC</div>
+      <div class="prow"><div class="prow-h"><span class="ic ${access?.control ? '' : 'off'}">${I(SVG.pointer)}</span>
+        <div style="flex:1;min-width:0"><b>Use this phone from the PC ${tag(!!access?.control)}</b><small>Taps, swipes and typing from the PC while it shows this screen (Android Accessibility). Some banking apps refuse to run while it’s on.</small></div></div>
+        <div class="prow-a"><span class="lbl">${access?.control ? 'On' : 'Off'}</span>${access?.control ? '<button class="mini stop" data-revoke="control">Turn off now</button>' : '<button class="mini go" data-allow="control">Turn on</button>'}</div>
+        <div class="prow-a"><span class="lbl">Turn off when a banking or payment app opens</span><button class="sw ${access?.controlBankingOff ? 'on' : ''}" data-pref="controlBankingOff"></button></div>
+        <div class="prow-a"><span class="lbl">Turn off when the PC stops showing the screen</span><button class="sw ${access?.controlAutoOff ? 'on' : ''}" data-pref="controlAutoOff"></button></div>
+      </div>
+      <div class="sec-h">Other access</div>
+      ${EXTRA.map((r) => `<div class="prow"><div class="prow-h"><span class="ic ${isOn(access?.[r.acc]) ? '' : 'off'}">${I(SVG[r.icon])}</span>
+        <div style="flex:1;min-width:0"><b>${r.t}</b><small>${r.d}</small></div></div>${accessLine(r.acc, 'access')}</div>`).join('')}
+      <div class="pnote">${access?.canRevoke ? '“Turn off” gives the permission back to Android; DropWave restarts to finish. ' : ''}Notification access and All files access can only be changed in Android settings. Screen sharing always asks first.</div>
+      <button class="pbtn outline wide" id="pvAppSettings" style="margin-top:12px;width:100%;justify-content:center">Open Android’s app settings</button>`;
+
+    box.querySelector('[data-pause]').onclick = () => setShare('paused', !paused);
+    box.querySelectorAll('[data-share]').forEach((b) => { b.onclick = () => setShare(b.dataset.share, share[b.dataset.share] === false); });
+    box.querySelectorAll('[data-allow]').forEach((b) => { b.onclick = () => DW.requestAccess({ group: b.dataset.allow }).catch(() => {}); });
+    box.querySelectorAll('[data-revoke]').forEach((b) => {
+      b.onclick = async () => {
+        const g = b.dataset.revoke;
+        const restart = access?.canRevoke && !SETTINGS_ONLY.has(g) && g !== 'control';
+        if (restart && !confirm('Give this permission back to Android? DropWave restarts to finish.')) return;
+        await DW.revokeAccess({ group: g }).catch(() => {});
+        setTimeout(renderPrivacy, 500);
+      };
+    });
+    box.querySelectorAll('[data-pref]').forEach((b) => { b.onclick = () => DW.setAccessPref({ key: b.dataset.pref, value: !b.classList.contains('on') }).then(renderPrivacy).catch(() => {}); });
+    $('#pvAppSettings').onclick = () => DW.openAppSettings().catch(() => {});
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !$('#slotPrivacy')?.closest('.tab')?.classList.contains('hidden')) renderPrivacy(); });
+
+  window.dwPhone = { connected: onConnected, disconnected: () => { connected = false; }, command: onCommand, render: renderBox, privacy: renderPrivacy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderBox); else renderBox();
 })();

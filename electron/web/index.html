@@ -300,6 +300,11 @@
     </div>
 
     <!-- Activity -->
+    <!-- Privacy -->
+    <div class="tab hidden" data-tab="privacy">
+      <div id="slotPrivacy"></div>
+    </div>
+
     <div class="tab hidden" data-tab="activity">
       <div class="sec-h" id="actTitle">Activity</div>
       <div id="activity" class="list"></div>
@@ -312,6 +317,7 @@
   <button data-go="home" class="on"><svg class="i" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
   <button data-go="chat"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span><i id="chatBadge" class="tbadge hidden"></i></button>
   <button data-go="activity"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Activity</span><i id="actBadge" class="tbadge dotonly hidden"></i></button>
+  <button data-go="privacy"><svg class="i" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><span>Privacy</span></button>
 </nav>
 
 <div id="call" class="call hidden">
@@ -472,6 +478,7 @@
     document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
     if (name === 'chat') { renderThread(); renderTargets(); }
     if (name === 'activity') $('#actBadge').classList.add('hidden');
+    if (name === 'privacy') window.dwPhone?.privacy?.();
     window.scrollTo({ top: 0 });
   }
   document.querySelectorAll('#tabbar button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.go)));

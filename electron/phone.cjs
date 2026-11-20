@@ -5,6 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const path = require('node:path');
+const fsp = require('node:fs/promises');
 
 const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
@@ -52,12 +53,48 @@ class PhoneHub {
     if (this.remoteState().some((r) => r.active)) this.activeTimer = setTimeout(() => this.#pushRemote(), 5200);
   }
 
+  /** Ask the phone something and wait for its one answer. */
+  rpc(id, method, args = {}, ms = 20000) {
+    const p = this.#need(id);
+    this.rpcs ||= new Map();
+    const rid = crypto.randomBytes(8).toString('hex');
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.rpcs.delete(rid); reject(new Error(PhoneHub.NO_ANSWER)); }, ms);
+      this.rpcs.set(rid, { phone: p.id, resolve, reject, timer });
+      if (!this.o.web()?.sendPhone(p.id, { type: 'rpc', rid, method, args })) {
+        clearTimeout(timer); this.rpcs.delete(rid);
+        reject(new Error('The phone is not connected right now. Open DropWave on the phone.'));
+      }
+    });
+  }
+
+  /** Continuity camera: the phone takes a photo / video and it lands in Downloads\DropWave\Camera. */
+  cameraTake(id, mode) {
+    const p = this.#need(id);
+    const video = mode === 'video';
+    const name = video ? 'video.mp4' : 'photo.jpg';
+    const r = this.#download(p, [{ id: '0', name, size: 0 }], (token) => { p.cameraToken = token; return { type: 'camera', mode: video ? 'video' : 'photo', token }; }, null, {
+      dir: path.join(this.o.settings().saveDir, 'Camera'),
+      onDone: (saved) => { p.cameraToken = null; this.o.push('phone-camera', { id: p.id, state: saved['0'] ? 'done' : 'cancelled', path: saved['0'] || null, video, error: '' }); },
+    });
+    this.o.push('phone-camera', { id: p.id, state: 'asking', video });
+    return r;
+  }
+
+  /** Copy an app's APK from the phone. */
+  appApk(id, pkg, name, size) {
+    const p = this.#need(id);
+    return this.#download(p, [{ id: '0', name: `${str(name, 120) || 'app'}.apk`, size: num(size) || 0 }], (token) => ({ type: 'app-apk', pkg: str(pkg, 200), token }), null,
+      { dir: path.join(this.o.settings().saveDir, 'Phone', 'Apps') });
+  }
+
   start() {
     try { this.lastClip = this.o.clipboard.readText(); } catch {}
     this.clipTimer = setInterval(() => this.#pollClipboard(), 1000);
+    this.backupTimer = setInterval(() => { for (const id of this.phones.keys()) this.backupCheck(id); }, 10 * 60 * 1000);
   }
 
-  stop() { clearInterval(this.clipTimer); }
+  stop() { clearInterval(this.clipTimer); clearInterval(this.backupTimer); }
 
   list() { return [...this.phones.values()].map((p) => this.#public(p)); }
 
@@ -98,6 +135,8 @@ class PhoneHub {
     const d = data && typeof data === 'object' ? data : {};
     switch (type) {
       case 'status': {
+        // Connected (again): catch up on photos taken meanwhile.
+        if (d.photosAccess === 'all' && Date.now() - (p.lastBackupCheck || 0) > 5 * 60 * 1000) setTimeout(() => this.backupCheck(p.id), 3000);
         p.status = {
           battery: num(d.battery), charging: !!d.charging, model: str(d.model, 60), android: str(d.android, 20),
           notifAccess: !!d.notifAccess, clip: !!d.clip, app: str(d.app, 20),
@@ -106,6 +145,8 @@ class PhoneHub {
           smsAccess: ['all', 'partial', 'none'].includes(d.smsAccess) ? d.smsAccess : null,
           filesAccess: ['all', 'none'].includes(d.filesAccess) ? d.filesAccess : null,
           controlAccess: !!d.controlAccess,
+          unrestricted: d.unrestricted === undefined ? null : !!d.unrestricted,
+          off: (Array.isArray(d.off) ? d.off : []).filter((x) => typeof x === 'string').slice(0, 12),
           volume: num(d.volume), volumeMax: num(d.volumeMax), muted: !!d.muted,
         };
         break;
@@ -133,6 +174,37 @@ class PhoneHub {
         p.notifs = list;
         break;
       }
+      case 'rpc': {
+        const w = this.rpcs.get(str(d.rid, 40));
+        if (!w || w.phone !== p.id) return;
+        this.rpcs.delete(str(d.rid, 40));
+        clearTimeout(w.timer);
+        if (d.error === 'blocked') w.reject(new Error(`${{ contacts: 'Contacts', apps: 'Apps', controls: 'Phone controls' }[d.what] || 'That'} is switched off on ${p.name} (DropWave › Privacy).`));
+        else if (d.error) w.reject(new Error(str(d.error, 200)));
+        else w.resolve(d.result && typeof d.result === 'object' ? d.result : {});
+        return;
+      }
+      case 'controls': this.o.push('phone-controls', { id: p.id, state: d }); return;
+      case 'webcam': {
+        if (d.asked === 'notified') this.o.camState(p.id, { state: 'asking', notified: true });
+        else if (d.error) this.o.camState(p.id, { state: 'error', error: str(d.error, 200) });
+        else if (d.on === true) this.o.camState(p.id, { state: 'live', front: !!d.front, stage: str(d.stage, 120) });
+        else if (d.on === false) this.o.camState(p.id, { state: 'off' });
+        return;
+      }
+      case 'camera': {
+        // The phone opened its camera, the user cancelled, or the upload failed.
+        if (d.opened) { this.o.push('phone-camera', { id: p.id, state: d.opened === 'notified' ? 'notified' : 'open' }); return; }
+        if (d.cancelled || d.sent === false) {
+          const tokens = this.o.web()?.photoTokens;
+          const t = p.cameraToken && tokens?.get(p.cameraToken);
+          if (t) { tokens.delete(p.cameraToken); t.onFile({ id: '0', error: 'cancelled' }); } // ends the transfer (and pushes the result)
+          else this.o.push('phone-camera', { id: p.id, state: 'cancelled', error: str(d.error, 200) });
+          p.cameraToken = null;
+        }
+        return;
+      }
+      case 'apk': if (d.error) this.o.push('phone-error', { id: p.id, error: str(d.error, 200) }); return;
       case 'icon': {
         const pkg = str(d.pkg, 120);
         if (pkg && isDataImage(d.data, 60 * 1024) && Object.keys(p.icons).length < 200) p.icons = { ...p.icons, [pkg]: d.data };
@@ -147,7 +219,7 @@ class PhoneHub {
         break;
       }
       case 'ring': p.ringing = !!d.on; break;
-      case 'photos': this.#gotPhotos(p, d); return;
+      case 'photos': if (d.purpose === 'backup') this.#gotBackup(p, d); else this.#gotPhotos(p, d); return;
       case 'call': this.#gotCall(p, d); break;
       case 'appcall': this.#gotAppCall(p, d); break;
       case 'sms-threads': case 'sms-thread': case 'sms': case 'sms-sent': this.#gotSms(p, type, d); return;
@@ -158,6 +230,24 @@ class PhoneHub {
         else if (d.on) { p.mirror = 'on'; this.o.mirrorState(p.id, { state: 'on' }); }
         else { p.mirror = 'off'; this.o.mirrorState(p.id, { state: 'off' }); }
         break;
+      }
+      case 'blocked': {
+        // The phone's owner switched this feature off in DropWave › Privacy.
+        const names = { notifs: 'Notifications', clip: 'Clipboard', photos: 'Photos', calls: 'Calls', sms: 'Messages', files: 'Phone files', mirror: 'Screen sharing', ring: 'Find my phone' };
+        const msg = `${names[d.what] || 'That'} is switched off on ${p.name} (DropWave › Privacy).`;
+        if (p.sms) { this.#answered(p, 'smsThreads'); this.#answered(p, 'smsThread'); if (d.what === 'sms') { p.sms.loading = false; p.sms.error = msg; if (p.sms.open) p.sms.open = { ...p.sms.open, loading: false, error: msg }; this.#smsPush(p); } }
+        if (p.files && d.what === 'files') { this.#answered(p, 'files'); p.files.loading = false; p.files.error = msg; this.#filesPush(p); }
+        if (p.photos && d.what === 'photos') { clearTimeout(p.photos.timer); p.photos.loading = false; p.photos.error = msg; this.o.push('phone-photos', this.#photosPublic(p)); }
+        if (d.what === 'photos' && p.backupRunning) { p.backupRunning = false; p.backupError = msg; this.#backupPush(p.id); }
+        if (d.what === 'mirror') this.o.mirrorState(p.id, { state: 'error', error: msg });
+        // One toast per feature now and then — the page already shows it, and automatic things
+        // (clipboard sync, backup) shouldn't nag at all.
+        p.blockedToast ||= {};
+        if (!['clip', 'notifs'].includes(d.what) && d.purpose !== 'backup' && Date.now() - (p.blockedToast[d.what] || 0) > 30000) {
+          p.blockedToast[d.what] = Date.now();
+          this.o.push('phone-error', { id: p.id, error: msg });
+        }
+        return;
       }
       case 'dial-error': this.o.push('phone-error', { id: p.id, error: str(d.error, 200) }); return;
       case 'calllog': {
@@ -287,12 +377,12 @@ class PhoneHub {
    * Have the phone upload these items (each { id, name, size }) to <save folder>/Phone. Shows up in
    * Activity like any transfer. makeCmd(token) is the command that tells the phone what to send.
    */
-  #download(p, pick, makeCmd, onSaved) {
+  #download(p, pick, makeCmd, onSaved, opts = {}) {
     const web = this.o.web();
     if (!web) throw new Error('The phone is no longer connected');
     if (!pick.length) throw new Error('Nothing selected');
     const token = crypto.randomBytes(16).toString('hex');
-    const dir = path.join(this.o.settings().saveDir, 'Phone');
+    const dir = opts.dir || path.join(this.o.settings().saveDir, 'Phone');
     const t = {
       id: `ph-${token.slice(0, 12)}`, direction: 'in', web: true, from: { id: p.id, name: p.name }, to: { id: 'me', name: 'This PC' },
       files: pick.map((x) => ({ name: x.name, size: x.size })), count: pick.length, total: pick.reduce((a, x) => a + (x.size || 0), 0),
@@ -315,6 +405,7 @@ class PhoneHub {
         }
         this.o.transfer({ ...t });
         onSaved?.({ ...saved });
+        if (finished === pick.length) opts.onDone?.({ ...saved });
       },
     });
     if (!web.sendPhone(p.id, makeCmd(token))) throw new Error('The phone is no longer connected');
@@ -351,6 +442,28 @@ class PhoneHub {
     return true;
   }
 
+  /** Phone as webcam: the phone's camera in its own window here (front or back). */
+  webcamStart(id, front) {
+    const p = this.#need(id);
+    const token = crypto.randomBytes(16).toString('hex');
+    this.o.web().allowMirror(token, {
+      clientId: id,
+      onFrame: (type, pts, data) => this.o.camFrame(id, type, pts, data),
+      onEnd: () => this.o.camState(id, { state: 'off' }),
+    });
+    if (!this.o.web().sendPhone(id, { type: 'webcam-start', token, front: !!front })) throw new Error('The phone is not connected right now. Open DropWave on the phone.');
+    this.o.openCam(p);
+    this.o.camState(id, { state: 'asking' });
+    return true;
+  }
+  webcamStop(id) { this.o.web()?.sendPhone(id, { type: 'webcam-stop' }); }
+  webcamSet(id, patch) {
+    const c = { type: 'webcam-set' };
+    if (patch && 'front' in patch) c.front = !!patch.front;
+    if (patch && 'torch' in patch) c.torch = !!patch.torch;
+    this.o.web()?.sendPhone(id, c);
+  }
+
   mirrorStop(id) {
     const p = this.phones.get(id);
     this.o.web()?.sendPhone(id, { type: 'mirror-stop' });
@@ -364,6 +477,102 @@ class PhoneHub {
     const e = { t: str(ev.t, 20), x: n(ev.x), y: n(ev.y), x2: n(ev.x2), y2: n(ev.y2), ms: Math.min(3000, Math.max(1, Number(ev.ms) || 200)), s: str(ev.s, 500) };
     // Straight to the phone's mirroring service; the page route is only a fallback (it sleeps in the background).
     if (!this.o.web()?.mirrorSend(id, e)) this.o.web()?.sendPhone(id, { type: 'mirror-input', ev: e });
+  }
+
+  // ---------- photo auto-backup ----------
+  // New photos and videos go to <save folder>/Phone Backup/<year>/<month>, oldest first. Nothing is
+  // ever deleted, on the phone or here. Checked when the phone connects and every 10 minutes.
+
+  #backupOf(id) { return (this.o.settings().photoBackup || {})[id] || null; }
+
+  backupState(id) {
+    const b = this.#backupOf(id) || {};
+    const p = this.phones.get(id);
+    return { id, on: !!b.on, since: b.since || 0, count: b.count || 0, last: b.last || 0, running: !!p?.backupRunning, error: p?.backupError || null, dir: path.join(this.o.settings().saveDir, 'Phone Backup') };
+  }
+
+  #backupPush(id) { this.o.push('photo-backup', this.backupState(id)); }
+
+  backupSet(id, on) {
+    const p = this.phones.get(id);
+    const all = { ...(this.o.settings().photoBackup || {}) };
+    const cur = all[id] || {};
+    // Turning it on backs up from the last 24 hours onwards (not the whole camera roll at once).
+    all[id] = on ? { ...cur, on: true, since: cur.since || Date.now() - 24 * 3600 * 1000, name: p?.name || cur.name } : { ...cur, on: false };
+    this.o.saveSettings({ photoBackup: all });
+    this.#backupPush(id);
+    if (on) this.backupCheck(id);
+    return this.backupState(id);
+  }
+
+  backupCheck(id) {
+    const p = this.phones.get(id);
+    const b = this.#backupOf(id);
+    if (!p || !b?.on || p.backupRunning || p.status?.photosAccess !== 'all' || p.status?.off?.includes('photos')) return;
+    p.lastBackupCheck = Date.now();
+    if (!this.o.web()?.sendPhone(id, { type: 'photos', offset: 0, limit: 200, kind: 'all', after: b.since || 0, thumbs: false, purpose: 'backup' })) return;
+    p.backupRunning = true;
+    p.backupError = null;
+    clearTimeout(p.backupTimer);
+    p.backupTimer = setTimeout(() => { if (p.backupRunning && !p.backupBusy) { p.backupRunning = false; this.#backupPush(id); } }, 60000);
+    this.#backupPush(id);
+  }
+
+  #gotBackup(p, d) {
+    const id = p.id;
+    const b = this.#backupOf(id);
+    const done = (err) => { p.backupRunning = false; p.backupBusy = false; p.backupError = err || null; this.#backupPush(id); };
+    if (!b?.on) return done();
+    if (d.error) return done(str(d.error, 200));
+    const items = (Array.isArray(d.items) ? d.items : []).slice(0, 300).map((x) => ({
+      id: str(x.id, 40), name: str(x.name, 200), size: num(x.size) || 0, date: num(x.date) || 0, added: num(x.added) || 0,
+    })).filter((x) => /^[iv]\d+$/.test(x.id) && x.added > (b.since || 0));
+    const save = (patch) => {
+      const all = { ...(this.o.settings().photoBackup || {}) };
+      all[id] = { ...all[id], ...patch };
+      this.o.saveSettings({ photoBackup: all });
+    };
+    if (!items.length) { save({ last: Date.now() }); return done(); }
+    const root = path.join(this.o.settings().saveDir, 'Phone Backup');
+    const incoming = path.join(root, '.incoming');
+    const moved = new Set();
+    p.backupBusy = true;
+    // As each file lands, file it under its year/month (the photo's own date).
+    const sort = async (saved) => {
+      for (const [fid, file] of Object.entries(saved)) {
+        if (moved.has(fid)) continue;
+        moved.add(fid);
+        const it = items.find((x) => x.id === fid);
+        const when = new Date(it?.date || it?.added || Date.now());
+        const dir = path.join(root, String(when.getFullYear()), String(when.getMonth() + 1).padStart(2, '0'));
+        try {
+          await fsp.mkdir(dir, { recursive: true });
+          let dest = path.join(dir, path.basename(file));
+          for (let n = 1; await fsp.access(dest).then(() => true, () => false); n++) {
+            const ext = path.extname(file);
+            dest = path.join(dir, `${path.basename(file, ext)} (${n})${ext}`);
+          }
+          await fsp.rename(file, dest);
+        } catch {}
+      }
+    };
+    try {
+      this.#download(p, items, (token) => ({ type: 'photo-get', ids: items.map((x) => x.id), token }), (saved) => { sort(saved); }, {
+        dir: incoming,
+        onDone: async (saved) => {
+          await sort(saved);
+          const ok = items.filter((x) => saved[x.id]);
+          // Move the mark forward only past what arrived, so a failed file is tried again next time.
+          const firstMissing = items.find((x) => !saved[x.id]);
+          const since = firstMissing ? Math.max(b.since || 0, ...items.filter((x) => x.added < firstMissing.added && saved[x.id]).map((x) => x.added), 0) : Math.max(...items.map((x) => x.added));
+          save({ since, count: (this.#backupOf(id)?.count || 0) + ok.length, last: Date.now() });
+          if (ok.length) this.#event('backup', p, `${ok.length} photo${ok.length > 1 ? 's' : ''} backed up`);
+          fsp.rmdir(incoming).catch(() => {});
+          done(ok.length < items.length ? `${items.length - ok.length} didn’t arrive; they’ll be tried again` : null);
+          if (items.length >= 200 && ok.length) setTimeout(() => this.backupCheck(id), 2000); // more waiting
+        },
+      });
+    } catch (e) { done(e.message); }
   }
 
   // ---------- messages (SMS) ----------
@@ -390,7 +599,7 @@ class PhoneHub {
     p.timers[slot] = setTimeout(onTimeout, 15000);
   }
   #answered(p, slot) { if (p.timers) clearTimeout(p.timers[slot]); }
-  static NO_ANSWER = 'The phone didn’t answer. Open DropWave on the phone (and keep it unlocked), then try again.';
+  static NO_ANSWER = 'The phone didn’t answer. Open DropWave on the phone once, and allow “Work when locked” there so it answers while locked.';
 
   smsLoad(id) {
     const p = this.#need(id);

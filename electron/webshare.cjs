@@ -607,6 +607,7 @@ class WebShare extends EventEmitter {
     const token = String(url.searchParams.get('token') || '');
     const m = this.mirrorTokens.get(token);
     const from = this.#liveClient(url.searchParams.get('from'), ip);
+    if (process.env.DROPWAVE_DEBUG) console.log('[mirror] stream', { token: !!m, from: from?.id, want: m?.clientId, ip });
     if (!m || !from || from.id !== m.clientId) { req.resume(); return json(res, 403, { error: 'Not requested' }); }
     this.mirrorTokens.delete(token);
     this.mirrorInputs.set(token, { clientId: from.id, ip, res: null });
@@ -673,7 +674,8 @@ class WebShare extends EventEmitter {
   sendPhone(clientId, cmd) {
     const c = this.clients.get(clientId);
     if (!c || !c.streams.size) return false;
-    this.#send(c, 'phone', cmd);
+    // An id per command: the phone's page and its native link both get it, and only one handles it.
+    this.#send(c, 'phone', cmd && typeof cmd === 'object' && !cmd.cid ? { ...cmd, cid: crypto.randomBytes(6).toString('hex') } : cmd);
     return true;
   }
 

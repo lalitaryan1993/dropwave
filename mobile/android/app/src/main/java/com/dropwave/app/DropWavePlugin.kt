@@ -64,6 +64,7 @@ class DropWavePlugin : Plugin() {
     override fun load() {
         instance = this
         Notifs.ensureChannels(context)
+        PhoneControls.watch(context) { emit("controls", PhoneControls.state(context)) }
         // Battery: tell the page when the level or charging changes.
         register(IntentFilter(Intent.ACTION_BATTERY_CHANGED)) { i ->
             val level = battery(i)
@@ -218,7 +219,185 @@ class DropWavePlugin : Plugin() {
             .put("smsAccess", Sms.access(context))
             .put("filesAccess", PhoneFiles.access())
             .put("controlAccess", ControlService.enabled(context))
-            .put("mirroring", MirrorService.running))
+            .put("mirroring", MirrorService.running)
+            .put("unrestricted", Access.unrestricted(context)))
+    }
+
+    // ---------- permissions & privacy ----------
+
+    @PluginMethod
+    fun accessState(call: PluginCall) = call.resolve(Access.state(context))
+
+    /** Ask Android for a group (or open the settings page for access only settings can grant). */
+    @PluginMethod
+    fun requestAccess(call: PluginCall) {
+        when (val g = call.getString("group", "")!!) {
+            "notifAccess" -> return openNotifAccess(call)
+            "files" -> return openFilesAccess(call)
+            "control" -> return openControlAccess(call)
+            "battery" -> {
+                // Android's own "Let app always run in background?" dialog.
+                val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+                if (runCatching { activity.startActivity(i) }.isFailure) openAppSettings(call) else call.resolve()
+                return
+            }
+            else -> {
+                val ps = Access.GROUPS[g] ?: return call.reject("Unknown access")
+                ActivityCompat.requestPermissions(activity, ps, 7330)
+            }
+        }
+        call.resolve()
+    }
+
+    /** Turn access off: give runtime permissions back (Android 13+, DropWave restarts), or open the settings page. */
+    @PluginMethod
+    fun revokeAccess(call: PluginCall) {
+        val g = call.getString("group", "")!!
+        when (g) {
+            "notifAccess" -> return openNotifAccess(call)
+            "files" -> return openFilesAccess(call)
+            "battery" -> {
+                runCatching { activity.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                return call.resolve()
+            }
+            "control" -> {
+                val s = ControlService.instance
+                if (s != null) { s.off(); call.resolve(JSObject().put("done", true)) } else openControlAccess(call)
+                return
+            }
+        }
+        if (!Access.GROUPS.containsKey(g)) return call.reject("Unknown access")
+        call.resolve(JSObject().put("restarting", true))
+        activity.runOnUiThread {
+            if (!Access.revoke(context, g)) openAppSettings(call) // before Android 13: the app's permission page
+        }
+    }
+
+    @PluginMethod
+    fun openAppSettings(call: PluginCall) {
+        val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+        runCatching { activity.startActivity(i) }
+        if (!call.isReleased) runCatching { call.resolve() }
+    }
+
+    @PluginMethod
+    fun setAccessPref(call: PluginCall) {
+        val key = call.getString("key", "")!!
+        if (key !in setOf("controlBankingOff", "controlAutoOff")) return call.reject("Unknown setting")
+        Access.prefs(context).edit().putBoolean(key, call.getBoolean("value", false) == true).apply()
+        call.resolve(Access.state(context))
+    }
+
+    // ---------- native link to the PC (keeps working while the page sleeps) ----------
+
+    @PluginMethod
+    fun linkStart(call: PluginCall) {
+        val base = call.getString("base", "")!!
+        if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
+        Link.start(context, Link.Config(base, call.getString("key", "")!!, call.getString("id", "")!!, call.getString("name", "")!!))
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun linkStop(call: PluginCall) { Link.stop(); call.resolve() }
+
+    /** The page takes a PC command / event; false when the native link already did. */
+    @PluginMethod
+    fun linkClaim(call: PluginCall) = call.resolve(JSObject().put("ok", Link.claim(call.getString("id", "")!!, true)))
+
+    @PluginMethod
+    fun setShare(call: PluginCall) { Link.setShare(context, call.getString("json", "{}")!!); call.resolve() }
+
+    // ---------- contacts, apps, phone controls, camera for the PC ----------
+
+    @PluginMethod
+    fun contacts(call: PluginCall) {
+        if (Access.group(context, "contacts") != "all") return call.reject("Allow contacts on the phone first (DropWave › Privacy)")
+        scope.launch { try { call.resolve(Contacts.list(context)) } catch (e: Exception) { call.reject(e.message ?: "Couldn’t read contacts") } }
+    }
+
+    @PluginMethod
+    fun contactPhoto(call: PluginCall) {
+        val id = call.getLong("id") ?: call.getInt("id")?.toLong() ?: return call.reject("No contact")
+        scope.launch { call.resolve(JSObject().put("data", Contacts.photo(context, id))) }
+    }
+
+    @PluginMethod
+    fun requestContacts(call: PluginCall) {
+        ActivityCompat.requestPermissions(activity, Access.GROUPS["contacts"]!!, 7331)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun apps(call: PluginCall) {
+        scope.launch { try { call.resolve(Apps.list(context)) } catch (e: Exception) { call.reject(e.message ?: "Couldn’t list apps") } }
+    }
+
+    /** open | info | uninstall: on screen now, or a notification to tap. */
+    @PluginMethod
+    fun appAction(call: PluginCall) {
+        val pkg = call.getString("pkg", "")!!
+        val name = Apps.label(context, pkg)
+        val r = when (call.getString("action", "")) {
+            "open" -> Launch.openOrNotify(context, Apps.openIntent(context, pkg) ?: return call.reject("That app can’t be opened"), onScreen, "Open $name", "Your PC wants to open $name. Tap to open it.")
+            "info" -> Launch.openOrNotify(context, Apps.infoIntent(pkg), onScreen, "$name: app info", "Tap to see $name in Android settings")
+            "uninstall" -> Launch.openOrNotify(context, Apps.uninstallIntent(pkg), onScreen, "Uninstall $name?", "Your PC asked to uninstall $name. Tap to confirm on the phone.")
+            else -> return call.reject("Unknown action")
+        }
+        call.resolve(JSObject().put("result", r))
+    }
+
+    /** Copy an app's APK to the PC (token from the PC). */
+    @PluginMethod
+    fun appApk(call: PluginCall) {
+        val (f, name) = Apps.apk(context, call.getString("pkg", "")!!) ?: return call.reject("This app is split into parts, so it can’t be copied as one APK")
+        val base = call.getString("base", "")!!
+        if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
+        call.resolve(JSObject().put("name", name).put("size", f.length()))
+        scope.launch { Upload.file(context, f, name, "0", base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!) }
+    }
+
+    @PluginMethod
+    fun controlsState(call: PluginCall) = call.resolve(PhoneControls.state(context))
+
+    @PluginMethod
+    fun controlsSet(call: PluginCall) {
+        val what = call.getString("what", "")!!
+        val v: Any? = call.data.opt("value")
+        val value = if (v is org.json.JSONObject) JSObject.fromJSONObject(v) else v
+        try { call.resolve(PhoneControls.set(context, what, value, onScreen)) } catch (e: Exception) { call.reject(e.message ?: "Couldn’t do that") }
+    }
+
+    /** Phone as webcam: start (asks on screen or by notification), stop, switch camera / torch. */
+    @PluginMethod
+    fun webcamStart(call: PluginCall) {
+        val base = call.getString("base", "")!!
+        if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
+        val r = WebcamService.ask(context, WebcamService.Request(base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!, call.getBoolean("front", false) == true), onScreen)
+        call.resolve(JSObject().put("result", r))
+    }
+
+    @PluginMethod
+    fun webcamStop(call: PluginCall) { WebcamService.pending = null; WebcamService.stop(context); call.resolve() }
+
+    @PluginMethod
+    fun webcamSet(call: PluginCall) {
+        val s = WebcamService.instance ?: return call.reject("The webcam is off")
+        if (call.data.has("front")) s.switchCamera(call.getBoolean("front", false) == true)
+        if (call.data.has("torch")) s.setTorch(call.getBoolean("torch", false) == true)
+        call.resolve()
+    }
+
+    /** Take a photo / video for the PC with the phone's camera app. */
+    @PluginMethod
+    fun cameraOpen(call: PluginCall) {
+        val base = call.getString("base", "")!!
+        if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
+        val video = call.getString("mode", "photo") == "video"
+        CameraActivity.pending = CameraActivity.Request(base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!, video)
+        val i = Intent(context, CameraActivity::class.java)
+        val r = Launch.openOrNotify(context, i, onScreen, if (video) "Your PC wants a video" else "Your PC wants a photo", "Tap to open the camera. It goes straight to the PC.")
+        call.resolve(JSObject().put("result", r))
     }
 
     // ---------- phone screen on PC ----------
@@ -371,12 +550,14 @@ class DropWavePlugin : Plugin() {
     @PluginMethod
     fun photoPage(call: PluginCall) {
         val offset = call.getInt("offset", 0) ?: 0
-        val limit = (call.getInt("limit", 60) ?: 60).coerceIn(1, 120)
+        val limit = (call.getInt("limit", 60) ?: 60).coerceIn(1, 300)
         val kind = call.getString("kind", "all")!!
         scope.launch {
             if (PhotoLibrary.access(context) == "none") return@launch call.resolve(JSObject().put("access", "none").put("items", JSArray()))
             try {
-                call.resolve(PhotoLibrary.page(context, offset, limit, kind).put("access", PhotoLibrary.access(context)))
+                val after = call.data.optLong("after", 0L)
+                val thumbs = call.getBoolean("thumbs", true) != false
+                call.resolve(PhotoLibrary.page(context, offset, limit, kind, after, thumbs).put("access", PhotoLibrary.access(context)))
             } catch (e: Exception) {
                 Log.w(TAG, "photo page", e)
                 call.reject(e.message)
@@ -616,9 +797,16 @@ class DropWavePlugin : Plugin() {
         // Whether DropWave is on screen. Tracked here because the page's visibilityState isn't reliable:
         // Capacitor keeps the WebView running in the background, so it can still say "visible".
         @Volatile private var onScreen = true
+        fun isOnScreen() = onScreen
 
         /** Pass an event to the page (phone notifications, media, battery, ring, clipboard). */
         fun emit(event: String, data: JSObject) {
+            instance?.notifyListeners(event, data, false)
+            Link.onEvent(event, data) // the page may be asleep: the native link tells the PC then
+        }
+
+        /** To the page only. */
+        fun emitOnly(event: String, data: JSObject) {
             instance?.notifyListeners(event, data, false)
         }
 

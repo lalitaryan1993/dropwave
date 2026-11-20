@@ -14,6 +14,18 @@ class MirrorConsentActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (MirrorService.pending == null) { finish(); return }
+        // Sound comes along when the microphone permission is allowed (Android's rule for audio capture).
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 2)
+        } else askScreen()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        askScreen() // with or without sound
+    }
+
+    private fun askScreen() {
         val mpm = getSystemService(MediaProjectionManager::class.java)
         @Suppress("DEPRECATION")
         startActivityForResult(mpm.createScreenCaptureIntent(), 1)

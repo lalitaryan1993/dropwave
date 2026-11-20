@@ -1,5 +1,5 @@
 // Phone files: browse the phone's internal storage from the PC and copy files to this PC.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Folder, File, FileImage, FileVideo, FileAudio, FileText, FileArchive, ChevronRight, HardDrive, Download, RefreshCw, Eye, EyeOff, X, Smartphone, FolderLock, ArrowUp, Check } from 'lucide-react';
 import { api, fmtSize, timeAgo } from './lib.js';
@@ -32,6 +32,10 @@ export function FilesView({ phones, selected, onSelect, toast }) {
     return api.onFiles((d) => d.id === id && setF(d));
   }, [id]);
   useEffect(() => { if (id && phone?.status?.filesAccess === 'all' && f?.access === 'none') api.filesList(id, '', hidden); }, [phone?.status?.filesAccess]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Switched on again in DropWave › Privacy on the phone: load.
+  const filesOff = !!phone?.status?.off?.includes('files');
+  const wasOff = useRef(filesOff);
+  useEffect(() => { if (id && wasOff.current && !filesOff) api.filesList(id, f?.path || '', hidden).catch(() => {}); wasOff.current = filesOff; }, [filesOff, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fail = (e) => toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error');
   const go = (rel) => { setSel(new Set()); api.filesList(id, rel, hidden).catch(fail); };
@@ -49,6 +53,7 @@ export function FilesView({ phones, selected, onSelect, toast }) {
   };
 
   if (!phone) return <Empty Icon={Smartphone} title="No phone connected" text="Open the DropWave app on your Android phone to browse its files here." />;
+  if (filesOff) return <Empty Icon={FolderLock} title="Switched off on the phone" text={`Phone files sharing is off in DropWave › Privacy on ${phone.name}. Turn it on there and this page fills in by itself.`} />;
   if (access === 'none') {
     return <Empty Icon={FolderLock} title="Allow file access on the phone" text={`In the DropWave app on ${phone.name}, tap “Browse phone files from PC”, then turn on “Allow access to manage all files”.`} />;
   }

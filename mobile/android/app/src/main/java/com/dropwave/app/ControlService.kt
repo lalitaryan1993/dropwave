@@ -20,7 +20,29 @@ class ControlService : AccessibilityService() {
 
     override fun onServiceConnected() { instance = this }
     override fun onUnbind(intent: android.content.Intent?): Boolean { if (instance === this) instance = null; return super.onUnbind(intent) }
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    // A banking / payment app came to the front: switch control from the PC off (those apps often
+    // refuse to run while another app could tap for you). The user turns it on again in DropWave.
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == packageName || !Access.prefs(this).getBoolean("controlBankingOff", true) || !Access.isPaymentApp(pkg)) return
+        val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+        Notifs.post(this, 7321, androidx.core.app.NotificationCompat.Builder(this, Notifs.CH_STATUS)
+            .setSmallIcon(R.drawable.ic_stat_dropwave)
+            .setContentTitle("Control from PC is off")
+            .setContentText("$label opened, so DropWave switched it off. Turn it on again in DropWave › Privacy.")
+            .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText("$label opened, so DropWave switched off control from the PC. Turn it on again in DropWave › Privacy."))
+            .setAutoCancel(true)
+            .setContentIntent(Notifs.openApp(this)))
+        off()
+    }
+
+    /** Switch this service off (Android shows it as off in Accessibility settings too). */
+    fun off() {
+        instance = null
+        DropWavePlugin.emit("access", com.getcapacitor.JSObject())
+        disableSelf()
+    }
     override fun onInterrupt() {}
 
     private fun px(x: Double, y: Double): Pair<Float, Float> {

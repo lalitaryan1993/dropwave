@@ -10,6 +10,7 @@ import {
 import { api, timeAgo } from './lib.js';
 import { Avatar, Button, Modal } from './components.jsx';
 import { RecentCalls } from './phonecalls.jsx';
+import { ControlsCard, CameraCard } from './phonetools.jsx';
 
 const RELEASES = 'https://github.com/lalitaryan1993/dropwave/releases/latest';
 
@@ -82,6 +83,8 @@ export function Home({ phones, peers, timeline, history, selected, onSelect, onC
             <Notifications phone={phone} toast={toast} />
           </div>
           <div className="min-w-0 space-y-4">
+            <ControlsCard phone={phone} toast={toast} />
+            <CameraCard phone={phone} toast={toast} />
             <MediaCard phone={phone} />
             <RecentCalls phone={phone} />
             <RemoteCard phone={phone} />
@@ -173,6 +176,16 @@ function PhoneHero({ phone }) {
             <Chip><span className="h-1.5 w-1.5 rounded-full bg-good shadow-[0_0_8px_var(--good)]" /> Connected</Chip>
             {s.battery != null && <Chip>{s.charging ? <BatteryCharging className="h-3.5 w-3.5 text-good" /> : null}{s.battery}%{s.charging ? ' · charging' : ''}</Chip>}
             <Chip><ShieldCheck className="h-3.5 w-3.5 text-good" /> Encrypted</Chip>
+            {s.unrestricted === false && (
+              <span title="Android pauses DropWave a few minutes after the phone locks. On the phone: DropWave › Home › “Keep working when the phone is locked” › Allow.">
+                <Chip><Lock className="h-3.5 w-3.5 text-warn" /> May sleep when locked</Chip>
+              </span>
+            )}
+            {s.off?.length > 0 && (
+              <span title={`Switched off on the phone (DropWave › Privacy): ${s.off.join(', ')}`}>
+                <Chip><Lock className="h-3.5 w-3.5 text-warn" /> {s.off.length} switched off on the phone</Chip>
+              </span>
+            )}
           </div>
         </div>
         </div>
@@ -414,7 +427,7 @@ function RemoteCard({ phone }) {
   );
 }
 
-const TL_ICON = { 'clip-in': ClipboardPaste, 'clip-out': ClipboardCopy, ring: BellRing, remote: Keyboard, in: ArrowDownLeft, out: ArrowUpRight, missed: Phone, dial: Phone };
+const TL_ICON = { 'clip-in': ClipboardPaste, 'clip-out': ClipboardCopy, ring: BellRing, remote: Keyboard, in: ArrowDownLeft, out: ArrowUpRight, missed: Phone, dial: Phone, backup: ArrowDownLeft };
 
 function TimelineCard({ timeline, history, onSeeAll }) {
   useNow(30000);
@@ -426,7 +439,7 @@ function TimelineCard({ timeline, history, onSeeAll }) {
     }));
     const events = timeline.map((e) => ({
       id: e.id, at: e.at, kind: e.kind,
-      title: { 'clip-in': 'Clipboard from phone', 'clip-out': 'Clipboard to phone', ring: 'Find phone', remote: 'Touchpad', missed: 'Missed call', dial: 'Call from PC' }[e.kind] || 'Event',
+      title: { 'clip-in': 'Clipboard from phone', 'clip-out': 'Clipboard to phone', ring: 'Find phone', remote: 'Touchpad', missed: 'Missed call', dial: 'Call from PC', backup: 'Photo backup' }[e.kind] || 'Event',
       sub: `${e.peer?.name ? `${e.peer.name} · ` : ''}${e.text || ''}`,
     }));
     return [...transfers, ...events].sort((a, b) => b.at - a.at).slice(0, 8);

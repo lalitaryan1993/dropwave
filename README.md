@@ -8,7 +8,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.7.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.8.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
 [![Release](https://img.shields.io/github/v/release/lalitaryan1993/dropwave?color=19b5d8&label=release)](https://github.com/lalitaryan1993/dropwave/releases)
 [![Downloads](https://img.shields.io/github/downloads/lalitaryan1993/dropwave/total?color=6d5dfc)](https://github.com/lalitaryan1993/dropwave/releases)
@@ -112,6 +112,34 @@ New versions download in the background. Restart when you like.
   <img src="docs/screenshots/desktop-dark.png" alt="DropWave desktop app with nearby PCs, a phone and a TV" width="88%" />
   <br /><sub>Nearby devices: PCs, a phone and a TV, with live transfers on the right</sub>
 </div>
+
+## New in 1.8: webcam, contacts, apps and styles
+
+<div align="center">
+  <img src="docs/screenshots/home-controls.png" alt="Home with phone controls (torch, Do Not Disturb, volumes, brightness) and the camera card" width="88%" />
+</div>
+
+- **Phone as webcam**: the phone's camera live in a window (front / back, mirror, rotate, torch, snapshot, clean view). On Windows 11 it also appears as **DropWave Camera** in Zoom, Meet, Teams and the Camera app.
+- **Camera for the PC**: *Take photo* on the PC opens the phone's camera; the photo lands on the PC **and in the clipboard**, ready for Ctrl+V. Video too.
+- **Contacts**: search the phone's contacts, call (rings out from the phone), text or copy a number.
+- **Apps**: every app on the phone with its icon: open it on the phone or in a window on the PC, app info, uninstall (the phone asks first), copy the APK.
+- **Phone controls**: torch, Do Not Disturb, ring / vibrate, ringtone, notification and alarm volumes, brightness, lock.
+- **Works while the phone is locked**: a native link in the Android app keeps answering the PC when the screen is off or another app is open. Allow *Keep working when the phone is locked* once.
+- **Privacy tab on the phone**: a *Share with PC* switch for every feature, one *Pause sharing* switch, Android's own access for each (Allow / Turn off), and **Control from PC switches itself off** when a banking or UPI app opens.
+- **Styles**: Aurora, Frost (see-through over the Windows 11 backdrop), Petal, Ink and Dots, each in light and dark.
+- **Also**: the phone's sound while mirroring, and **photo auto-backup** to *Downloads\DropWave\Phone Backup* by year and month.
+
+<p align="center">
+  <img src="docs/screenshots/apps.png" alt="Apps: the phone's apps with open, window, APK, info and uninstall" width="49%" />
+  <img src="docs/screenshots/contacts.png" alt="Contacts: search, call and message" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/style-petal.png" alt="Petal style, light" width="32%" />
+  <img src="docs/screenshots/style-ink.png" alt="Ink style, dark" width="32%" />
+  <img src="docs/screenshots/style-dots.png" alt="Dots style, light" width="32%" />
+</p>
+
+*(Screenshots use a demo phone with made-up names and numbers.)*
 
 ## Your phone on your PC (new in 1.7)
 
@@ -346,7 +374,10 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Phone as touchpad, keyboard and Deck; command palette; colour themes
 - [x] Photos, calls (and app calls), dial, SMS and phone files on the PC
 - [x] Phone screen on the PC with mouse and keyboard control
-- [ ] Phone audio while mirroring, photo auto-backup
+- [x] Phone audio while mirroring, photo auto-backup
+- [x] Phone as webcam (also as a Windows 11 camera), contacts, apps, phone controls, styles
+- [ ] Phone microphone as the PC's microphone
+- [ ] Reply from a notification on the PC; recent apps, each app in its own window
 - [ ] Android: auto-discovery without scanning
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)

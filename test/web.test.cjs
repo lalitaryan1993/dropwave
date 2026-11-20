@@ -238,7 +238,7 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
     assert.equal((await ppost('/api/phone', { from: 'phoneP', type: 'status', data: { battery: 80 } })).status, 200);
     assert.deepEqual(got[0], { from: { id: 'phoneP', name: 'Pixel', kind: 'phone' }, type: 'status', data: { battery: 80 } });
     assert.equal(pweb.sendPhone('phoneP', { type: 'ring', on: true }), true);
-    await until(/event: phone\ndata: \{"type":"ring","on":true\}/);
+    await until(/event: phone\ndata: \{"type":"ring","on":true,"cid":"[0-9a-f]{12}"\}/); // with an id: the page or the native link takes it
     assert.equal(pweb.sendPhone('nobody', { type: 'ring' }), false);
     const rr = await ppost('/api/remote', { from: 'phoneP', ev: { t: 'click', b: 'l' } });
     assert.deepEqual(await rr.json(), { ok: true, got: { t: 'click', b: 'l' } });

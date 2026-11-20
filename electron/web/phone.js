@@ -98,11 +98,18 @@
 
     const box = $('#phoneBox');
     // Without this, Android cuts DropWave's Wi-Fi a few minutes after the screen goes off.
+    const shield = I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>');
     const bgCard = DW && unrestricted === false ? `<div class="group pcard" style="margin-top:8px">
-        <div class="pcard-row"><span class="pcard-ic">${I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>')}</span><div><b>Keep working when the phone is locked</b>
-        <small>Android pauses apps a few minutes after the screen goes off, so the PC stops reaching this phone. Tap Allow on Android’s question. On Realme / Oppo / Vivo / Xiaomi also set App info › Battery › “Allow background activity”.</small></div></div>
-        <button class="pbtn primary wide" id="pBgOn" style="width:100%;justify-content:center">Allow</button>
-        <button class="pbtn wide" id="pBgMore" style="width:100%;justify-content:center;margin-top:6px">App battery settings</button></div>` : '';
+        <div class="pcard-row"><span class="pcard-ic">${shield}</span><div><b>Keep working when the phone is locked</b>
+        <small>Android pauses apps a few minutes after the screen goes off, so the PC stops reaching this phone. Tap Allow on Android’s question.</small></div></div>
+        <button class="pbtn primary wide" id="pBgOn" style="width:100%;justify-content:center">Allow</button></div>` : '';
+    // The phone maker's own battery killer (on top of Android's): steps for this brand, once.
+    const steps = OEM_STEPS[maker];
+    const oemCard = DW && steps && store.get('dw_oem_ok') !== '1' ? `<div class="group pcard" style="margin-top:8px">
+        <div class="pcard-row"><span class="pcard-ic">${shield}</span><div><b>One more step for ${steps[0]}</b>
+        <small>${steps[1]}</small></div></div>
+        <button class="pbtn primary wide" id="pBgMore" style="width:100%;justify-content:center">Open ${steps[0]} settings</button>
+        <button class="pbtn wide" id="pOemDone" style="width:100%;justify-content:center;margin-top:6px">Done</button></div>` : '';
     const callCard = DW && callsAccess !== 'all' ? `<div class="group pcard" style="margin-top:8px">
         <div class="pcard-row"><span class="pcard-ic">${I('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>')}</span><div><b>Show calls on PC</b>
         <small>See who’s calling, answer, decline or dial from the PC, and recent calls. Android asks for Phone and Call log.</small></div></div>
@@ -121,13 +128,13 @@
         <small>See this phone’s photos and videos on the PC and save the ones you want. Nothing is copied until you pick it there.</small></div></div>
         <button class="pbtn primary wide" id="pPhotosOn" style="width:100%;justify-content:center">Allow photos</button></div>` : '';
     if (DW && !notifAccess) {
-      box.innerHTML = `<div class="sec-h">Phone on PC</div>${bgCard}<div class="group pcard">
+      box.innerHTML = `<div class="sec-h">Phone on PC</div>${bgCard}${oemCard}<div class="group pcard">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Show phone notifications on PC</b>
         <small>Reply, copy one-time codes and control music from the PC. If Android says “Restricted setting”: App info › ⋮ › Allow restricted settings.</small></div></div>
         <button class="pbtn primary wide" id="pNotifOn" style="width:100%;justify-content:center">Turn on</button></div>${photoCard}${callCard}${smsCard}${filesCard}${ctlCard}`;
       $('#pNotifOn').addEventListener('click', () => DW.openNotifAccess().catch(() => {}));
     } else if (DW) {
-      box.innerHTML = `<div class="sec-h">Phone on PC</div>${bgCard}<div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
+      box.innerHTML = `<div class="sec-h">Phone on PC</div>${bgCard}${oemCard}<div class="group pcard"><div class="pcard-row"><span class="pcard-ic on">${I(ICONS.bell)}</span><div><b>Notifications, music &amp; clipboard are shared</b>
         <small>Your PC shows them on its Home page. Turn off in Android settings › Notification access.</small></div></div></div>${photoCard}${callCard}${smsCard}${filesCard}${ctlCard}`;
     }
     $('#pPhotosOn')?.addEventListener('click', () => DW.requestPhotos().catch(() => {}));
@@ -136,7 +143,8 @@
     $('#pFilesOn')?.addEventListener('click', () => DW.openFilesAccess().catch(() => {}));
     $('#pCtlOn')?.addEventListener('click', () => DW.openControlAccess().catch(() => {}));
     $('#pBgOn')?.addEventListener('click', () => DW.requestAccess({ group: 'battery' }).catch(() => {}));
-    $('#pBgMore')?.addEventListener('click', () => DW.openAppSettings().catch(() => {}));
+    $('#pBgMore')?.addEventListener('click', () => DW.openBackgroundPage().catch(() => DW.openAppSettings().catch(() => {})));
+    $('#pOemDone')?.addEventListener('click', () => { store.set('dw_oem_ok', '1'); renderBox(); });
     if (!DW) {
       box.innerHTML = `<div class="sec-h">Get more</div><a class="group pcard" href="https://github.com/lalitaryan1993/dropwave/releases/latest" target="_blank" rel="noopener">
         <div class="pcard-row"><span class="pcard-ic">${I(ICONS.bell)}</span><div><b>Get the Android app</b><small>Phone notifications, clipboard sync, music and Find my phone on your PC.</small></div></div></a>`;
@@ -158,6 +166,16 @@
   // ---------- Android app: share this phone with the PC ----------
   let notifAccess = false;
   let unrestricted = null; // battery limits off ("Work when locked")
+  let maker = 'other';
+  const OEM_STEPS = {
+    xiaomi: ['Xiaomi', 'Xiaomi stops apps in the background on its own. Turn on <b>Autostart</b> for DropWave, then in App info › Battery saver pick <b>No restrictions</b>.'],
+    realme: ['Realme', 'Realme stops apps in the background on its own. In App info › Battery turn on <b>Allow background activity</b> and <b>Allow auto launch</b>.'],
+    oppo: ['Oppo', 'Oppo stops apps in the background on its own. In App info › Battery turn on <b>Allow background activity</b> and <b>Allow auto launch</b>.'],
+    oneplus: ['OnePlus', 'OnePlus stops apps in the background on its own. In App info › Battery pick <b>Unrestricted</b> (or Don’t optimise).'],
+    vivo: ['Vivo', 'Vivo stops apps in the background on its own. Turn on <b>Autostart</b> for DropWave and allow <b>High background power use</b>.'],
+    samsung: ['Samsung', 'Samsung puts unused apps to sleep. In Battery › Background usage limits, take DropWave out of <b>Sleeping apps</b> (or add it to Never sleeping apps).'],
+    huawei: ['Huawei', 'Huawei stops apps in the background on its own. In App launch pick <b>Manage manually</b> for DropWave and turn all three switches on.'],
+  };
   let photosAccess = 'none';
   let callsAccess = 'none';
   let smsAccess = 'none';
@@ -224,6 +242,7 @@
       filesAccess = s.filesAccess || 'none';
       controlAccess = !!s.controlAccess;
       unrestricted = s.unrestricted === undefined ? null : !!s.unrestricted;
+      maker = s.maker || 'other';
       if (callsAccess !== 'none' && hadCalls !== callsAccess) sendCallLog(); // just allowed
       // What's switched off in Privacy looks "not allowed" to the PC.
       phone('status', {
@@ -308,6 +327,7 @@
     DW.addListener('access', () => connected && sendStatus()); // back from a permission dialog / settings
     DW.addListener('call', (d) => connected && on('calls') && phone('call', d));
     DW.addListener('appcall', (d) => connected && on('calls') && phone('appcall', d));
+    DW.addListener('callaudio', (d) => connected && on('calls') && phone('callaudio', d));
     DW.addListener('sms', (d) => connected && on('sms') && phone('sms', d));
     DW.addListener('access', () => renderPrivacy());
     DW.addListener('mirror', (d) => connected && phone('mirror', d));
@@ -343,7 +363,11 @@
       DW.uploadPhotos({ ids: c.ids.map(String), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
         .then(() => P().toast(`Sending ${c.ids.length} to ${P().pcName()}…`)).catch(() => P().toast('Couldn’t send the photos'));
     } else if (c.type === 'call') {
-      DW.callAction({ action: String(c.action) }).catch((e) => P().toast(e?.message || 'Couldn’t do that'));
+      if (c.key && ['answer', 'decline', 'end'].includes(c.action)) {
+        // A WhatsApp / Telegram call: press its notification's button (works with Notifications switched off too).
+        const i = Number.isInteger(c.i) ? c.i : -1;
+        DW.notifAction({ key: String(c.key), action: i >= 0 ? 'act' : 'dismiss', i: Math.max(0, i), text: '' }).catch(() => phone('dial-error', { error: 'That call is gone' }));
+      } else DW.callAction({ action: String(c.action), text: String(c.text || '') }).catch((e) => phone('dial-error', { error: e?.message || 'Couldn’t do that' }));
     } else if (c.type === 'dial') {
       DW.dial({ number: String(c.number || '') }).catch((e) => phone('dial-error', { error: e?.message || 'Couldn’t place the call' }));
     } else if (c.type === 'sms-threads') {
@@ -392,6 +416,7 @@
     } else if (c.type === 'volume') DW.volume({ action: String(c.action), value: Number(c.value) || 0 }).then(sendStatus).catch((e) => P().toast(e?.message || 'Couldn’t change the volume'));
     else if (c.type === 'notif') DW.notifAction({ key: String(c.key || ''), action: String(c.action), i: Number(c.i) || 0, text: String(c.text || '') }).catch(() => P().toast('Couldn’t do that on this phone'));
     else if (c.type === 'clip' && typeof c.text === 'string') {
+      if (c.text === lastClip) return; // already here
       lastClip = c.text;
       DW.setClipboard({ text: c.text }).then(() => { if (!c.auto) P().toast(`Copied from ${P().pcName()}`); }).catch(() => {});
     }
@@ -602,10 +627,11 @@
     { k: 'ring', icon: 'ring', t: 'Find my phone', d: 'Let the PC ring this phone, even on silent.' },
   ];
   const EXTRA = [
+    { acc: 'usage', icon: 'grid', t: 'Recent apps', d: 'Android’s Usage access: lets the PC’s Apps page show what you used lately. Nothing else is read.' },
     { acc: 'battery', icon: 'shield', t: 'Work when locked', d: 'Lets DropWave skip Android’s battery limits so the PC can still reach this phone while it’s locked or another app is open.' },
     { acc: 'notifPost', icon: 'bell', t: 'DropWave’s own notifications', d: 'Files and messages arriving from the PC.' },
   ];
-  const SETTINGS_ONLY = new Set(['notifAccess', 'files', 'battery']); // Android only lets you change these in its settings
+  const SETTINGS_ONLY = new Set(['notifAccess', 'files', 'battery', 'usage']); // Android only lets you change these in its settings
   let access = null;
 
   css.textContent += `
@@ -648,12 +674,30 @@
     return `<div class="prow-a"><span class="lbl">Android: ${esc(label)} ${tag(v)}</span>${btn}</div>`;
   }
 
+  // ---------- Look (styles), also in a plain browser ----------
+  const LOOKS = [['aurora', 'Aurora', 'linear-gradient(135deg,#6d5dfc,#19b5d8)'], ['petal', 'Petal', 'linear-gradient(135deg,#e5486e,#ff9a5c)'],
+    ['ink', 'Ink', 'linear-gradient(135deg,#f3f0e8 50%,#1d1b16 50%)'], ['dots', 'Dots', 'radial-gradient(circle at 2px 2px,#c9a25a88 1.4px,transparent 2px) 0 0/8px 8px, linear-gradient(135deg,#fbf6ec,#ffd27a)']];
+  const applyLook = (s) => { document.documentElement.dataset.style = s || 'aurora'; };
+  applyLook(store.get('dw_style'));
+  window.DWTranslate?.set(store.get('dw_lang') || 'en');
+  function lookHtml() {
+    const cur = store.get('dw_style') || 'aurora';
+    const lang = store.get('dw_lang') || 'en';
+    return `<div class="sec-h" style="margin-top:18px">Look</div><div class="looks">${LOOKS.map(([k, t, bg]) => `<button data-look="${k}" class="${k === cur ? 'on' : ''}"><i style="background:${bg}"></i>${t}</button>`).join('')}</div>
+      <div class="sec-h" style="margin-top:18px">Language</div><div class="looks" data-no-translate style="grid-template-columns:1fr 1fr">${[['en', 'English'], ['hi', 'हिन्दी']].map(([k, t]) => `<button data-lang="${k}" class="${k === lang ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+  }
+  function bindLook(box) {
+    box.querySelectorAll('[data-look]').forEach((b) => { b.onclick = () => { store.set('dw_style', b.dataset.look); applyLook(b.dataset.look); renderPrivacy(); }; });
+    box.querySelectorAll('[data-lang]').forEach((b) => { b.onclick = () => { store.set('dw_lang', b.dataset.lang); window.DWTranslate?.set(b.dataset.lang); renderPrivacy(); }; });
+  }
+
   async function renderPrivacy() {
     const box = $('#slotPrivacy');
     if (!box) return;
     if (!DW) {
       box.innerHTML = `<div class="sec-h">Privacy</div><div class="group pcard"><div class="pcard-row"><span class="pcard-ic">${I(SVG.shield)}</span><div><b>This browser shares only what you send</b>
-        <small>Files, messages and calls you start yourself. The Android app adds notifications, photos, calls and more, each with its own switch here.</small></div></div></div>`;
+        <small>Files, messages and calls you start yourself. The Android app adds notifications, photos, calls and more, each with its own switch here.</small></div></div></div>${lookHtml()}`;
+      bindLook(box);
       return;
     }
     try { access = await DW.accessState(); } catch { access = null; }
@@ -681,7 +725,8 @@
       ${EXTRA.map((r) => `<div class="prow"><div class="prow-h"><span class="ic ${isOn(access?.[r.acc]) ? '' : 'off'}">${I(SVG[r.icon])}</span>
         <div style="flex:1;min-width:0"><b>${r.t}</b><small>${r.d}</small></div></div>${accessLine(r.acc, 'access')}</div>`).join('')}
       <div class="pnote">${access?.canRevoke ? '“Turn off” gives the permission back to Android; DropWave restarts to finish. ' : ''}Notification access and All files access can only be changed in Android settings. Screen sharing always asks first.</div>
-      <button class="pbtn outline wide" id="pvAppSettings" style="margin-top:12px;width:100%;justify-content:center">Open Android’s app settings</button>`;
+      <button class="pbtn outline wide" id="pvAppSettings" style="margin-top:12px;width:100%;justify-content:center">Open Android’s app settings</button>${lookHtml()}`;
+    bindLook(box);
 
     box.querySelector('[data-pause]').onclick = () => setShare('paused', !paused);
     box.querySelectorAll('[data-share]').forEach((b) => { b.onclick = () => setShare(b.dataset.share, share[b.dataset.share] === false); });

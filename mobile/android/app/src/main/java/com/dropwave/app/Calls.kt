@@ -64,9 +64,14 @@ object Calls {
         @Suppress("DEPRECATION")
         val number = i.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER) ?: if (state == "idle") null else lastNumber
         if (state == lastState && number == lastNumber) return
+        if (state == "idle" && ringMuted) {
+            ringMuted = false
+            runCatching { ctx.getSystemService(android.media.AudioManager::class.java)?.adjustStreamVolume(android.media.AudioManager.STREAM_RING, android.media.AudioManager.ADJUST_UNMUTE, 0) }
+        }
         lastState = state
         lastNumber = number
         val o = JSObject().put("state", state).put("at", System.currentTimeMillis())
+        audio(ctx, o)
         if (number != null) {
             o.put("number", number)
             nameFor(ctx, number)?.let { o.put("name", it) }
@@ -76,6 +81,82 @@ object Calls {
 
     fun current(): JSObject? = lastState?.takeIf { it != "idle" }?.let { s ->
         JSObject().put("state", s).apply { lastNumber?.let { put("number", it) } }
+    }
+
+    /** Mic muted / speaker on, for the PC's call bar. */
+    private fun audio(ctx: Context, o: JSObject): JSObject {
+        val am = ctx.getSystemService(android.media.AudioManager::class.java) ?: return o
+        @Suppress("DEPRECATION")
+        return o.put("muted", am.isMicrophoneMute).put("speaker", am.isSpeakerphoneOn)
+    }
+
+    /**
+     * In-call controls from the PC: mute / unmute, speaker / earpiece, silence (stop the ringtone),
+     * sms (decline with a text). Uses Android's audio settings; if the phone ignores them, the
+     * dialer's own button is pressed through "Control from PC" when that is on.
+     * Returns null when done, or why not.
+     */
+    fun control(ctx: Context, action: String, text: String = ""): String? {
+        val am = ctx.getSystemService(android.media.AudioManager::class.java) ?: return "No audio service"
+        val err: String? = when (action) {
+            "mute", "unmute" -> {
+                val want = action == "mute"
+                runCatching { am.isMicrophoneMute = want }
+                if (am.isMicrophoneMute != want && !pressDialer(listOf("mute", "म्यूट"))) "Couldn’t change mute on this phone" else null
+            }
+            "speaker", "earpiece" -> {
+                val want = action == "speaker"
+                @Suppress("DEPRECATION")
+                runCatching { am.isSpeakerphoneOn = want }
+                if (android.os.Build.VERSION.SDK_INT >= 31) runCatching {
+                    if (want) am.availableCommunicationDevices.firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }?.let { am.setCommunicationDevice(it) }
+                    else am.clearCommunicationDevice()
+                }
+                @Suppress("DEPRECATION")
+                if (am.isSpeakerphoneOn != want && !pressDialer(listOf("speaker", "स्पीकर"))) "Couldn’t switch the speaker on this phone" else null
+            }
+            "silence" -> {
+                runCatching { am.adjustStreamVolume(android.media.AudioManager.STREAM_RING, android.media.AudioManager.ADJUST_MUTE, 0) }
+                // Unmuted again when the call ends (see onPhoneState).
+                ringMuted = true
+                null
+            }
+            "sms" -> {
+                val n = lastNumber ?: return "No number for this call"
+                val e = Sms.send(ctx, n, text.ifBlank { "Can’t talk right now. I’ll call you back." })
+                act(ctx, "decline")
+                e
+            }
+            else -> if (act(ctx, action)) null else "Couldn’t do that on this phone"
+        }
+        // Tell the PC the new state right away (also for WhatsApp / Telegram calls).
+        DropWavePlugin.emit("callaudio", audio(ctx, JSObject()))
+        lastState?.takeIf { it != "idle" }?.let { s ->
+            val o = JSObject().put("state", s).put("at", System.currentTimeMillis())
+            lastNumber?.let { o.put("number", it) }
+            DropWavePlugin.emit("call", audio(ctx, o))
+        }
+        return err
+    }
+
+    @Volatile private var ringMuted = false
+
+    /** Presses a button on the dialer's call screen ("Mute", "Speaker") with Control from PC. */
+    private fun pressDialer(words: List<String>): Boolean {
+        val s = ControlService.instance ?: return false
+        val root = s.rootInActiveWindow ?: return false
+        val q = ArrayDeque(listOf(root))
+        while (q.isNotEmpty()) {
+            val n = q.removeFirst()
+            val label = ((n.contentDescription ?: "").toString() + " " + (n.text ?: "")).lowercase()
+            if (words.any { it in label }) {
+                var c: android.view.accessibility.AccessibilityNodeInfo? = n
+                while (c != null && !c.isClickable) c = c.parent
+                if (c != null && c.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)) return true
+            }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { q.addLast(it) }
+        }
+        return false
     }
 
     /** Contact name: from contacts if allowed, else the name the call log cached for this number. */

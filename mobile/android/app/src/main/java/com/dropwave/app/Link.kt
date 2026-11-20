@@ -49,6 +49,7 @@ object Link {
 
     fun start(ctx: Context, c: Config) {
         app = ctx.applicationContext
+        Access.prefs(app).edit().putString("link", JSONObject().put("base", c.base).put("key", c.key).put("id", c.id).put("name", c.name).toString()).apply()
         if (c == cfg) return
         cfg = c
         val g = ++gen
@@ -56,6 +57,16 @@ object Link {
     }
 
     fun stop() { cfg = null; gen++ }
+    fun isConnected() = cfg != null
+
+    /** After Android restarted DropWave (e.g. from a Quick Settings tile): the last PC, to post to. */
+    fun restore(ctx: Context) {
+        if (cfg != null) return
+        val j = runCatching { JSONObject(Access.prefs(ctx).getString("link", "") ?: "") }.getOrNull() ?: return
+        app = ctx.applicationContext
+        cfg = Config(j.optString("base"), j.optString("key"), j.optString("id"), j.optString("name"))
+    }
+    fun sharing(k: String) = ::app.isInitialized && on(k)
 
     /** The page or this side takes a command / event. First one wins. */
     fun claim(id: String, byPage: Boolean): Boolean = synchronized(claimed) {
@@ -177,8 +188,16 @@ object Link {
             "media" -> PhoneListener.instance?.mediaControl(c.optString("action"), c.optDouble("pos", 0.0))
             "volume" -> { volume(c.optString("action"), c.optInt("value")); post("status", status()) }
             "notif" -> PhoneListener.instance?.act(c.optString("key"), c.optString("action"), c.optInt("i"), c.optString("text"))
-            "clip" -> app.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("DropWave", c.optString("text")))
-            "call" -> Calls.act(app, c.optString("action"))
+            "clip" -> (c.opt("text") as? String)?.let { Clips.setFromPc(app, it) } // text only, never an object
+            "call" -> {
+                val key = c.optString("key")
+                val a = c.optString("action")
+                if (key.isNotEmpty() && a in setOf("answer", "decline", "end")) {
+                    // A WhatsApp / Telegram call: press its notification's button.
+                    val i = c.optInt("i", -1)
+                    PhoneListener.instance?.act(key, if (i >= 0) "act" else "dismiss", i, "")
+                } else Calls.control(app, a, c.optString("text"))
+            }
             "dial" -> Calls.dial(app, c.optString("number"))?.let { post("dial-error", JSObject().put("error", it)) }
             "calllog" -> post("calllog", JSObject().put("list", Calls.log(app, 50)).put("access", Calls.access(app)))
             "sms-threads" -> post("sms-threads", try { JSObject().put("list", Sms.threads(app, 80)).put("access", Sms.access(app)) } catch (e: Exception) { JSObject().put("error", e.message) })
@@ -251,6 +270,7 @@ object Link {
                         "open" -> Launch.openOrNotify(app, Apps.openIntent(app, pkg) ?: throw Exception("That app can’t be opened"), false, "Open $name", "Your PC wants to open $name. Tap to open it.")
                         "info" -> Launch.openOrNotify(app, Apps.infoIntent(pkg), false, "$name: app info", "Tap to see $name in Android settings")
                         "uninstall" -> Launch.openOrNotify(app, Apps.uninstallIntent(pkg), false, "Uninstall $name?", "Your PC asked to uninstall $name. Tap to confirm on the phone.")
+                        "usage" -> Launch.openOrNotify(app, Apps.usageIntent(), false, "Show recent apps on your PC", "Tap, then turn on Usage access for DropWave")
                         else -> throw Exception("Unknown action")
                     }
                     JSObject().put("result", r)
@@ -290,7 +310,7 @@ object Link {
     /** Called for every event the plugin passes to the page. */
     fun onEvent(event: String, data: JSObject) {
         if (cfg == null || !::app.isInitialized) return
-        val kinds = setOf("phoneNotifs", "phoneMedia", "battery", "volume", "access", "call", "appcall", "sms", "controls", "mirror", "camera", "webcam")
+        val kinds = setOf("phoneNotifs", "phoneMedia", "battery", "volume", "access", "call", "appcall", "callaudio", "sms", "controls", "mirror", "camera", "webcam")
         if (event !in kinds || pageAwake()) return
         val n = synchronized(claimed) { ++probeN }
         val id = "ev$n"
@@ -314,7 +334,7 @@ object Link {
             }
             "phoneMedia" -> post("media", if (on("notifs")) d.opt("media") else null)
             "battery", "volume", "access" -> post("status", status())
-            "call", "appcall" -> if (on("calls")) post(event, d)
+            "call", "appcall", "callaudio" -> if (on("calls")) post(event, d)
             "sms" -> if (on("sms")) post("sms", d)
             "controls" -> if (on("controls")) post("controls", d)
             "mirror", "camera", "webcam" -> post(event, d)

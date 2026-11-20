@@ -220,7 +220,8 @@ class DropWavePlugin : Plugin() {
             .put("filesAccess", PhoneFiles.access())
             .put("controlAccess", ControlService.enabled(context))
             .put("mirroring", MirrorService.running)
-            .put("unrestricted", Access.unrestricted(context)))
+            .put("unrestricted", Access.unrestricted(context))
+            .put("maker", Oem.brand()))
     }
 
     // ---------- permissions & privacy ----------
@@ -235,6 +236,7 @@ class DropWavePlugin : Plugin() {
             "notifAccess" -> return openNotifAccess(call)
             "files" -> return openFilesAccess(call)
             "control" -> return openControlAccess(call)
+            "usage" -> { runCatching { activity.startActivity(Apps.usageIntent()) }; return call.resolve() }
             "battery" -> {
                 // Android's own "Let app always run in background?" dialog.
                 val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
@@ -256,6 +258,7 @@ class DropWavePlugin : Plugin() {
         when (g) {
             "notifAccess" -> return openNotifAccess(call)
             "files" -> return openFilesAccess(call)
+            "usage" -> { runCatching { activity.startActivity(Apps.usageIntent()) }; return call.resolve() }
             "battery" -> {
                 runCatching { activity.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
                 return call.resolve()
@@ -286,6 +289,17 @@ class DropWavePlugin : Plugin() {
         if (key !in setOf("controlBankingOff", "controlAutoOff")) return call.reject("Unknown setting")
         Access.prefs(context).edit().putBoolean(key, call.getBoolean("value", false) == true).apply()
         call.resolve(Access.state(context))
+    }
+
+    /** The phone maker's own "let it run in the background" page (Xiaomi autostart, Realme battery…). */
+    @PluginMethod
+    fun openBackgroundPage(call: PluginCall) = call.resolve(JSObject().put("opened", Oem.openBackgroundPage(context, activity)))
+
+    /** PCs announcing themselves on this Wi-Fi (listens for up to ms). */
+    @PluginMethod
+    fun discoverPcs(call: PluginCall) {
+        val ms = (call.getInt("ms", 2500) ?: 2500).toLong()
+        scope.launch { call.resolve(Discovery.listen(context, ms)) }
     }
 
     // ---------- native link to the PC (keeps working while the page sleeps) ----------
@@ -342,6 +356,7 @@ class DropWavePlugin : Plugin() {
             "open" -> Launch.openOrNotify(context, Apps.openIntent(context, pkg) ?: return call.reject("That app can’t be opened"), onScreen, "Open $name", "Your PC wants to open $name. Tap to open it.")
             "info" -> Launch.openOrNotify(context, Apps.infoIntent(pkg), onScreen, "$name: app info", "Tap to see $name in Android settings")
             "uninstall" -> Launch.openOrNotify(context, Apps.uninstallIntent(pkg), onScreen, "Uninstall $name?", "Your PC asked to uninstall $name. Tap to confirm on the phone.")
+            "usage" -> Launch.openOrNotify(context, Apps.usageIntent(), onScreen, "Show recent apps on your PC", "Tap, then turn on Usage access for DropWave")
             else -> return call.reject("Unknown action")
         }
         call.resolve(JSObject().put("result", r))
@@ -518,7 +533,8 @@ class DropWavePlugin : Plugin() {
     /** answer | decline | end */
     @PluginMethod
     fun callAction(call: PluginCall) {
-        if (Calls.act(context, call.getString("action", "")!!)) call.resolve() else call.reject("Couldn’t do that on this phone")
+        val err = Calls.control(context, call.getString("action", "")!!, call.getString("text", "")!!)
+        if (err == null) call.resolve() else call.reject(err)
     }
 
     @PluginMethod
@@ -678,7 +694,7 @@ class DropWavePlugin : Plugin() {
 
     @PluginMethod
     fun setClipboard(call: PluginCall) {
-        clipboard().setPrimaryClip(ClipData.newPlainText("DropWave", call.getString("text", "")))
+        Clips.setFromPc(context, call.getString("text", "")!!)
         call.resolve()
     }
 

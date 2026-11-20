@@ -89,7 +89,7 @@
     <input id="addr" inputmode="url" placeholder="192.168.1.8:47823" autocomplete="off" />
     <button class="btn soft" style="width:auto" type="submit">Add</button>
   </form>
-  <div class="hint">The address and PIN are shown on the PC under <b>Phone or TV</b>.</div>
+  <div class="hint">The address and PIN are shown on the PC under <b>Phone or TV</b>. Different network? With Tailscale or a cable, type the PC’s address from there (for example 100.101.102.103).</div>
 </div>
 
 <div id="pinSheet" class="sheet hidden"><div>
@@ -216,10 +216,35 @@
     connect('http://' + a);
   });
 
-  // Scan the phone's /24 subnet(s) for DropWave PCs (port 47823 answers /api/hello).
+  // Instant: PCs announce themselves on the Wi-Fi every 2 s (Android app only).
+  async function discover(ms = 2500) {
+    const r = await DW?.discoverPcs({ ms }).catch(() => null);
+    return (r?.list || []).map((x) => ({ id: x.id, name: x.name, base: `http://${x.address}:${x.web}` }));
+  }
+  function showFound(list) {
+    let n = 0;
+    for (const f of list) {
+      online.add(f.id);
+      const known = pcs.find((p) => p.id === f.id);
+      if (known) { if (known.base !== f.base) { known.base = f.base; known.sbase = ''; } known.name = f.name; savePcs(); renderMine(); }
+      else if (!document.getElementById('f-' + f.id)) { const c = card(f, { online: true, onClick: () => connect(f.base) }); c.id = 'f-' + f.id; $('#found').appendChild(c); }
+      n++;
+    }
+    return n;
+  }
+
+  // Scan: listen for PCs first; only if none answers, try every address on the phone's /24 subnet(s).
   $('#scan').addEventListener('click', async () => {
     const btn = $('#scan'); btn.disabled = true; btn.textContent = 'Scanning…';
     $('#found').innerHTML = ''; $('#scanbar').classList.remove('hidden');
+    $('#scanhint').textContent = 'Looking for PCs on this Wi-Fi…';
+    const quick = showFound(await discover(2500));
+    if (quick) {
+      $('#scanbar').classList.add('hidden');
+      $('#scanhint').textContent = `Found ${quick} PC${quick > 1 ? 's' : ''}. Tap one to connect.`;
+      btn.disabled = false; btn.textContent = 'Scan again';
+      return;
+    }
     const ips = ((await DW?.localIps().catch(() => null))?.ips || []).map((x) => x.address).filter((a) => /^(10|172|192)\./.test(a));
     if (!ips.length) { $('#scanhint').textContent = 'This phone isn’t on a Wi-Fi network.'; btn.disabled = false; btn.textContent = 'Scan for PCs'; $('#scanbar').classList.add('hidden'); return; }
     const hosts = [];
@@ -262,11 +287,34 @@
       const s = await hello(apiBase(pc), pc.key, 3000);
       if (s?.authed) pc.ok = true;
     }));
+    // A saved PC didn't answer: its address may have changed (new IP from the router). Find it again.
+    const missing = pcs.filter((p) => !p.ok);
+    if (missing.length) {
+      for (const f of await discover(2500)) {
+        const pc = missing.find((p) => p.id === f.id);
+        if (!pc) continue;
+        online.add(pc.id);
+        if (pc.base !== f.base) { pc.base = f.base; pc.sbase = ''; }
+        const h = await hello(pc.base);
+        if (!h || h.pc.id !== pc.id || (h.tls && pc.fp && pc.fp !== h.tls.fp) || !(await secure(pc, h))) continue;
+        const s = await hello(apiBase(pc), pc.key, 3000);
+        if (s?.authed) pc.ok = true;
+      }
+    }
     savePcs();
     renderMine();
     const last = [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
     if (!pick && last && last.ok) return open(last);
     if (!pcs.length) $('#scan').click();
+    // Saved PCs but none reachable (PC asleep or DropWave closed): look again every 10 s while this
+    // screen is in front, and connect by itself as soon as the PC is back.
+    else if (!pick && !pcs.some((p) => p.ok)) {
+      const again = () => {
+        const busy = !$('#pinSheet').classList.contains('hidden') || $('#scan').disabled || document.visibilityState !== 'visible' || $('#addr') === document.activeElement;
+        if (busy) setTimeout(again, 10000); else location.reload();
+      };
+      setTimeout(again, 10000);
+    }
   })();
 })();
 </script>

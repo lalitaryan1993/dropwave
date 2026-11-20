@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('dropwave', {
   webcamStop: (id) => ipcRenderer.invoke('webcam:stop', id),
   webcamSet: (id, patch) => ipcRenderer.invoke('webcam:set', id, patch),
   setOnTop: (on) => ipcRenderer.invoke('win:top', on),
+  callWinSize: (h) => ipcRenderer.invoke('callwin:size', h),
   vcamStatus: () => ipcRenderer.invoke('vcam:status'),
   vcamInstall: () => ipcRenderer.invoke('vcam:install'),
   vcamStart: () => ipcRenderer.invoke('vcam:start'),

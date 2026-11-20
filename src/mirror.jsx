@@ -2,7 +2,7 @@
 // Mouse: click = tap, hold = long press, drag = swipe, wheel = scroll, right-click = Back.
 // Keyboard: type into the focused field, Enter, Backspace; Esc = Back; Ctrl+V pastes the PC clipboard.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Circle, Square, Camera, X, Loader2, MousePointer2, Smartphone, Bell, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Circle, Square, Camera, X, Loader2, MousePointer2, Smartphone, Bell, Volume2, VolumeX, Upload } from 'lucide-react';
 import { api } from './lib.js';
 
 // "avc1.PPCCLL" from the SPS (first NAL of type 7 in the Annex B config).
@@ -107,6 +107,27 @@ export function MirrorApp() {
     return () => { offs.forEach((f) => f()); clearInterval(fpsTimer); decoder?.close?.(); };
   }, []);
 
+  // Files dropped on this window go to the phone (it asks there, like any file from the PC).
+  const [dropping, setDropping] = useState(false);
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    const enter = (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; setDropping(true); };
+    const over = (e) => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } };
+    const leave = () => { depth = Math.max(0, depth - 1); if (!depth) setDropping(false); };
+    const drop = async (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth = 0; setDropping(false);
+      const paths = api.pathsFromFiles([...e.dataTransfer.files]);
+      if (!paths.length) return;
+      try { await api.sendPaths(id, paths); flash(`Sending ${paths.length} item${paths.length > 1 ? 's' : ''} to ${name}…`); }
+      catch (err) { flash(String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
+    };
+    window.addEventListener('dragenter', enter); window.addEventListener('dragover', over);
+    window.addEventListener('dragleave', leave); window.addEventListener('drop', drop);
+    return () => { window.removeEventListener('dragenter', enter); window.removeEventListener('dragover', over); window.removeEventListener('dragleave', leave); window.removeEventListener('drop', drop); };
+  }, [id, name]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const playRef = useRef(play);
   playRef.current = play;
   const send = (ev) => api.mirrorInput(id, ev);
@@ -197,6 +218,11 @@ export function MirrorApp() {
           </div>
         )}
         {toast && <div className="absolute bottom-4 rounded-xl bg-white/15 px-3 py-1.5 text-[12px] backdrop-blur">{toast}</div>}
+        {dropping && (
+          <div className="pointer-events-none absolute inset-3 grid place-items-center rounded-[22px] border-2 border-dashed border-white/50 bg-black/60 backdrop-blur-sm">
+            <div className="text-center"><Upload className="mx-auto h-8 w-8" /><div className="mt-2 font-semibold">Drop to send to {name}</div></div>
+          </div>
+        )}
       </div>
       <div className="flex h-14 shrink-0 items-center justify-center gap-2">
         <Btn title="Back (right-click, Esc)" onClick={() => send({ t: 'back' })}><ArrowLeft className="h-5 w-5" /></Btn>

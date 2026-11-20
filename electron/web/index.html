@@ -27,6 +27,28 @@
     background: radial-gradient(700px 420px at 100% -10%, var(--a1), transparent 60%), radial-gradient(600px 420px at -10% 110%, var(--a2), transparent 60%), var(--bg);
     background-attachment: fixed; -webkit-font-smoothing:antialiased;
   }
+  /* Looks (Privacy tab › Look). Light / dark follow the phone. */
+  html[data-style="petal"] { --bg:#fff3f4; --panel:#ffffffd9; --raised:#fffafa; --line:rgba(120,30,50,.09); --line2:rgba(120,30,50,.17);
+    --fg:#2a1520; --muted:#7a5562; --faint:#a6838f; --accent:#e5486e; --accent2:#ff9a5c; --glow:rgba(229,72,110,.28); --a1:rgba(229,72,110,.18); --a2:rgba(255,154,92,.22); }
+  html[data-style="ink"] { --bg:#f3f0e8; --panel:#faf8f2; --raised:#fffdf8; --line:rgba(30,28,22,.14); --line2:rgba(30,28,22,.32);
+    --fg:#1d1b16; --muted:#5d584c; --faint:#8f897a; --accent:#1d1b16; --accent2:#1d1b16; --glow:transparent; --a1:transparent; --a2:transparent; }
+  html[data-style="dots"] { --bg:#fbf6ec; --panel:#fffcf5e6; --raised:#fffaf0; --line:rgba(90,60,10,.1); --line2:rgba(90,60,10,.2);
+    --fg:#2b2213; --muted:#6f604a; --faint:#a08f74; --accent:#e08a00; --accent2:#f2b705; --glow:rgba(224,138,0,.28); --a1:rgba(224,138,0,.14); --a2:transparent; --dot:rgba(150,110,40,.2); }
+  @media (prefers-color-scheme: dark) {
+    html[data-style="petal"] { --bg:#170c13; --panel:#26141fcc; --raised:#2d1828; --line:rgba(255,200,220,.08); --line2:rgba(255,200,220,.15);
+      --fg:#f8e8ee; --muted:#c5a2b0; --faint:#8e6b7a; --accent:#ff6b8e; --accent2:#ffb07a; --glow:rgba(255,107,142,.3); --a1:rgba(255,107,142,.18); --a2:rgba(255,176,122,.12); }
+    html[data-style="ink"] { --bg:#121212; --panel:#191919; --raised:#202020; --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.28);
+      --fg:#ecebe6; --muted:#a9a69c; --faint:#75736b; --accent:#ecebe6; --accent2:#ecebe6; }
+    html[data-style="dots"] { --bg:#13110d; --panel:#1f1b14e6; --raised:#27221a; --line:rgba(255,220,160,.08); --line2:rgba(255,220,160,.16);
+      --fg:#f3ead9; --muted:#bcae94; --faint:#847760; --accent:#ffa31a; --accent2:#ffcc33; --glow:rgba(255,163,26,.3); --a1:rgba(255,163,26,.14); --dot:rgba(255,200,110,.1); }
+  }
+  html[data-style="dots"] body { background: radial-gradient(circle at 1px 1px, var(--dot) 1.2px, transparent 1.6px) 0 0/18px 18px, radial-gradient(700px 420px at 100% -10%, var(--a1), transparent 60%), var(--bg); background-attachment: fixed; }
+  html[data-style="ink"] :is(.btn.primary, .pbtn.primary, .tabbar button.on, .bub.out, .sendbtn, .badge, .grad) { color:var(--bg); }
+  html[data-style="ink"] :is(.pbtn.primary) svg { color:var(--bg); }
+  .looks { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .looks button { border:1px solid var(--line); border-radius:16px; padding:8px 6px; background:var(--raised); font-size:12.5px; font-weight:600; cursor:pointer; }
+  .looks button.on { border-color:var(--accent); box-shadow:0 0 0 3px var(--glow); }
+  .looks i { display:block; height:34px; border-radius:10px; margin-bottom:6px; }
   button, input { font:inherit; color:inherit; }
   button { cursor:pointer; border:0; background:none; }
   :focus-visible { outline:3px solid var(--accent); outline-offset:3px; border-radius:14px; }
@@ -352,7 +374,8 @@
   <div id="vBody"></div>
 </div>
 
-<script src="rtc.js?v=1.7.0"></script>
+<script src="translate.js?v=1.8.1"></script>
+<script src="rtc.js?v=1.8.1"></script>
 <script>
 (() => {
   // Inside the DropWave Android app, window.DW_APP = { base, key, download(url, name), saveKey(key),
@@ -427,11 +450,13 @@
     $('#pin').value = ''; $('#pin').focus();
   });
 
+  let lostSince = 0;
   function connect() {
     if (es) es.close();
     const name = store.get('ld_name') || '';
     es = new EventSource(withKey(`/api/events?id=${encodeURIComponent(myId)}&name=${encodeURIComponent(name)}`));
     es.addEventListener('hello', (m) => {
+      lostSince = 0;
       const d = JSON.parse(m.data);
       $('#meName').textContent = d.you.name;
       setConn(true);
@@ -446,6 +471,10 @@
     es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); APP?.clearNotify?.('o-' + id); toast('The sender cancelled'); });
     es.onerror = () => {
       setConn(false);
+      // In the Android app: still unreachable after 20 s? The PC may have a new address: go back to
+      // the start screen, which finds it again on the Wi-Fi and reconnects.
+      if (!lostSince) lostSince = Date.now();
+      else if (APP && Date.now() - lostSince > 20000 && /client\.html/.test(location.pathname)) { es.close(); location.href = 'index.html'; return; }
       window.dwPhone?.disconnected();
       // A locked response (PIN changed) also lands here: re-check.
       api('/api/hello').then((x) => x.json()).then((r) => { if (!r.authed) { es.close(); boot(); } }).catch(() => {});
@@ -1007,6 +1036,6 @@
   boot();
 })();
 </script>
-<script src="phone.js?v=1.7.0"></script>
+<script src="phone.js?v=1.8.1"></script>
 </body>
 </html>

@@ -73,6 +73,7 @@ function defaultSettings() {
     knownKeys: {}, // device id -> identity key, pinned on first contact
     accent: 'wave', // colour theme: wave, ocean, sunset, forest, graphite
     style: 'aurora', // look: aurora, frost (Windows Mica), petal, ink, dots
+    language: 'en', // en | hi
     clipSync: true, // copy on the phone, paste on the PC (and back) with the Android app
     phoneNotifs: true, // the phone's new notifications pop up on this PC too
     remoteAllowed: [], // [{ id, name }] phones that may always use this PC's mouse and keyboard
@@ -105,7 +106,37 @@ const publicState = () => ({
   version: app.getVersion(),
 });
 
-const push = (channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); };
+const push = (channel, payload) => {
+  if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  // Phone updates also go to the call popup, and open / close it.
+  if (channel === 'phone' || channel === 'phone-gone') callPopup(channel, payload);
+};
+
+// ---- call popup: a small window on top of everything while a phone rings or is on a call ----
+let callWin = null;
+function callPopup(channel, payload) {
+  const calling = channel === 'phone' && payload?.call;
+  if (callWin && !callWin.isDestroyed()) callWin.webContents.send(channel, payload);
+  if (calling && (!callWin || callWin.isDestroyed())) {
+    const { screen } = require('electron');
+    const area = screen.getPrimaryDisplay().workArea;
+    callWin = new BrowserWindow({
+      width: 540, height: 130, x: area.x + area.width - 556, y: area.y + 16,
+      frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true, show: false, transparent: true, hasShadow: false,
+      backgroundColor: '#00000000', title: 'Call · DropWave', icon: iconPath(),
+      webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: false },
+    });
+    callWin.setAlwaysOnTop(true, 'screen-saver');
+    const hash = `callwin=${encodeURIComponent(payload.id)}`;
+    if (DEV_URL) callWin.loadURL(`${DEV_URL}#${hash}`); else callWin.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash });
+    callWin.webContents.on('will-navigate', (e) => e.preventDefault());
+    callWin.once('ready-to-show', () => callWin?.showInactive());
+    callWin.on('closed', () => { callWin = null; });
+  } else if (!calling && callWin && !callWin.isDestroyed()) {
+    const id = channel === 'phone' ? payload?.id : payload;
+    if (callWin.webContents.getURL().includes(`callwin=${encodeURIComponent(id)}`)) setTimeout(() => { try { callWin?.close(); } catch {} }, 400);
+  }
+}
 
 // ---- window ----
 const STYLE_BG = {
@@ -480,6 +511,7 @@ async function startWeb() {
   try {
     await w.start();
     web = w;
+    if (engine) engine.webPort = port;
   } catch (e) {
     webError = e.code === 'EADDRINUSE' ? `Port ${port} is used by another program` : e.message;
   }
@@ -489,6 +521,7 @@ async function stopWeb() {
   if (!web) return;
   const w = web;
   web = null;
+  if (engine) engine.webPort = null;
   await w.stop();
   push('peers', allPeers());
   phoneHub.sync([]);
@@ -532,7 +565,7 @@ function registerIpc() {
   ipcMain.handle('state', () => publicState());
 
   ipcMain.handle('settings:update', async (_e, patch) => {
-    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent', 'style'];
+    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent', 'style', 'language'];
     if ('trusted' in patch) {
       // Removing a trusted device also forgets its pinned identity (e.g. after a reinstall).
       const keep = new Set((patch.trusted || []).map((d) => d.id));
@@ -650,6 +683,7 @@ function registerIpc() {
   ipcMain.handle('webcam:start', (_e, id, front) => phoneHub.webcamStart(String(id), !!front));
   ipcMain.handle('webcam:stop', (_e, id) => phoneHub.webcamStop(String(id)));
   ipcMain.handle('webcam:set', (_e, id, patch) => phoneHub.webcamSet(String(id), patch && typeof patch === 'object' ? patch : {}));
+  ipcMain.handle('callwin:size', (_e, h) => { if (callWin && !callWin.isDestroyed()) callWin.setSize(540, Math.max(110, Math.min(360, Number(h) || 130))); });
   ipcMain.handle('vcam:status', () => vcamStatus());
   ipcMain.handle('vcam:install', () => vcamInstall());
   ipcMain.handle('vcam:start', () => vcamStart());

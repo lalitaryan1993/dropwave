@@ -7,7 +7,8 @@ import { Avatar, Button } from './components.jsx';
 import { Empty } from './contacts.jsx';
 
 const clean = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-const SORTS = [['name', 'Name'], ['updated', 'Recently updated'], ['installed', 'Recently installed'], ['size', 'Size']];
+const SORTS = [['name', 'Name'], ['used', 'Most used (7 days)'], ['updated', 'Recently updated'], ['installed', 'Recently installed'], ['size', 'Size']];
+const mins = (ms) => (ms >= 3600000 ? `${Math.round(ms / 360000) / 10} h` : `${Math.max(1, Math.round(ms / 60000))} min`);
 
 export function AppsView({ phones, selected, onSelect, toast }) {
   const list = Object.values(phones);
@@ -25,7 +26,7 @@ export function AppsView({ phones, selected, onSelect, toast }) {
   const load = () => {
     if (!id) return;
     setLoading(true);
-    api.phoneRpc(id, 'apps').then((r) => setData({ list: Array.isArray(r.list) ? r.list : [] })).catch((e) => setData({ error: clean(e) })).finally(() => setLoading(false));
+    api.phoneRpc(id, 'apps').then((r) => setData({ list: Array.isArray(r.list) ? r.list : [], usage: !!r.usage })).catch((e) => setData({ error: clean(e) })).finally(() => setLoading(false));
   };
   useEffect(() => { setData(null); setIcons({}); if (!off) load(); }, [id, off]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -49,10 +50,11 @@ export function AppsView({ phones, selected, onSelect, toast }) {
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
     const a = (data?.list || []).filter((x) => (system || !x.system) && (!s || x.name.toLowerCase().includes(s) || x.pkg.includes(s)));
-    const by = { name: (x, y) => x.name.localeCompare(y.name), updated: (x, y) => y.updated - x.updated, installed: (x, y) => y.installed - x.installed, size: (x, y) => y.size - x.size }[sort];
+    const by = { name: (x, y) => x.name.localeCompare(y.name), used: (x, y) => (y.usedMs || 0) - (x.usedMs || 0), updated: (x, y) => y.updated - x.updated, installed: (x, y) => y.installed - x.installed, size: (x, y) => y.size - x.size }[sort];
     return a.sort(by);
   }, [data, q, sort, system]);
   const hiddenSystem = (data?.list || []).filter((x) => x.system).length;
+  const recent = useMemo(() => (q ? [] : (data?.list || []).filter((x) => x.lastUsed > Date.now() - 3 * 86400000).sort((x, y) => y.lastUsed - x.lastUsed).slice(0, 8)), [data, q]);
 
   const act = async (app, action) => {
     setMenu(null);
@@ -65,7 +67,7 @@ export function AppsView({ phones, selected, onSelect, toast }) {
       }
       if (action === 'apk') { const r = await api.appApk(id, app.pkg, `${app.name} ${app.version}`.trim(), app.size); toast(`Copying ${app.name} to ${r.dir}`); return; }
       const r = await api.phoneRpc(id, 'appAction', { pkg: app.pkg, action });
-      const what = { open: `Opened ${app.name}`, info: `${app.name} info is open`, uninstall: `Confirm uninstalling ${app.name} on the phone` }[action];
+      const what = { open: `Opened ${app.name}`, info: `${app.name} info is open`, uninstall: `Confirm uninstalling ${app.name} on the phone`, usage: 'Usage access settings are open' }[action];
       toast(r.result === 'notified' ? `Tap the notification on ${phone.name} to continue` : `${what} on ${phone.name}`);
     } catch (e) { toast(clean(e), 'error'); }
   };
@@ -101,6 +103,27 @@ export function AppsView({ phones, selected, onSelect, toast }) {
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-8">
+        {data?.list && !data.usage && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-line px-4 py-3 text-[12.5px] text-muted">
+            <span className="flex-1">See the apps you used lately here: turn on <b>Usage access</b> for DropWave on {phone.name}.</span>
+            <Button variant="soft" onClick={() => act({ pkg: '', name: 'Usage access' }, 'usage')}>Open on the phone</Button>
+          </div>
+        )}
+        {recent.length > 0 && (
+          <>
+            <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-faint">Recent</div>
+            <div className="mb-6 flex gap-3 overflow-x-auto pb-1">
+              {recent.map((a) => (
+                <button key={a.pkg} onClick={() => act(a, 'open')} title={`Open ${a.name} on the phone · ${mins(a.usedMs || 0)} this week`}
+                  className="no-drag flex w-[92px] shrink-0 flex-col items-center rounded-2xl px-2 py-2.5 transition hover:bg-[var(--line)]">
+                  {icons[a.pkg] ? <img src={icons[a.pkg]} alt="" className="h-12 w-12 rounded-2xl object-contain" draggable={false} /> : <Avatar id={a.pkg} name={a.name} size={48} />}
+                  <span className="mt-1.5 w-full truncate text-[12px] font-medium">{a.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-faint">All apps</div>
+          </>
+        )}
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
           {shown.map((a) => (
             <div key={a.pkg} className="group relative flex flex-col items-center rounded-2xl border border-line bg-raised/60 px-3 pb-3 pt-4 text-center transition hover:border-line-strong hover:bg-raised">
@@ -108,7 +131,7 @@ export function AppsView({ phones, selected, onSelect, toast }) {
                 {icons[a.pkg] ? <img src={icons[a.pkg]} alt="" className="h-12 w-12 rounded-2xl object-contain" draggable={false} /> : <Avatar id={a.pkg} name={a.name} size={48} />}
                 <span className="mt-2 line-clamp-2 text-[13px] font-medium leading-tight">{a.name}</span>
               </button>
-              <span className="mt-1 block w-full truncate text-[11px] text-faint" title={a.version}>{a.version ? `v${a.version} · ` : ''}{fmtSize(a.size)}</span>
+              <span className="mt-1 block w-full truncate text-[11px] text-faint" title={a.version}>{sort === 'used' && a.usedMs ? `${mins(a.usedMs)} this week` : <>{a.version ? `v${a.version} · ` : ''}{fmtSize(a.size)}</>}</span>
               <div className="mt-2 flex gap-0.5 opacity-70 transition group-hover:opacity-100">
                 <Button variant="ghost" className="h-7 w-7 !px-0" title="Open on the phone" onClick={() => act(a, 'open')}><Play className="h-3.5 w-3.5" /></Button>
                 <Button variant="ghost" className="h-7 w-7 !px-0" title="Open in a window on this PC" onClick={() => act(a, 'window')}><MonitorSmartphone className="h-3.5 w-3.5" /></Button>

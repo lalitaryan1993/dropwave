@@ -239,6 +239,8 @@ export default function App() {
       { id: 'check', title: 'Network check', hint: 'Find and fix why a device can’t be seen', Icon: Stethoscope, group: 'Actions', keywords: 'firewall doctor fix', run: () => { setView('settings'); setCheckSignal((n) => n + 1); } },
       { id: 'theme', title: document.documentElement.classList.contains('dark') ? 'Switch to light mode' : 'Switch to dark mode', Icon: Moon, group: 'Appearance', keywords: 'theme dark light',
         run: () => updateSettings({ theme: document.documentElement.classList.contains('dark') ? 'light' : 'dark' }) },
+      { id: 'lang-hi', title: 'हिन्दी में दिखाएँ (Hindi)', Icon: Palette, group: 'Appearance', keywords: 'language hindi bhasha', run: () => updateSettings({ language: 'hi' }) },
+      { id: 'lang-en', title: 'Show in English', Icon: Palette, group: 'Appearance', keywords: 'language english', run: () => updateSettings({ language: 'en' }) },
       ...STYLES.map(([id, name, hint]) => ({ id: `style-${id}`, title: `${name} style`, hint, Icon: Palette, group: 'Appearance', keywords: 'theme look design style', run: () => updateSettings({ style: id }) })),
       ...ACCENTS.map(([id, name]) => ({ id: `accent-${id}`, title: `${name} colours`, Icon: Palette, group: 'Appearance', keywords: 'theme accent color', run: () => updateSettings({ accent: id }) })),
       { id: 'update', title: 'Check for updates', Icon: Download, group: 'Actions', run: () => api.checkUpdate().then(setUpdate) },
@@ -750,6 +752,13 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
                 className={`flex h-20 flex-col items-center justify-center gap-2 rounded-2xl border text-[13px] font-medium transition ${s.theme === id ? 'border-accent bg-accent/10 text-fg shadow-[0_0_0_3px_var(--glow)]' : 'border-line text-muted hover:border-line-strong hover:text-fg'}`}>
                 <Icon className="h-5 w-5" /> {l}
               </button>
+            ))}
+          </div>
+          <div className="pt-1 text-[12px] font-semibold text-muted">Language</div>
+          <div className="flex gap-2.5" data-no-translate>
+            {[['en', 'English'], ['hi', 'हिन्दी']].map(([id, l]) => (
+              <button key={id} onClick={() => update({ language: id })}
+                className={`h-10 rounded-xl border px-4 text-[13px] font-medium transition ${(s.language || 'en') === id ? 'border-accent bg-accent/10 text-fg shadow-[0_0_0_3px_var(--glow)]' : 'border-line text-muted hover:border-line-strong hover:text-fg'}`}>{l}</button>
             ))}
           </div>
           <div className="pt-1 text-[12px] font-semibold text-muted">Style</div>

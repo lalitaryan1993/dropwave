@@ -89,7 +89,7 @@ class PhoneHub {
   }
 
   start() {
-    try { this.lastClip = this.o.clipboard.readText(); } catch {}
+    this.#readClip().then((t) => { this.lastClip = t; });
     this.clipTimer = setInterval(() => this.#pollClipboard(), 1000);
     this.backupTimer = setInterval(() => { for (const id of this.phones.keys()) this.backupCheck(id); }, 10 * 60 * 1000);
   }
@@ -222,6 +222,7 @@ class PhoneHub {
       case 'photos': if (d.purpose === 'backup') this.#gotBackup(p, d); else this.#gotPhotos(p, d); return;
       case 'call': this.#gotCall(p, d); break;
       case 'appcall': this.#gotAppCall(p, d); break;
+      case 'callaudio': if (p.call) p.call = { ...p.call, muted: !!d.muted, speaker: !!d.speaker }; break;
       case 'sms-threads': case 'sms-thread': case 'sms': case 'sms-sent': this.#gotSms(p, type, d); return;
       case 'files': this.#gotFiles(p, d); return;
       case 'mirror': {
@@ -291,7 +292,8 @@ class PhoneHub {
       setTimeout(() => this.o.web()?.sendPhone(p.id, { type: 'calllog' }), 1500);
       return;
     }
-    p.call = { state, ...who, since: state === prev?.state ? prev.since : Date.now(), incoming: state === 'ringing' || !!prev?.incoming };
+    p.call = { state, ...who, since: state === prev?.state ? prev.since : Date.now(), incoming: state === 'ringing' || !!prev?.incoming,
+      muted: typeof d.muted === 'boolean' ? d.muted : !!prev?.muted, speaker: typeof d.speaker === 'boolean' ? d.speaker : !!prev?.speaker };
     if (state === 'ringing' && prev?.state !== 'ringing') {
       this.o.attention(`${label} is calling`, `On ${p.name} · answer or decline in DropWave`);
     }
@@ -742,13 +744,26 @@ class PhoneHub {
     return true;
   }
 
-  #pollClipboard() {
+  // The PC's clipboard as text, or ''. Some Electron versions hand back a Promise here; anything
+  // that isn't a string (a Promise, an object) must never reach the phone (it showed up as "{}").
+  async #readClip() {
+    try {
+      let t = this.o.clipboard.readText();
+      if (t && typeof t.then === 'function') t = await t;
+      return typeof t === 'string' ? t : '';
+    } catch { return ''; }
+  }
+
+  async #pollClipboard() {
+    if (this.polling) return;
+    this.polling = true;
     let t = '';
-    try { t = this.o.clipboard.readText(); } catch { return; }
+    try { t = await this.#readClip(); } finally { this.polling = false; }
     if (!t || t === this.lastClip) return;
     this.lastClip = t;
     if (this.o.settings().clipSync === false || t.length > 100 * 1024) return;
     const web = this.o.web();
+    if (process.env.DROPWAVE_DEBUG) console.log('[clip] to phones', JSON.stringify(t.slice(0, 40)));
     for (const p of this.phones.values()) if (p.status?.clip) web?.sendPhone(p.id, { type: 'clip', text: t, auto: true });
   }
 

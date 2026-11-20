@@ -256,7 +256,8 @@ class Engine extends EventEmitter {
   get fingerprint() { return fingerprint(this.idKey); }
 
   info() {
-    return { app: 'dropwave', v: PROTOCOL, id: this.id, name: this.name, port: this.port, platform: process.platform, idKey: this.idKey };
+    // web: the phones-and-TVs port, so the Android app finds this PC instantly (no subnet scan).
+    return { app: 'dropwave', v: PROTOCOL, id: this.id, name: this.name, port: this.port, platform: process.platform, idKey: this.idKey, web: this.webPort || null };
   }
 
   async start() {

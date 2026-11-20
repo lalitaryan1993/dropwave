@@ -51,6 +51,7 @@ object Access {
         .put("control", ControlService.enabled(ctx))
         .put("controlRunning", ControlService.instance != null)
         .put("battery", if (unrestricted(ctx)) "all" else "none")
+        .put("usage", if (Apps.usageAllowed(ctx)) "all" else "none")
         .put("canRevoke", Build.VERSION.SDK_INT >= 33)
         .put("controlBankingOff", prefs(ctx).getBoolean("controlBankingOff", true))
         .put("controlAutoOff", prefs(ctx).getBoolean("controlAutoOff", false))

@@ -2,7 +2,7 @@
 // and the phone's recent calls.
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Copy, Check, Delete, Grid3x3, X } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Copy, Check, Delete, Grid3x3, X, Mic, MicOff, Volume2, BellOff, MessageSquareText } from 'lucide-react';
 import { api, timeAgo } from './lib.js';
 import { Avatar, Modal } from './components.jsx';
 
@@ -14,28 +14,54 @@ function useTick(on) {
 }
 
 /** Floating banner while any phone rings or is on a call. */
-export function CallBanner({ phones }) {
+/** The call popup window (on top of everything): the same controls, filling the small window. */
+export function CallWindow() {
+  const [phones, setPhones] = useState({});
+  useEffect(() => {
+    document.documentElement.style.background = 'transparent';
+    document.body.style.background = 'transparent';
+    api.phoneList().then((r) => setPhones(Object.fromEntries(r.phones.map((p) => [p.id, p]))));
+    const offs = [
+      api.onPhone((p) => setPhones((x) => ({ ...x, [p.id]: p }))),
+      api.onPhoneGone?.((id) => setPhones((x) => { const n = { ...x }; delete n[id]; return n; })),
+    ].filter(Boolean);
+    return () => offs.forEach((f) => f());
+  }, []);
+  return <div className="h-full p-2"><CallBanner phones={phones} inline /></div>;
+}
+
+export function CallBanner({ phones, inline }) {
   const p = Object.values(phones).find((x) => x.call);
   const c = p?.call;
   useTick(!!c);
   // Phone-network calls go through Android's telecom API; app calls press their notification's button.
+  // Phone-network calls go through Android's telecom API; app calls press their notification's button
+  // (sent as a "call" command, so it works with the phone's Notifications switch off too).
   const act = (action) => {
-    if (c.key) {
+    if (c.key && ['answer', 'decline', 'end'].includes(action)) {
       const i = c[action === 'end' ? 'end' : action];
-      if (i >= 0) return api.phoneCmd(p.id, { type: 'notif', key: c.key, action: 'act', i }).catch(() => {});
-      return api.phoneCmd(p.id, { type: 'notif', key: c.key, action: 'dismiss' }).catch(() => {});
+      return api.phoneCmd(p.id, { type: 'call', action, key: c.key, i: i >= 0 ? i : -1 }).catch(() => {});
     }
     return api.phoneCmd(p.id, { type: 'call', action }).catch(() => {});
   };
   const who = c ? c.name || c.number || 'Unknown number' : '';
+  const [replies, setReplies] = useState(false);
+  const [silenced, setSilenced] = useState(false);
+  useEffect(() => { setReplies(false); setSilenced(false); }, [c?.state, c?.number]);
+  useEffect(() => { if (inline) api.callWinSize?.(replies ? 330 : 130); }, [replies, inline]);
+  const sms = (text) => { setReplies(false); api.phoneCmd(p.id, { type: 'call', action: 'sms', text }).catch(() => {}); };
+  const QUICK = ['Can’t talk right now. I’ll call you back.', 'In a meeting. Will call later.', 'Driving, will call you soon.', 'Please send a message.'];
+  const Round = ({ title, onClick, on, children, cls = '' }) => (
+    <button onClick={onClick} title={title} className={`no-drag grid h-10 w-10 place-items-center rounded-full transition active:scale-95 ${on ? 'bg-accent text-white' : 'bg-[var(--line)] text-fg hover:bg-[var(--line-strong)]'} ${cls}`}>{children}</button>
+  );
   return (
     <AnimatePresence>
       {c && (
         <motion.div key={c.state} initial={{ opacity: 0, y: -18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -12 }}
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-          className="fixed left-1/2 top-14 z-[58] -translate-x-1/2">
+          className={inline ? 'w-full' : 'fixed left-1/2 top-14 z-[58] -translate-x-1/2'}>
           {c.state === 'ringing' ? (
-            <div className="flex w-[420px] items-center gap-4 rounded-[24px] border border-line-strong bg-panel-solid p-4 shadow-2xl">
+            <div className={`drag flex items-center gap-3 rounded-[24px] border border-line-strong bg-panel-solid p-4 shadow-2xl ${inline ? 'w-full' : 'w-[440px]'}`}>
               <div className="relative">
                 <span className="absolute inset-0 animate-ping rounded-full bg-good/40" />
                 <Avatar id={c.number || who} name={who} size={52} />
@@ -45,15 +71,30 @@ export function CallBanner({ phones }) {
                 <div className="truncate font-display text-[18px] font-semibold">{who}</div>
                 {c.name && c.number && <div className="truncate text-[12px] text-faint tabular">{c.number}</div>}
               </div>
+              {!c.key && (
+                <div className="relative flex gap-1.5">
+                  <Round title={silenced ? 'Ringtone is off' : 'Silence the ringtone'} on={silenced} onClick={() => { setSilenced(true); act('silence'); }}><BellOff className="h-4 w-4" /></Round>
+                  <Round title="Decline with a message" on={replies} onClick={() => setReplies((r) => !r)}><MessageSquareText className="h-4 w-4" /></Round>
+                  {replies && (
+                    <div className="absolute right-0 top-12 z-10 w-[280px] rounded-2xl border border-line-strong bg-panel-solid p-1.5 shadow-2xl">
+                      {QUICK.map((t) => <button key={t} onClick={() => sms(t)} className="no-drag block w-full rounded-xl px-3 py-2 text-left text-[13px] hover:bg-[var(--line)]">{t}</button>)}
+                    </div>
+                  )}
+                </div>
+              )}
               <button onClick={() => act('decline')} title="Decline" className="no-drag grid h-12 w-12 place-items-center rounded-full bg-bad text-white shadow-lg active:scale-95"><PhoneOff className="h-5 w-5" /></button>
               {(!c.key || c.answer >= 0) && <button onClick={() => act('answer')} title="Answer on the phone" className="no-drag grid h-12 w-12 place-items-center rounded-full bg-good text-white shadow-lg active:scale-95"><Phone className="h-5 w-5" /></button>}
             </div>
           ) : (
-            <div className="flex items-center gap-3 rounded-full border border-good/50 bg-panel-solid py-1.5 pl-4 pr-1.5 shadow-xl">
+            <div className={`drag flex items-center gap-3 rounded-full border border-good/50 bg-panel-solid py-1.5 pl-4 pr-1.5 shadow-xl ${inline ? 'w-full' : ''}`}>
               <span className="h-2 w-2 animate-pulse rounded-full bg-good" />
               <span className="max-w-[220px] truncate text-[13px] font-semibold">{who}</span>
-              <span className="text-[12px] text-faint tabular">{fmtDur(Math.floor((Date.now() - c.since) / 1000))} · {c.app ? `${c.app} · ` : ''}on {p.name}</span>
-              <button onClick={() => act('end')} className="no-drag flex h-8 items-center gap-1.5 rounded-full bg-bad px-3 text-[12px] font-semibold text-white active:scale-95"><PhoneOff className="h-3.5 w-3.5" /> Hang up</button>
+              <span className="shrink-0 whitespace-nowrap text-[12px] text-faint tabular">{fmtDur(Math.floor((Date.now() - c.since) / 1000))} · {c.app ? `${c.app} · ` : ''}on {p.name}</span>
+              {<>
+                <Round title={c.muted ? 'Unmute' : 'Mute'} on={c.muted} onClick={() => act(c.muted ? 'unmute' : 'mute')}>{c.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}</Round>
+                <Round title={c.speaker ? 'Speaker off' : 'Speaker'} on={c.speaker} onClick={() => act(c.speaker ? 'earpiece' : 'speaker')}><Volume2 className="h-4 w-4" /></Round>
+              </>}
+              <button onClick={() => act('end')} className="no-drag flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-bad px-3 text-[12px] font-semibold text-white active:scale-95"><PhoneOff className="h-3.5 w-3.5" /> Hang up</button>
             </div>
           )}
         </motion.div>

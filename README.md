@@ -51,12 +51,36 @@
 </tr>
 </table>
 
-**And more:** the phone's screen in a window with mouse and keyboard control · clipboard both ways (and a *Send clipboard* tile on the phone) · music and volume · the phone as a touchpad and shortcut Deck for the PC · works while the phone is locked · **Hindi** and English · five styles in light and dark.
+**And more:** clipboard both ways (and a *Send clipboard* tile on the phone) · music and volume · works while the phone is locked · **Hindi** and English · five styles in light and dark.
 
 <p align="center">
   <img src="docs/readme/f-upi.png" alt="When a bank or UPI app opens, control from the PC switches off" width="420" /><br />
   <sub><b>Safe by default:</b> when a bank or UPI app opens on the phone, control from the PC switches itself off.</sub>
 </p>
+
+## 💻 PC ↔ PC, phone screen, calls and your TV
+
+DropWave started as the fastest way to move files around the house, and it does a lot more between your devices:
+
+<table>
+<tr>
+<td width="33%" valign="top"><img src="docs/readme/p-pcpc.png" alt="Drag and drop between PCs" /><br /><b>💻 PC ↔ PC drag & drop</b><br />PCs on the network find each other. Drop files <b>or whole folders</b> on a device card. No size limit, original quality.</td>
+<td width="33%" valign="top"><img src="docs/readme/p-mirror.png" alt="The phone's screen in a window on the PC" /><br /><b>📱 Phone screen on your PC</b><br />See the phone's screen in a window and use it with your <b>mouse and keyboard</b>: click, scroll, type, Back / Home, with the phone's sound.</td>
+<td width="33%" valign="top"><img src="docs/readme/p-calls.png" alt="Video call with screen sharing between PCs" /><br /><b>🎥 Video calls + screen share</b><br />Voice and video calls between PCs and phones. Share your screen, or ask to see another PC's screen, and talk while you work.</td>
+</tr>
+<tr>
+<td width="33%" valign="top"><img src="docs/readme/p-control.png" alt="Remote control asks the other PC first" /><br /><b>🖱️ Remote control, with Allow</b><br />Drive another PC's mouse and keyboard from a PC or from your phone. It asks first, shows who is in control, and <b>Stop</b> ends it.</td>
+<td width="33%" valign="top"><img src="docs/readme/p-tv.png" alt="A photo full-screen on a smart TV" /><br /><b>📺 Stream to your TV</b><br />Open the TV's browser, scan or type the address once. Photos and videos open <b>full-screen</b>, no download, with big remote-friendly buttons.</td>
+<td width="33%" valign="top"><img src="docs/readme/p-play.png" alt="Play a video before accepting it" /><br /><b>▶️ Play before you accept</b><br />Got a 4 GB video? Hit <b>Play</b> in the Accept dialog: it streams from the sender, with seeking, while you decide whether to keep it.</td>
+</tr>
+<tr>
+<td width="33%" valign="top"><img src="docs/readme/p-qr.png" alt="Connect a phone or TV with a QR code" /><br /><b>🔗 Phones, iPhones & TVs: no app</b><br />Click <b>Phone or TV</b>, scan the QR code, enter the PIN. Any browser can send and receive, phone ↔ phone and phone ↔ TV too.</td>
+<td width="33%" valign="top"><img src="docs/readme/p-deck.png" alt="The phone as a touchpad and shortcut Deck" /><br /><b>🎛️ Phone = touchpad + Deck</b><br /><b>Control PC</b> turns the phone into a touchpad and keyboard, and the <b>Deck</b> gives media, volume, slides, Lock and Sleep buttons.</td>
+<td width="33%" valign="top"><img src="docs/readme/p-secure.png" alt="Transfer activity with encryption" /><br /><b>🔒 Encrypted & resumable</b><br />PC-to-PC is end-to-end encrypted (X25519 + AES-256-GCM). Wi-Fi dropped? It resumes from the last byte, SHA-256 checked.</td>
+</tr>
+</table>
+
+**Also:** 💬 chat with any device (links, notes, clipboard) · right-click **Send with DropWave** in File Explorer · one-click **network check** · Accept / Decline for every transfer · **auto-update**.
 
 ## 🚀 Get started in 2 minutes
 
@@ -64,6 +88,7 @@
    <sub>Windows may say *"Windows protected your PC"* because the app isn't code-signed yet: **More info → Run anyway**.</sub>
 2. **Phone:** install **`DropWave-Android-x.y.z.apk`** from the same release (Android 10+). It finds your PC on the Wi-Fi by itself; enter the PIN shown on the PC once.
 3. On the phone, open **Privacy** and turn on what you want to share. Android asks once for each permission. That's it.
+4. **More PCs?** Install DropWave on each one and they find each other. **TVs and iPhones** need nothing: click **Phone or TV** on the PC and scan the QR code.
 
 > Phone and PC must be on the **same Wi-Fi**. No internet is needed. iPhones and smart TVs can still send and receive files from the browser, no install (see below).
 
@@ -87,35 +112,6 @@
 | Phones & TVs without installing anything | ✅ | ⚠️ app needed | ❌ |
 | Your data stays at home | ✅ | ❌ | ✅ |
 | Free and open source | ✅ | ⚠️ | ✅ |
-
-## 📤 Send files to every device
-
-DropWave started as the fastest way to move files around the house, and that is still here.
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-- **PC ↔ PC drag & drop**: PCs on the network find each other. Drop files **or whole folders** on a device card.
-- **Phones, iPhones, tablets & TVs, no app**: click **Phone or TV**, scan the QR code, done.
-- **▶️ Play now**: watch a 4 GB video **before** accepting it, streamed from the sender, with seeking.
-- **Always asks first**: Accept / Decline with the file list, or *Always accept* for your own devices.
-
-</td>
-<td width="50%" valign="top">
-
-- **🔒 Encrypted & resumable**: PC-to-PC is end-to-end encrypted (X25519 + AES-256-GCM); the Android app uses TLS 1.3 with a pinned certificate. Wi-Fi dropped? It resumes. SHA-256 verified.
-- **💬 Chat, calls & screen sharing** between PCs and phones, and **remote control** with the other side's **Allow**.
-- **Right-click → Send with DropWave** in File Explorer, a one-click **network check**, and **auto-update**.
-
-</td>
-</tr>
-</table>
-
-<p align="center">
-  <img src="docs/screenshots/desktop-dark.png" alt="Nearby devices: PCs, a phone and a TV, with live transfers" width="49%" />
-  <img src="docs/screenshots/phones.png" alt="DropWave in a phone browser, light and dark" width="49%" />
-</p>
 
 <details>
 <summary><b>📸 More screenshots</b></summary>

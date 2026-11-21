@@ -84,6 +84,56 @@ function lines(proc) {
   await kb.waitFor(/^got leave$/);
   console.log('ok  Ctrl+Alt+Home takes the mouse back and releases keys on the other PC');
 
+  // Files copied in Explorer on A (a presentation and a folder) cross with the mouse; on B they land in a
+  // temp folder and are put on B's clipboard, ready for Ctrl+V. Big data goes on its own channel.
+  const src = path.join(root, 'copied');
+  fs.mkdirSync(path.join(src, 'Slides', 'img'), { recursive: true });
+  const ppt = require('node:crypto').randomBytes(24 * 1024 * 1024 + 17);
+  fs.writeFileSync(path.join(src, 'Pitch deck.pptx'), ppt);
+  fs.writeFileSync(path.join(src, 'Slides', 'img', 'a.png'), 'png');
+  fs.writeFileSync(path.join(src, 'Slides', 'empty.txt'), '');
+  const ready = new Promise((r) => fb.once('files-ready', r));
+  fa.kvm.stdin.write('fake-files ' + JSON.stringify([path.join(src, 'Pitch deck.pptx'), path.join(src, 'Slides')]) + '\n');
+  fa.kvm.stdin.write('inject edge right 0.5\n');
+  const got = await ready;
+  assert.deepEqual(got.names, ['Pitch deck.pptx', 'Slides']);
+  const put = JSON.parse((await kb.waitFor(/^got putfiles /)).slice(13));
+  assert.equal(put.length, 2);
+  assert.ok(fs.readFileSync(put[0]).equals(ppt), 'the presentation arrives byte for byte');
+  assert.equal(fs.readFileSync(path.join(put[1], 'img', 'a.png'), 'utf8'), 'png');
+  assert.equal(fs.statSync(path.join(put[1], 'empty.txt')).size, 0);
+  console.log('ok  files copied on one PC (a 24 MB presentation and a folder) are ready to paste on the other');
+
+  // Crossing back with those same files on B's clipboard doesn't send them back to A.
+  fb.kvm.stdin.write('fake-files ' + JSON.stringify(put) + '\n');
+  let back = 0; fa.on('files-ready', () => back++);
+  fb.kvm.stdin.write('inject leave 0.5\n');
+  await ka.waitFor(/^got release right 0.5$/);
+  await wait(400);
+  assert.equal(back, 0);
+  console.log('ok  pasted files are not sent back when the mouse returns');
+
+  // One small picture (one network frame, bigger than the disk buffer): its last write says "wait",
+  // then the file ends at once. This used to leave the channel paused forever: nothing reached the
+  // clipboard, and every later copy (text too) was stuck behind it.
+  const pic = require('node:crypto').randomBytes(40 * 1024);
+  fs.writeFileSync(path.join(src, 'banner.png'), pic);
+  const ready2 = new Promise((r) => fb.once('files-ready', r));
+  fa.kvm.stdin.write('fake-files ' + JSON.stringify([path.join(src, 'banner.png')]) + '\n');
+  fa.kvm.stdin.write('inject edge right 0.5\n');
+  const got2 = await Promise.race([ready2, wait(8000).then(() => null)]);
+  assert.ok(got2, 'a small picture reaches the other clipboard');
+  assert.deepEqual(got2.names, ['banner.png']);
+  fb.kvm.stdin.write('inject leave 0.5\n');
+  await wait(300);
+  // ...and plain text still crosses afterwards.
+  clipA.text = 'after the picture'; clipA.png = null;
+  fa.kvm.stdin.write('fake-files []\n');
+  fa.kvm.stdin.write('inject edge right 0.5\n');
+  for (let i = 0; i < 100 && clipB.text !== 'after the picture'; i++) await wait(30);
+  assert.equal(clipB.text, 'after the picture');
+  console.log('ok  a small picture, then text: both reach the other PC (no stuck channel)');
+
   fa.stop(); fb.stop();
   await A.stop(); await B.stop();
   fs.rmSync(root, { recursive: true, force: true });

@@ -12,6 +12,6 @@ if not defined VCVARS (echo Visual Studio 2022 C++ build tools not found & exit 
 call "%VCVARS%" >nul || exit /b 1
 if not exist "%OUT%" mkdir "%OUT%"
 cd /d "%ROOT%"
-cl /nologo /O2 /EHsc /std:c++17 /W3 /DUNICODE /D_UNICODE /D_CRT_SECURE_NO_WARNINGS dwkvm.cpp /link /SUBSYSTEM:CONSOLE /OUT:"%OUT%\dwkvm.exe" user32.lib || exit /b 1
+cl /nologo /O2 /EHsc /std:c++17 /W3 /DUNICODE /D_UNICODE /D_CRT_SECURE_NO_WARNINGS dwkvm.cpp /link /SUBSYSTEM:CONSOLE /OUT:"%OUT%\dwkvm.exe" user32.lib shell32.lib || exit /b 1
 del /q *.obj 2>nul
 echo built %OUT%

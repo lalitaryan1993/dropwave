@@ -888,6 +888,7 @@ function FlowCard({ pcs }) {
             <span className="text-muted">of this screen</span>
           </div>
           {status && <div className={status.cls}>{status.t}</div>}
+          {st.lastCopy && <div className="text-muted">Last copy: {st.lastCopy.what} {st.lastCopy.dir === 'out' ? `sent to ${st.peer?.name || 'the other PC'}` : `received from ${st.peer?.name || 'the other PC'}`} at {new Date(st.lastCopy.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>}
           <div className="text-faint">The other PC asks once before it lets this mouse in. Ctrl+Alt+Home always brings the mouse back here.</div>
         </div>
       )}

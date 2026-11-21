@@ -443,7 +443,8 @@ class PhoneHub {
     this.o.push('otp-copied', { peer: { id: p.id, name: p.name }, code });
     clearTimeout(this.otpTimer);
     this.otpTimer = setTimeout(() => {
-      try { if (String(this.o.clipboard.readText() || '') === code) { this.lastClip = ''; this.o.clipboard.writeText(''); } } catch {}
+      // Still the code after a minute (nothing else copied since): clear it. readText may be async.
+      this.#readClip().then((t) => { if (t === code) { this.lastClip = ''; Promise.resolve(this.o.clipboard.writeText('')).catch(() => {}); } });
       this.lastOtp = '';
     }, 60000);
   }

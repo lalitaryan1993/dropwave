@@ -506,10 +506,10 @@ class Engine extends EventEmitter {
   }
 
   /** Long-lived encrypted channel for mouse and keyboard sharing (see flow.cjs). */
-  async openKvm(peer) {
+  async openKvm(peer, role = 'input') {
     if (peer.outdated) throw new Error(`${peer.name} needs to update DropWave`);
     const { ch } = await this.#connect(peer.ip, peer.port, peer.id);
-    send(ch, { type: 'kvm', from: { name: this.name } });
+    send(ch, { type: 'kvm', role, from: { name: this.name } });
     return ch;
   }
 
@@ -559,7 +559,7 @@ class Engine extends EventEmitter {
           // clipboard pictures are data. main decides whether this PC lets that one in.
           state = 'closed';
           sock.removeAllListeners('data');
-          this.emit('kvm', { ch: sock, from: { id: peerId, name: String(m.from?.name || this.#nameOf(peerId, sock)).slice(0, 64) } });
+          this.emit('kvm', { ch: sock, role: m.role === 'files' ? 'files' : 'input', from: { id: peerId, name: String(m.from?.name || this.#nameOf(peerId, sock)).slice(0, 64) } });
           return;
         }
         if (m.type === 'rtc') {

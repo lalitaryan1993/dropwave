@@ -17,6 +17,7 @@ const { PhoneHub } = require('./phone.cjs');
 const { UsbLink } = require('./usb.cjs');
 const { setupDocs } = require('./docs.cjs');
 const { Flow } = require('./flow.cjs');
+const clip = require('./clip.cjs');
 
 // Remote control: off unless the user allows it for the screen share that is running now.
 const remoteInput = new RemoteInput();
@@ -617,10 +618,7 @@ function startFlow() {
       save('settings.json', settings);
       return true;
     },
-    clipboard: {
-      read: () => { const img = clipboard.readImage(); return { text: clipboard.readText(), html: clipboard.readHTML(), png: img.isEmpty() ? null : img.toPNG() }; },
-      write: ({ text, html, png }) => clipboard.write({ ...(text ? { text } : {}), ...(html ? { html } : {}), ...(png ? { image: nativeImage.createFromBuffer(png) } : {}) }),
-    },
+    clipboard: { read: clip.read, write: clip.write },
   });
   flow.on('state', (s) => push('flow', { ...s, allowed: settings.kvmAllowed || {} }));
   flow.on('log', (m) => console.log('[flow]', m));
@@ -629,6 +627,13 @@ function startFlow() {
     flowToldControlled = true;
     if (Notification.isSupported()) new Notification({ title: 'One mouse, two PCs', body: `${p?.name || 'Another PC'} is using this PC’s screen with its mouse and keyboard. Move the pointer back, or press Ctrl+Alt+Home on it.` }).show();
   });
+  // Files copied on the other PC: a notice while big ones travel, and when they are ready for Ctrl+V.
+  const fmtMB = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
+  const what = (names) => (names.length === 1 ? names[0] : `${names.length} items`);
+  const tell = (body) => { if (Notification.isSupported()) new Notification({ title: 'One mouse, two PCs', body, silent: true }).show(); };
+  flow.on('files-in', ({ from, names, total }) => { if (total > 20e6) tell(`Copying ${what(names)} (${fmtMB(total)}) from ${from.name}…`); });
+  flow.on('files-ready', ({ names }) => tell(`${what(names)} is ready to paste. Press Ctrl+V where you want it.`));
+  flow.on('files-too-big', ({ total }) => tell(`Those files are too big to copy and paste (${fmtMB(total)}). Drag them onto the other PC in Nearby instead.`));
   setTimeout(() => flow.sync(), 3000); // once the other PC has been discovered
 }
 
@@ -759,8 +764,8 @@ function registerIpc() {
   ipcMain.handle('send:pendingDone', () => { pendingSend = null; });
 
   // Clipboard / text sharing
-  ipcMain.handle('clipboard:read', () => clipboard.readText());
-  ipcMain.handle('clipboard:write', (_e, text) => { clipboard.writeText(String(text || '')); });
+  ipcMain.handle('clipboard:read', () => clip.readText());
+  ipcMain.handle('clipboard:write', (_e, text) => clip.writeText(String(text || '')));
   // Remote control. The window turns it on only after the user presses "Allow" during a
   // screen share, and off when they stop it or the share ends.
   // DROPWAVE_INPUT_LOG (testing only): write the events to that file instead of moving the mouse.
@@ -874,8 +879,7 @@ function registerIpc() {
     if (typeof p !== 'string' || !fs.existsSync(p) || !/\.(jpe?g|png|webp)$/i.test(p)) return false;
     const img = nativeImage.createFromPath(p);
     if (img.isEmpty()) return false;
-    clipboard.writeImage(img);
-    return true;
+    return clip.writeImage(img).then(() => true, () => false);
   });
   ipcMain.handle('image:preview', (_e, p) => {
     if (typeof p !== 'string' || !fs.existsSync(p)) return null;

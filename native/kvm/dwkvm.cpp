@@ -18,6 +18,9 @@
 //   leave                     stop (release any held keys and buttons)
 //   -> leave <y>              the cursor went back over that edge
 //
+//   getfiles                  -> files ["C:\\path", ...]  files copied in Explorer (JSON, UTF-8)
+//   addfile <path> / putfiles -> putfiles ok <n>         put files on the clipboard, ready for Ctrl+V
+//
 //   quit
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -30,6 +33,9 @@
 #include <atomic>
 #include <mutex>
 #include <set>
+#include <vector>
+#include <shellapi.h>
+#include <shlobj.h>
 
 static HHOOK gMouse = nullptr, gKeys = nullptr;
 static DWORD gMainThread = 0;
@@ -159,6 +165,74 @@ static void remoteMove(int dx, int dy) {
   moveTo(gX, gY);
 }
 
+// ---------- copied files (Explorer Ctrl+C / Ctrl+V) ----------
+
+static HWND gClipWnd = nullptr; // owns what we put on the clipboard
+static std::vector<std::wstring> gAddFiles;
+static std::string utf8(const std::wstring& w) {
+  int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+  std::string s(n, 0); WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &s[0], n, nullptr, nullptr); return s;
+}
+static std::wstring wide(const char* s) {
+  int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
+  std::wstring w(n > 0 ? n - 1 : 0, 0); if (n > 1) MultiByteToWideChar(CP_UTF8, 0, s, -1, &w[0], n); return w;
+}
+static void jsonStr(std::string& o, const std::string& s) {
+  o += '"';
+  for (char c : s) {
+    if (c == '"' || c == '\\') { o += '\\'; o += c; }
+    else if ((unsigned char)c < 0x20) { char b[8]; sprintf(b, "\\u%04x", (unsigned)c); o += b; }
+    else o += c;
+  }
+  o += '"';
+}
+static void getFiles() {
+  std::string o = "files [";
+  bool open = false;
+  for (int tries = 0; tries < 10 && !(open = OpenClipboard(gClipWnd) != 0); tries++) Sleep(30); // another app may hold it
+  if (open) {
+    if (HANDLE h = GetClipboardData(CF_HDROP)) {
+      if (HDROP d = (HDROP)GlobalLock(h)) {
+        UINT n = DragQueryFileW(d, 0xFFFFFFFF, nullptr, 0);
+        for (UINT i = 0; i < n; i++) {
+          UINT len = DragQueryFileW(d, i, nullptr, 0);
+          std::wstring p(len, 0); DragQueryFileW(d, i, &p[0], len + 1);
+          if (i) o += ',';
+          jsonStr(o, utf8(p));
+        }
+        GlobalUnlock(h);
+      }
+    }
+    CloseClipboard();
+  }
+  o += ']';
+  out("%s", o.c_str());
+}
+static void putFiles() {
+  size_t chars = 1;
+  for (auto& p : gAddFiles) chars += p.size() + 1;
+  HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof(DROPFILES) + chars * sizeof(wchar_t));
+  auto* df = (DROPFILES*)GlobalLock(g);
+  df->pFiles = sizeof(DROPFILES); df->fWide = TRUE;
+  auto* q = (wchar_t*)((BYTE*)df + sizeof(DROPFILES));
+  for (auto& p : gAddFiles) { memcpy(q, p.c_str(), p.size() * sizeof(wchar_t)); q += p.size() + 1; }
+  GlobalUnlock(g);
+  HGLOBAL e = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
+  *(DWORD*)GlobalLock(e) = DROPEFFECT_COPY; GlobalUnlock(e);
+  bool ok = false;
+  for (int tries = 0; tries < 10 && !ok; tries++) { // someone else may hold the clipboard for a moment
+    if (OpenClipboard(gClipWnd)) {
+      EmptyClipboard();
+      ok = SetClipboardData(CF_HDROP, g) != nullptr;
+      SetClipboardData(RegisterClipboardFormatW(CFSTR_PREFERREDDROPEFFECT), e);
+      CloseClipboard();
+    } else Sleep(50);
+  }
+  if (!ok) { GlobalFree(g); GlobalFree(e); }
+  out(ok ? "putfiles ok %d" : "putfiles fail %d", (int)gAddFiles.size());
+  gAddFiles.clear();
+}
+
 // ---------- commands ----------
 
 static void command(const std::string& line) {
@@ -195,7 +269,12 @@ static void command(const std::string& line) {
     unsigned vk = 0, sc = 0; int ext = 0; char s[4] = {0};
     sscanf(rest, "%u %u %d %3s", &vk, &sc, &ext, s);
     if (gRemote && vk && vk < 256) key((WORD)vk, (WORD)sc, ext != 0, s[0] == 'd');
-  } else if (!strcmp(cmd, "quit")) { PostThreadMessage(gMainThread, WM_QUIT, 0, 0); }
+  // The clipboard work runs on the main thread, which owns gClipWnd and pumps messages: Explorer talks
+  // to the clipboard owner while pasting, and an owner that never answers makes Paste hang and fail.
+  } else if (!strcmp(cmd, "getfiles")) SendMessageW(gClipWnd, WM_APP + 1, 0, 0);
+  else if (!strcmp(cmd, "addfile")) { while (*rest == ' ') rest++; if (*rest) gAddFiles.push_back(wide(rest)); }
+  else if (!strcmp(cmd, "putfiles")) SendMessageW(gClipWnd, WM_APP + 2, 0, 0);
+  else if (!strcmp(cmd, "quit")) { PostThreadMessage(gMainThread, WM_QUIT, 0, 0); }
 }
 
 int main() {
@@ -206,8 +285,20 @@ int main() {
   gKeys = SetWindowsHookExW(WH_KEYBOARD_LL, keyProc, GetModuleHandleW(nullptr), 0);
   if (!gMouse || !gKeys) { out("error hooks %lu", GetLastError()); return 1; }
 
+  // A message-only window on this (pumping) thread owns what we put on the clipboard.
+  WNDCLASSW wc{};
+  wc.lpfnWndProc = [](HWND h, UINT m, WPARAM w, LPARAM l) -> LRESULT {
+    if (m == WM_APP + 1) { getFiles(); return 0; }
+    if (m == WM_APP + 2) { putFiles(); return 0; }
+    return DefWindowProcW(h, m, w, l);
+  };
+  wc.hInstance = GetModuleHandleW(nullptr);
+  wc.lpszClassName = L"DropWaveKvmClip";
+  RegisterClassW(&wc);
+  gClipWnd = CreateWindowExW(0, wc.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
+
   std::thread([] { // stdin: commands; EOF (DropWave closed) = quit
-    char buf[256];
+    char buf[4096];
     while (fgets(buf, sizeof buf, stdin)) {
       std::string s(buf);
       while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();

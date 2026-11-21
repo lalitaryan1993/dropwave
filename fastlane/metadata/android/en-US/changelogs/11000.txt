@@ -1,0 +1,5 @@
+- Print on PC: share a PDF or photo to DropWave and print it on the PC's printer
+- Scan to PC: Google's document scanner; save as PDF, JPG or PNG on the PC
+- Banking and UPI apps never show on the PC; "Your PC is controlling this phone" notice with Stop
+- Scam warning in Privacy (English and Hindi)
+- Battery steps for Motorola and iQOO

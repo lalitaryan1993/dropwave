@@ -10,7 +10,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.9.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.10.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 &nbsp;
 [![Get the Android app](https://img.shields.io/badge/Android%20app-APK-3ddc84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
@@ -103,24 +103,16 @@ DropWave started as the fastest way to move files around the house, and it does 
 
 > Phone and PC must be on the **same Wi-Fi**. No internet is needed. iPhones and smart TVs can still send and receive files from the browser, no install (see below).
 
-## 🆕 New in 1.9
-
-- **🎙️ Phone as the PC's microphone**: press *Use as mic* on Home. With the free [VB-CABLE](https://vb-audio.com/Cable/) it's a mic in Zoom, Meet, Discord and OBS (pick *CABLE Input* in DropWave, *CABLE Output* in the app).
-- **🔌 USB cable connection** (*Settings › Phones & TVs*): works when the Wi-Fi is slow or missing. DropWave downloads Google's adb tool for you if needed.
-- **🪟 Phone apps in their own PC windows**, with touch and typing, over USB or **without a cable** (Wireless debugging, paired once with a code).
-- **🔢 Smart OTP**: new one-time codes are copied to the PC clipboard and cleared after a minute.
-- **📲 Phone app**: remembers every PC address (home, office, Tailscale), *Lock PC* tile, home-screen widget. Install an APK from the PC over USB.
-
-<sub>1.8: phone as webcam, call popup, Hindi, contacts, apps, phone controls, styles. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
-
-## 🆕 New since 1.9 (in the next release)
+## 🆕 New in 1.10
 
 - **🖨️ Print on PC**: share any PDF or photo to DropWave on the phone (or *Home › Print & scan*), pick a printer on the PC (USB or network), copies, paper, black & white, both sides. Nothing prints until you press Print on the PC.
 - **📄 Scan to PC**: Google's on-device document scanner (live edges, auto capture, clean-up, many pages); the PC can start it too (*Camera › Scan document*). Edit on the PC: Magic / Auto / Grey / B&W, brightness, contrast, sharpness, straighten, crop, page order. Save as **PDF, JPG or PNG**, with size limits for portals.
 - **🖱️ One mouse, two PCs** (*Settings › One mouse, two PCs*): mouse and keyboard move to the other PC at the screen's edge; text, pictures and files copied on one PC paste on the other; **Ctrl+Alt+Home** brings the mouse back.
 - **🌍 Nearby in 3D**: a turning globe with your devices on an orbit (the card grid is one click away).
 - **🛡️ Safer**: banking and UPI apps stop screen sharing and never open in a PC window; "Your PC is controlling this phone" notice with Stop; a scam warning in English and Hindi.
-- **✨ A new-look installer**.
+- **✨ A new-look installer**, and fixes for the clipboard (text and pictures with the mouse, the camera's *Copy again*, clearing a copied OTP).
+
+<sub>1.9: phone as microphone, USB cable link, phone apps in PC windows (also without a cable), Smart OTP, Lock PC tile and widget. 1.8: phone as webcam, call popup, Hindi, contacts, apps, phone controls, styles. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
 
 ## 📋 Complete feature list
 

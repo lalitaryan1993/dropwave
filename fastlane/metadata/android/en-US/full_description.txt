@@ -9,6 +9,8 @@
 <li><b>Phone as webcam</b> (DropWave Camera on Windows 11) and <b>phone as microphone</b>.</li>
 <li><b>Screen:</b> see and control the phone from the PC; open phone apps in their own PC windows (USB or Wireless debugging).</li>
 <li><b>Apps and contacts:</b> every app with its icon, contacts and call history.</li>
+<li><b>Print on PC:</b> share a PDF or photo to DropWave and print it on any printer the PC can use.</li>
+<li><b>Scan to PC:</b> scan documents with the phone (edges found and cleaned up), then save them on the PC as PDF, JPG or PNG.</li>
 <li><b>Phone controls:</b> torch, Do Not Disturb, volume, brightness, lock, and Find phone (rings even on silent).</li>
 <li>Clipboard both ways, music controls, Lock PC tile and home-screen widget.</li>
 </ul>
@@ -19,7 +21,7 @@
 <ul>
 <li>Everything stays between your own devices, encrypted with a pinned certificate.</li>
 <li>A switch for every feature in Privacy: turn off what you don't want the PC to see.</li>
-<li>When a bank or UPI app opens on the phone, control from the PC switches itself off.</li>
+<li>When a bank or UPI app opens on the phone, control from the PC switches itself off and screen sharing stops.</li>
 <li>No ads, no trackers, no analytics. Open source (MIT).</li>
 </ul>
 

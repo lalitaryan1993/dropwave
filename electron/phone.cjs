@@ -164,6 +164,7 @@ class PhoneHub {
         if (p.primed) {
           for (const n of list) {
             if (p.seen.has(n.key)) continue;
+            if (n.code) this.#autoCopy(p, n.code);
             if (!this.o.focused() && this.o.settings().phoneNotifs !== false) {
               this.o.notify(`${n.app || 'Phone'} · ${n.title || p.name}`, n.code ? `${n.text}\n\nCode: ${n.code}` : n.text, () => this.o.push('open-home', p.id));
             }
@@ -423,6 +424,21 @@ class PhoneHub {
     const pick = [...new Set(ids)].map((x) => ph.items.find((it) => it.id === x)).filter(Boolean).slice(0, 500);
     return this.#download(p, pick, (token) => ({ type: 'photo-get', ids: pick.map((x) => x.id), token }),
       (saved) => this.o.push('photos-saved', { id: p.id, saved }));
+  }
+
+  // Smart OTP: a new one-time code goes straight to this PC's clipboard, and is wiped again after a
+  // minute if it's still there (so it doesn't linger). Off with Settings › Copy one-time codes.
+  #autoCopy(p, code) {
+    if (this.o.settings().otpAutoCopy === false || code === this.lastOtp) return;
+    this.lastOtp = code;
+    this.lastClip = code; // the phone already has it: don't send it back
+    try { this.o.clipboard.writeText(code); } catch { return; }
+    this.o.push('otp-copied', { peer: { id: p.id, name: p.name }, code });
+    clearTimeout(this.otpTimer);
+    this.otpTimer = setTimeout(() => {
+      try { if (String(this.o.clipboard.readText() || '') === code) { this.lastClip = ''; this.o.clipboard.writeText(''); } } catch {}
+      this.lastOtp = '';
+    }, 60000);
   }
 
   // ---------- phone screen on PC ----------

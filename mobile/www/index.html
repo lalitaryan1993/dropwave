@@ -89,7 +89,7 @@
     <input id="addr" inputmode="url" placeholder="192.168.1.8:47823" autocomplete="off" />
     <button class="btn soft" style="width:auto" type="submit">Add</button>
   </form>
-  <div class="hint">The address and PIN are shown on the PC under <b>Phone or TV</b>. Different network? With Tailscale or a cable, type the PC’s address from there (for example 100.101.102.103).</div>
+  <div class="hint">The address and PIN are shown on the PC under <b>Phone or TV</b>. Different network? With Tailscale, type the PC’s address from there (for example 100.101.102.103). With a USB cable, turn on <b>USB</b> in the PC’s Settings › Phones &amp; TVs, then Scan.</div>
 </div>
 
 <div id="pinSheet" class="sheet hidden"><div>
@@ -110,8 +110,11 @@
   const DW = window.Capacitor?.Plugins?.DropWave;
   const AppP = window.Capacitor?.Plugins?.App;
   const PORT = 47823;
+  const USB = `http://127.0.0.1:${PORT}`; // a PC with USB on forwards the phone's 127.0.0.1 to itself (adb reverse)
   let pcs = []; try { pcs = JSON.parse(localStorage.getItem('dw_pcs') || '[]'); } catch {}
   const savePcs = () => localStorage.setItem('dw_pcs', JSON.stringify(pcs));
+  // Every address a PC answered on (home Wi-Fi, office, Tailscale), newest first, so it is found again anywhere.
+  const remember = (pc, base) => { if (base === USB) return; pc.addrs = [base, ...(pc.addrs || []).filter((a) => a !== base)].slice(0, 6); };
   const toast = (t) => { const e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3000); };
 
   AppP?.addListener('backButton', () => { if (!$('#pinSheet').classList.contains('hidden')) return closePin(); DW?.minimize(); });
@@ -127,7 +130,7 @@
   }
 
   function open(pc) {
-    pc.lastUsed = Date.now(); savePcs();
+    pc.lastUsed = Date.now(); remember(pc, pc.base); savePcs();
     localStorage.setItem('dw_current', pc.id);
     location.href = 'client.html';
   }
@@ -137,7 +140,7 @@
     const b = document.createElement('button');
     b.className = 'card';
     b.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 62%),hsl(${(h+50)%360} 85% 52%))"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
-      <span class="meta"><div class="n">${esc(pc.name)}</div><div class="s">${pc.fp ? '🔒 ' : ''}${esc(pc.base.replace('http://', ''))}</div></span>
+      <span class="meta"><div class="n">${esc(pc.name)}</div><div class="s">${pc.fp ? '🔒 ' : ''}${pc.base === USB ? 'USB cable' : esc(pc.base.replace('http://', ''))}</div></span>
       <span class="dot ${online ? 'on' : ''}"></span>${onRemove ? '<span class="x" data-x>×</span>' : ''}`;
     b.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) { e.stopPropagation(); onRemove(); } else onClick(); });
     return b;
@@ -185,7 +188,7 @@
     if (!h) return toast('Can’t reach that PC. Is DropWave open on it, on this Wi-Fi?');
     let pc = pcs.find((p) => p.id === h.pc.id);
     if (!pc) { pc = { id: h.pc.id, name: h.pc.name, base }; pcs.push(pc); }
-    pc.name = h.pc.name; pc.base = base;
+    pc.name = h.pc.name; pc.base = base; remember(pc, base);
     if (!(await secure(pc, h))) { savePcs(); return; }
     savePcs();
     const s = await hello(apiBase(pc), pc.key, 4000); // over HTTPS when the PC supports it
@@ -218,8 +221,11 @@
 
   // Instant: PCs announce themselves on the Wi-Fi every 2 s (Android app only).
   async function discover(ms = 2500) {
-    const r = await DW?.discoverPcs({ ms }).catch(() => null);
-    return (r?.list || []).map((x) => ({ id: x.id, name: x.name, base: `http://${x.address}:${x.web}` }));
+    const [r, u] = await Promise.all([DW?.discoverPcs({ ms }).catch(() => null), hello(USB, null, 1200)]);
+    const list = (r?.list || []).map((x) => ({ id: x.id, name: x.name, base: `http://${x.address}:${x.web}` }));
+    // Over the cable only when the Wi-Fi doesn't reach that PC (calls and screen sharing need the Wi-Fi).
+    if (u && !list.some((x) => x.id === u.pc.id)) list.push({ id: u.pc.id, name: u.pc.name, base: USB });
+    return list;
   }
   function showFound(list) {
     let n = 0;
@@ -292,7 +298,7 @@
     if (missing.length) {
       for (const f of await discover(2500)) {
         const pc = missing.find((p) => p.id === f.id);
-        if (!pc) continue;
+        if (!pc || pc.ok) continue;
         online.add(pc.id);
         if (pc.base !== f.base) { pc.base = f.base; pc.sbase = ''; }
         const h = await hello(pc.base);
@@ -301,6 +307,18 @@
         if (s?.authed) pc.ok = true;
       }
     }
+    // Still missing: try the other addresses it had before (another network, Tailscale).
+    await Promise.all(pcs.filter((p) => !p.ok).map(async (pc) => {
+      for (const base of (pc.addrs || []).filter((a) => a !== pc.base)) {
+        const h = await hello(base, null, 1500);
+        if (!h || h.pc.id !== pc.id) continue;
+        const was = pc.base; pc.base = base; if (was !== base) pc.sbase = '';
+        if ((h.tls && pc.fp && pc.fp !== h.tls.fp) || !(await secure(pc, h))) { pc.base = was; continue; }
+        online.add(pc.id);
+        const s = await hello(apiBase(pc), pc.key, 3000);
+        if (s?.authed) { pc.ok = true; break; }
+      }
+    }));
     savePcs();
     renderMine();
     const last = [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];

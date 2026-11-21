@@ -137,6 +137,32 @@ object Link {
         }
     }
 
+    /** A remote action on the PC, e.g. {"t":"action","a":"lock"} (POST /api/remote). Returns the HTTP code and body. */
+    fun remote(ev: JSONObject): Pair<Int, JSONObject> {
+        val c = cfg ?: return 0 to JSONObject()
+        return try {
+            val body = JSONObject().put("from", c.id).put("ev", ev).toString().toByteArray()
+            val conn = open("/api/remote")
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.connectTimeout = 8000
+            conn.readTimeout = 30000
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setFixedLengthStreamingMode(body.size)
+            conn.outputStream.use { it.write(body) }
+            val code = conn.responseCode
+            val text = (if (code < 400) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            conn.disconnect()
+            code to runCatching { JSONObject(text) }.getOrDefault(JSONObject())
+        } catch (e: Exception) {
+            Log.i(TAG, "link remote: ${e.message}")
+            0 to JSONObject()
+        }
+    }
+
+    /** The PC's name, for the tile and widget ("" before the first connection). */
+    fun pcName(ctx: Context): String = Access.prefs(ctx).getString("pc_name", "").orEmpty()
+
     /** Tell the PC something (POST /api/phone). */
     fun post(type: String, data: Any?) {
         val c = cfg ?: return

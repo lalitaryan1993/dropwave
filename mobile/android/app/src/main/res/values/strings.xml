@@ -4,5 +4,6 @@
     <string name="title_activity_main">DropWave</string>
     <string name="package_name">com.dropwave.app</string>
     <string name="custom_url_scheme">com.dropwave.app</string>
+    <string name="widget_desc">Send your clipboard or lock your PC in one tap.</string>
     <string name="control_desc">Lets your PC tap, swipe, go Back/Home and type on this phone while DropWave shows its screen on the PC. It acts only on what you do on the PC, and reads nothing except the text field you type into.</string>
 </resources>

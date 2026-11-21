@@ -1,7 +1,7 @@
 // Apps: the phone's apps on the PC — open on the phone or in the screen window, app info,
 // uninstall (Android asks on the phone), copy the APK to this PC.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, Search, RefreshCw, Smartphone, MonitorSmartphone, Info, Trash2, Download, Play, PackageX } from 'lucide-react';
+import { LayoutGrid, Search, RefreshCw, Smartphone, MonitorSmartphone, Info, Trash2, Download, Play, PackageX, PackagePlus, Loader2 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import { Avatar, Button } from './components.jsx';
 import { Empty } from './contacts.jsx';
@@ -56,12 +56,33 @@ export function AppsView({ phones, selected, onSelect, toast }) {
   const hiddenSystem = (data?.list || []).filter((x) => x.system).length;
   const recent = useMemo(() => (q ? [] : (data?.list || []).filter((x) => x.lastUsed > Date.now() - 3 * 86400000).sort((x, y) => y.lastUsed - x.lastUsed).slice(0, 8)), [data, q]);
 
+  // Install an APK from this PC (USB cable): the button, or drop the file on this page.
+  const [installing, setInstalling] = useState(false);
+  const install = async (file) => {
+    setInstalling(true);
+    try {
+      const r = await api.usbInstall(file);
+      if (r?.canceled) return;
+      if (r.ok) { toast(`${r.name} is installed on ${phone.name}`); load(); }
+      else toast(`Couldn’t install ${r.name}: ${r.error}`, 'error');
+    } catch (e) { toast(clean(e), 'error'); } finally { setInstalling(false); }
+  };
+  const onDrop = (e) => {
+    const f = api.pathsFromFiles?.([...e.dataTransfer.files]).find((p) => /\.apk$/i.test(p));
+    if (!f) return;
+    e.preventDefault();
+    install(f);
+  };
+
   const act = async (app, action) => {
     setMenu(null);
     try {
       if (action === 'window') {
+        // Over USB the app gets a window of its own (Elevated); otherwise show the phone's screen with it.
+        const own = await api.appWinStart?.(id, app.pkg, app.name).then(() => true).catch(() => false);
+        if (own) { toast(`Opening ${app.name} in its own window…`); return; }
         await api.mirrorStart(id);
-        toast(`Opening ${phone.name}’s screen…`);
+        toast(`Opening ${phone.name}’s screen… Tip: with a USB cable (Settings › Phones & TVs), each app opens in a window of its own.`);
         setTimeout(() => api.phoneRpc(id, 'appAction', { pkg: app.pkg, action: 'open' }).catch(() => {}), 2500);
         return;
       }
@@ -77,7 +98,7 @@ export function AppsView({ phones, selected, onSelect, toast }) {
   if (data?.error) return <Empty Icon={PackageX} title="Couldn’t list the apps" text={data.error} action={<Button variant="soft" onClick={load}><RefreshCw className="h-4 w-4" /> Try again</Button>} />;
 
   return (
-    <div className="flex h-full flex-col" onClick={() => menu && setMenu(null)}>
+    <div className="flex h-full flex-col" onClick={() => menu && setMenu(null)} onDragOver={(e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault(); }} onDrop={onDrop}>
       <div className="px-7 pb-3 pt-7">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -99,6 +120,9 @@ export function AppsView({ phones, selected, onSelect, toast }) {
             </select>
             {hiddenSystem > 0 && <Button variant={system ? 'soft' : 'ghost'} onClick={() => setSystem((s) => !s)}>{system ? 'Hide' : 'Show'} {hiddenSystem} system</Button>}
             <Button variant="ghost" title="Refresh" onClick={load}><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></Button>
+            <Button variant="soft" title="Install an .apk from this PC on the phone (USB cable)" disabled={installing} onClick={() => install()}>
+              {installing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />} Install APK
+            </Button>
           </div>
         </div>
       </div>

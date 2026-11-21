@@ -5,7 +5,7 @@ import {
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
   Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
-  Contact, LayoutGrid, Camera,
+  Contact, LayoutGrid, Camera, Usb,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
@@ -93,6 +93,7 @@ export default function App() {
   useEffect(() => {
     const offs = [
       api.onClipIn(({ peer }) => toast(`Copied from ${peer.name}: paste it anywhere`)),
+      api.onOtpCopied?.(({ peer, code }) => toast(`Code ${code} from ${peer.name} is copied. Paste it with Ctrl+V (cleared in a minute)`)),
       api.onOpenHome((id) => { setHomePhone(id); setView('home'); }),
       api.onPhoneError((e) => toast(e.error, 'error')),
       // Camera: the photo goes to the clipboard too, ready for Ctrl+V.
@@ -714,6 +715,7 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
               </div>
             </Row>
           )}
+          {s.webEnabled && <UsbRows on={!!s.usb} set={(v) => update({ usb: v })} />}
         </Card>
 
         <Card title="Phone (Android app)">
@@ -722,6 +724,9 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
           </Row>
           <Row label="Phone notifications on this PC" hint="New notifications from the phone pop up here while DropWave isn’t in front">
             <Toggle on={s.phoneNotifs !== false} set={(v) => update({ phoneNotifs: v })} />
+          </Row>
+          <Row label="Copy one-time codes by themselves" hint="When an OTP arrives on the phone it’s copied here, ready for Ctrl+V, and cleared again after a minute">
+            <Toggle on={s.otpAutoCopy !== false} set={(v) => update({ otpAutoCopy: v })} />
           </Row>
           {(s.remoteAllowed || []).length === 0 ? (
             <div className="flex items-center gap-2 text-[12.5px] text-faint"><ShieldCheck className="h-4 w-4" /> No phone may use this PC’s mouse and keyboard. Each phone asks first.</div>
@@ -838,6 +843,42 @@ function Card({ title, children }) {
       <div className="mb-4 text-[11.5px] font-semibold uppercase tracking-wider text-faint">{title}</div>
       <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+// USB cable: adb reverse makes the phone's 127.0.0.1 reach this PC, for when Wi-Fi is slow or missing.
+function UsbRows({ on, set }) {
+  const [st, setSt] = useState(null);
+  useEffect(() => { api.usbStatus?.().then(setSt); return api.onUsb?.(setSt); }, []);
+  const ready = (st?.devices || []).filter((d) => d.state === 'device' && d.reversed);
+  const unauthorized = (st?.devices || []).some((d) => d.state === 'unauthorized');
+  return (
+    <>
+      <Row label="Connect over a USB cable too" hint="For when the Wi-Fi is slow or not there. Needs USB debugging on the phone (Android developer options).">
+        <Toggle on={on} set={set} />
+      </Row>
+      {on && st && (
+        <div className="space-y-2 rounded-xl border border-line bg-bg-2/40 px-3 py-2.5 text-[12.5px]">
+          {!st.adb ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex-1 text-muted">USB needs Google’s free adb tool (Android platform-tools, about 7 MB).</span>
+              <Button variant="soft" disabled={st.downloading} onClick={() => api.usbDownload()}>
+                {st.downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {st.downloading ? 'Downloading…' : 'Download adb'}
+              </Button>
+            </div>
+          ) : ready.length ? (
+            ready.map((d) => (
+              <div key={d.serial} className="flex items-center gap-2 text-good"><Usb className="h-4 w-4" /> {d.model || d.serial}: connected over USB. In the DropWave app, tap <b className="font-semibold">Scan</b> if it doesn’t switch by itself.</div>
+            ))
+          ) : unauthorized ? (
+            <div className="flex items-center gap-2 text-warn"><AlertTriangle className="h-4 w-4" /> On the phone, tap <b className="font-semibold">Allow</b> on “Allow USB debugging?”.</div>
+          ) : (
+            <div className="text-muted">Plug in the phone. First time: Settings › About phone › tap <b className="font-semibold">Build number</b> 7 times, then Developer options › <b className="font-semibold">USB debugging</b> on.</div>
+          )}
+          {st.error && <div className="text-bad">{st.error}</div>}
+        </div>
+      )}
+    </>
   );
 }
 

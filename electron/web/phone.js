@@ -310,7 +310,7 @@
     // The native link keeps answering the PC while this page sleeps (phone locked, other app open).
     const app = window.DW_APP || {};
     DW.setShare({ json: JSON.stringify(share) }).catch(() => {});
-    if (app.base) DW.linkStart({ base: app.base, key: app.key || '', id: P().myId, name: store.get('ld_name') || '' }).catch(() => {});
+    if (app.base) DW.linkStart({ base: app.base, key: app.key || '', id: P().myId, name: store.get('ld_name') || '', pcName: P().pcName?.() || '' }).catch(() => {});
     sendStatus();
     sendNotifs();
     sendMedia();

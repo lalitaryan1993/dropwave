@@ -309,6 +309,8 @@ class DropWavePlugin : Plugin() {
         val base = call.getString("base", "")!!
         if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
         Link.start(context, Link.Config(base, call.getString("key", "")!!, call.getString("id", "")!!, call.getString("name", "")!!))
+        call.getString("pcName")?.takeIf { it.isNotBlank() }?.let { Access.prefs(context).edit().putString("pc_name", it).apply() }
+        DropWaveWidget.refresh(context)
         call.resolve()
     }
 

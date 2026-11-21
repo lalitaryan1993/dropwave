@@ -73,6 +73,27 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <service
+            android:name=".LockPcTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_dropwave"
+            android:label="Lock PC"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name=".DropWaveWidget"
+            android:exported="false"
+            android:label="DropWave">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dropwave_widget" />
+        </receiver>
+        <service
             android:name=".ClipTile"
             android:exported="true"
             android:icon="@drawable/ic_stat_dropwave"

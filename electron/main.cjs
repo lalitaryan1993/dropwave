@@ -14,6 +14,7 @@ const { WebShare, DEFAULT_WEB_PORT } = require('./webshare.cjs');
 const { loadOrCreate: loadOrCreateTls } = require('./tls.cjs');
 const { RemoteInput } = require('./input.cjs');
 const { PhoneHub } = require('./phone.cjs');
+const { UsbLink } = require('./usb.cjs');
 
 // Remote control: off unless the user allows it for the screen share that is running now.
 const remoteInput = new RemoteInput();
@@ -52,6 +53,7 @@ let tray = null;
 let engine = null;
 let web = null;
 let webError = null;
+let usb = null; // USB cable link (adb reverse), started when settings.usb is on
 let quitting = false;
 const pendingRequests = new Map(); // requestId -> { resolve, request }
 const active = new Map(); // transferId -> latest transfer object
@@ -74,6 +76,8 @@ function defaultSettings() {
     accent: 'wave', // colour theme: wave, ocean, sunset, forest, graphite
     style: 'aurora', // look: aurora, frost (Windows Mica), petal, ink, dots
     language: 'en', // en | hi
+    usb: false, // connect the phone over a USB cable too (needs adb + USB debugging)
+    otpAutoCopy: true, // a new one-time code from the phone is copied here, and cleared after a minute
     clipSync: true, // copy on the phone, paste on the PC (and back) with the Android app
     phoneNotifs: true, // the phone's new notifications pop up on this PC too
     remoteAllowed: [], // [{ id, name }] phones that may always use this PC's mouse and keyboard
@@ -225,12 +229,55 @@ function openMirror(p) {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
   });
   void c;
-  const hash = `mirror=${encodeURIComponent(p.id)}&name=${encodeURIComponent(p.name)}`;
+  const hash = `mirror=${encodeURIComponent(p.id)}&name=${encodeURIComponent(p.name)}${p.app ? `&app=1&phone=${encodeURIComponent(p.phone)}` : ''}`;
   if (DEV_URL) w.loadURL(`${DEV_URL}#${hash}`);
   else w.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash });
   w.webContents.on('will-navigate', (e) => e.preventDefault());
   mirrorWins.set(p.id, w);
-  w.on('closed', () => { mirrorWins.delete(p.id); phoneHub?.mirrorStop(p.id); });
+  w.on('closed', () => {
+    mirrorWins.delete(p.id);
+    const a = appWins.get(p.id);
+    if (a) { appWins.delete(p.id); web?.endStream(a.token); try { a.child.kill(); } catch {} }
+    else phoneHub?.mirrorStop(p.id);
+  });
+}
+
+function mirrorStateTo(id, s) { const w = mirrorWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-state', s); }
+
+// ---- a phone app in its own window (Elevated, over USB) ----
+// DropWave's helper runs on the phone as the shell user (adb app_process), puts the app on a virtual
+// display of its own and streams it here like the phone's screen. Taps go back to that display only.
+const appWins = new Map(); // window id -> { child, token }
+let dbgFrames = 0;
+function appWindowStart(phoneId, pkg, label) {
+  if (!/^[\w.]+$/.test(String(pkg))) throw new Error('Unknown app');
+  if (!web) throw new Error('Turn on “Allow phones, tablets and TVs” in Settings first.');
+  const d = usb?.ready();
+  if (!d) throw new Error('To open phone apps in their own window, connect the phone with a USB cable: Settings › Phones & TVs › Connect over a USB cable.');
+  const id = `aw:${phoneId}:${pkg}`;
+  const open = mirrorWins.get(id);
+  if (open && !open.isDestroyed() && appWins.has(id)) { open.show(); open.focus(); return true; }
+  const token = crypto.randomBytes(16).toString('hex');
+  web.allowMirror(token, {
+    clientId: id, loopback: true,
+    onFrame: (type, pts, data) => { if (process.env.DROPWAVE_DEBUG && (dbgFrames = (dbgFrames || 0) + 1) % 60 === 1) console.log('[appwin] frame', type, data.length, dbgFrames); sendFrame(mirrorWins.get(id), type, pts, data); },
+    onEnd: () => { if (process.env.DROPWAVE_DEBUG) console.log('[appwin] stream ended'); mirrorStateTo(id, { state: 'off' }); },
+  });
+  openMirror({ id, name: label || pkg, app: true, phone: phoneId });
+  mirrorStateTo(id, { state: 'asking' });
+  const child = usb.helper(d.serial, 'com.dropwave.app.elevated.AppWindowServer', [`http://127.0.0.1:${web.port}`, web.appKey(), token, id, pkg, 720, 1520, 320]);
+  let err = '';
+  child.stderr.on('data', (b) => { err = (err + b).slice(-400); if (process.env.DROPWAVE_DEBUG) console.log('[appwin:err]', String(b).trim()); });
+  child.stdout.on('data', (b) => { if (process.env.DROPWAVE_DEBUG) console.log('[appwin]', String(b).trim()); });
+  child.on('exit', () => {
+    const a = appWins.get(id);
+    if (a?.child !== child) return;
+    appWins.delete(id);
+    const msg = err.trim().split(/\r?\n/).pop();
+    if (msg) mirrorStateTo(id, { state: 'error', error: msg.includes('no launcher') ? 'This app can’t be opened in a window.' : msg });
+  });
+  appWins.set(id, { child, token });
+  return true;
 }
 
 // ---- "DropWave Camera": the phone's camera as a Windows 11 webcam (Zoom, Meet, Teams…) ----
@@ -512,6 +559,7 @@ async function startWeb() {
     await w.start();
     web = w;
     if (engine) engine.webPort = port;
+    usb?.poll();
   } catch (e) {
     webError = e.code === 'EADDRINUSE' ? `Port ${port} is used by another program` : e.message;
   }
@@ -565,7 +613,7 @@ function registerIpc() {
   ipcMain.handle('state', () => publicState());
 
   ipcMain.handle('settings:update', async (_e, patch) => {
-    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent', 'style', 'language'];
+    const allowed = ['deviceName', 'theme', 'autoStart', 'closeToTray', 'notifications', 'autoAcceptTrusted', 'trusted', 'webEnabled', 'clipSync', 'phoneNotifs', 'accent', 'style', 'language', 'usb', 'otpAutoCopy'];
     if ('trusted' in patch) {
       // Removing a trusted device also forgets its pinned identity (e.g. after a reinstall).
       const keep = new Set((patch.trusted || []).map((d) => d.id));
@@ -582,6 +630,7 @@ function registerIpc() {
       app.setLoginItemSettings({ openAtLogin: !!settings.autoStart, args: ['--hidden'] });
     }
     if ('webEnabled' in patch) { if (settings.webEnabled) await startWeb(); else await stopWeb(); }
+    if ('usb' in patch) { if (settings.usb) usb.start(); else await usb.stop(); }
     save('settings.json', settings);
     push('state', publicState());
     return publicState();
@@ -679,12 +728,43 @@ function registerIpc() {
   ipcMain.handle('photos:load', (_e, id, opts) => phoneHub.photosLoad(String(id), opts || {}));
   ipcMain.handle('photos:download', (_e, id, ids) => phoneHub.photosGet(String(id), Array.isArray(ids) ? ids.map(String) : []));
   ipcMain.handle('mirror:start', (_e, id) => phoneHub.mirrorStart(String(id)));
+  // A stream window finished subscribing: send the codec setup again with the next key frame.
+  ipcMain.on('mirror:ready', (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    const m = streamMeta.get(w);
+    if (m) m.primed = false;
+    // An app window: ask the helper for a fresh key frame right away.
+    for (const [id, win] of mirrorWins) if (win === w && appWins.has(id)) web?.mirrorSend(id, { t: 'refresh' });
+  });
+  ipcMain.handle('appwin:start', (_e, phoneId, pkg, label) => appWindowStart(String(phoneId), String(pkg), String(label || '')));
   ipcMain.handle('mirror:stop', (_e, id) => phoneHub.mirrorStop(String(id)));
   ipcMain.handle('webcam:start', (_e, id, front) => phoneHub.webcamStart(String(id), !!front));
   ipcMain.handle('webcam:stop', (_e, id) => phoneHub.webcamStop(String(id)));
   ipcMain.handle('webcam:set', (_e, id, patch) => phoneHub.webcamSet(String(id), patch && typeof patch === 'object' ? patch : {}));
   ipcMain.handle('callwin:size', (_e, h) => { if (callWin && !callWin.isDestroyed()) callWin.setSize(540, Math.max(110, Math.min(360, Number(h) || 130))); });
   ipcMain.handle('vcam:status', () => vcamStatus());
+  ipcMain.handle('usb:status', () => usb.status());
+  ipcMain.handle('usb:download', () => usb.download());
+  ipcMain.handle('usb:install', async (_e, apk) => {
+    const d = usb.ready();
+    if (!d) throw new Error('Connect the phone with a USB cable first (Settings › Phones & TVs › Connect over a USB cable).');
+    let file = apk && String(apk);
+    if (!file) {
+      const r = await dialog.showOpenDialog(win, { title: 'Install an app on the phone', filters: [{ name: 'Android apps', extensions: ['apk'] }], properties: ['openFile'] });
+      if (r.canceled || !r.filePaths[0]) return { canceled: true };
+      file = r.filePaths[0];
+    }
+    if (!/\.apk$/i.test(file) || !fs.existsSync(file)) throw new Error('That isn’t an .apk file');
+    return { ...(await usb.install(d.serial, file)), name: path.basename(file) };
+  });
+  ipcMain.handle('usb:radios', async () => { const d = usb.ready(); return d ? { usb: true, ...(await usb.radios(d.serial)) } : { usb: false }; });
+  ipcMain.handle('usb:radio', async (_e, which, on) => {
+    const d = usb.ready();
+    if (!d || !['wifi', 'bluetooth'].includes(which)) throw new Error('Needs the USB cable');
+    const r = await usb.setRadio(d.serial, which, !!on);
+    if (!r.ok) throw new Error(`The phone didn’t allow that${r.error ? `: ${r.error}` : ''}`);
+    return usb.radios(d.serial);
+  });
   ipcMain.handle('vcam:install', () => vcamInstall());
   ipcMain.handle('vcam:start', () => vcamStart());
   ipcMain.handle('vcam:stop', () => { vcamStop(); return { on: false }; });
@@ -937,7 +1017,11 @@ app.whenReady().then(async () => {
   phoneHub.start();
   registerIpc();
   await startEngine();
+  usb = new UsbLink({ dir: app.getPath('userData'), ports: () => (web ? [web.port, web.tlsInfo?.port] : []) });
+  usb.on('status', (st) => push('usb', st));
+  usb.on('connected', (d) => console.log('[usb] phone connected', d.serial, d.model));
   await startWeb();
+  if (settings.usb) usb.start();
   const startupSend = pathsFromArgv(process.argv);
   if (startupSend.length) pendingSend = startupSend; // picked up by the UI via send:pending
   createWindow();
@@ -945,7 +1029,7 @@ app.whenReady().then(async () => {
   createTray();
 });
 
-app.on('before-quit', () => { quitting = true; vcamStop(); controlOn = false; remoteInput.stop(); phoneHub?.stop(); });
+app.on('before-quit', () => { quitting = true; vcamStop(); controlOn = false; remoteInput.stop(); phoneHub?.stop(); usb?.stop(); });
 app.on('will-quit', (e) => {
   if (engine || web) {
     e.preventDefault();

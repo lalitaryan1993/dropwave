@@ -36,6 +36,8 @@ object AppWindowServer {
     private var displayId = -1
     private var w = 720
     private var h = 1280
+    @Volatile private var lastOut = 0L
+    @Volatile private var refresher: () -> Unit = {}
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -65,6 +67,8 @@ object AppWindowServer {
             setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 200_000)
             setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
             setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41)
+            // Without this some encoders (MediaTek) hold frames back, and a still app never shows up.
+            if (Build.VERSION.SDK_INT >= 30) setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
         }
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         codec.configure(f, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -85,16 +89,40 @@ object AppWindowServer {
         // Start the app there.
         val comp = sh("cmd package resolve-activity --brief -c android.intent.category.LAUNCHER $pkg").lines().lastOrNull { it.contains('/') }?.trim()
         if (comp == null) { System.err.println("no launcher activity for $pkg"); stopping = true }
-        else sh("am start --display $displayId -W -n $comp")
+        // Not -W: if the app is already open on the phone, am may wait forever; the stream must start now.
+        else thread(name = "dw-appwin-start") { sh("am start --display $displayId -f 0x18000000 -n $comp") }
 
+        refresher = {
+            // Ask for a key frame and make the display draw again (a still app produces no new frames).
+            runCatching { codec.setParameters(android.os.Bundle().apply { putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0) }) }
+            runCatching { vd.surface = null; vd.surface = surface }
+        }
         thread(name = "dw-appwin-input") { input(base, key, token, from) }
+        thread(name = "dw-appwin-watch", isDaemon = true) {
+            while (!stopping) {
+                Thread.sleep(1000)
+                if (SystemClock.uptimeMillis() - lastOut > 2000) refresher()
+            }
+        }
 
         val info = MediaCodec.BufferInfo()
         var buf = ByteArray(256 * 1024)
+        var n = 0
+        println("encoding"); System.out.flush()
         try {
             while (!stopping) {
                 val i = codec.dequeueOutputBuffer(info, 20_000)
+                if (i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    // Some encoders (Codec2) hand over SPS/PPS here instead of as a CODEC_CONFIG buffer.
+                    val of = codec.outputFormat
+                    val csd = listOfNotNull(of.getByteBuffer("csd-0"), of.getByteBuffer("csd-1")).fold(ByteArray(0)) { acc, b -> acc + ByteArray(b.remaining()).also { b.duplicate().get(it) } }
+                    if (csd.isNotEmpty()) frame(1, 0, csd)
+                    println("format ${csd.size}"); System.out.flush()
+                    continue
+                }
                 if (i < 0) continue
+                lastOut = SystemClock.uptimeMillis()
+                if (++n <= 3) { println("out ${info.flags} ${info.size}"); System.out.flush() }
                 if (info.size > 0) {
                     val bb = codec.getOutputBuffer(i)!!
                     if (buf.size < info.size) buf = ByteArray(info.size * 2)
@@ -170,6 +198,7 @@ object AppWindowServer {
                 for (s in 1..steps) { Thread.sleep(ms / steps); touch(MotionEvent.ACTION_MOVE, x1 + (x2 - x1) * s / steps, y1 + (y2 - y1) * s / steps, d) }
                 touch(MotionEvent.ACTION_UP, x2, y2, d)
             }
+            "refresh" -> refresher()
             "back" -> key(KeyEvent.KEYCODE_BACK)
             "enter" -> key(KeyEvent.KEYCODE_ENTER)
             "backspace" -> key(KeyEvent.KEYCODE_DEL)

@@ -55,7 +55,12 @@
     'Closing the window hides DropWave to the system tray': 'विंडो बंद करने पर DropWave ट्रे में छिप जाता है',
     'Run quietly in the tray so others can always send to you': 'ट्रे में चुपचाप चलता रहे ताकि कोई भी आपको भेज सके',
     'Show a Windows notification for incoming files': 'आने वाली फ़ाइलों पर Windows सूचना दिखाएँ', 'Clipboard sync': 'क्लिपबोर्ड सिंक',
-    'Phone notifications on this PC': 'फ़ोन की सूचनाएँ इस PC पर', 'Auto-accept from trusted devices': 'भरोसेमंद डिवाइस से अपने आप लें',
+    'Phone notifications on this PC': 'फ़ोन की सूचनाएँ इस PC पर',
+    'Connect over a USB cable too': 'USB केबल से भी जोड़ें',
+    'For when the Wi-Fi is slow or not there. Needs USB debugging on the phone (Android developer options).': 'जब Wi-Fi धीमा हो या न हो। फ़ोन पर USB debugging चालू होनी चाहिए (Android developer options)।',
+    'Copy one-time codes by themselves': 'OTP अपने आप कॉपी करें',
+    'When an OTP arrives on the phone it’s copied here, ready for Ctrl+V, and cleared again after a minute': 'फ़ोन पर OTP आते ही यहाँ कॉपी हो जाता है, Ctrl+V के लिए तैयार, और एक मिनट बाद हट जाता है',
+    'Install APK': 'APK इंस्टॉल करें', 'Download adb': 'adb डाउनलोड करें', 'Auto-accept from trusted devices': 'भरोसेमंद डिवाइस से अपने आप लें',
     'Network check': 'नेटवर्क जाँच', 'Connection PIN': 'कनेक्शन PIN', 'Security code': 'सुरक्षा कोड',
     'Aurora': 'ऑरोरा', 'Frost': 'फ़्रॉस्ट', 'Petal': 'पेटल', 'Ink': 'इंक', 'Dots': 'डॉट्स',
     // ---- longer lines ----

@@ -1,7 +1,7 @@
 // Home cards: quick phone controls (torch, Do Not Disturb, ring mode, volumes, brightness, lock)
 // and the camera (take a photo / video with the phone, it lands on this PC and in the clipboard).
 import { useEffect, useRef, useState } from 'react';
-import { Flashlight, MoonStar, Vibrate, Bell, Sun, Lock, Camera, Video, Copy, FolderOpen, Loader2, SlidersHorizontal, Webcam } from 'lucide-react';
+import { Flashlight, MoonStar, Vibrate, Bell, Sun, Lock, Camera, Video, Copy, FolderOpen, Loader2, SlidersHorizontal, Webcam, Wifi, Bluetooth } from 'lucide-react';
 import { api } from './lib.js';
 import { Button } from './components.jsx';
 
@@ -34,6 +34,17 @@ export function ControlsCard({ phone, toast }) {
     timers.current[what] = setTimeout(() => set(what, value), 180);
   };
 
+  // Wi-Fi and Bluetooth: only over the USB cable (Android doesn't let apps switch them).
+  const [radios, setRadios] = useState(null);
+  useEffect(() => {
+    const read = () => api.usbRadios?.().then(setRadios).catch(() => setRadios(null));
+    read();
+    const t = setInterval(read, 15000);
+    const offUsb = api.onUsb?.(() => read());
+    return () => { clearInterval(t); offUsb?.(); };
+  }, [id]);
+  const radio = (which) => api.usbRadio(which, !radios[which]).then((r) => setRadios({ usb: true, ...r })).catch((e) => toast(clean(e), 'error'));
+
   if (off) return null;
   return (
     <section className="rounded-3xl border border-line bg-raised/60 p-4">
@@ -41,6 +52,12 @@ export function ControlsCard({ phone, toast }) {
         <SlidersHorizontal className="h-4 w-4 text-accent" />
         <h3 className="text-[13.5px] font-semibold">Phone controls</h3>
       </div>
+      {radios?.usb && (
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <Toggle Icon={Wifi} label="Wi-Fi" on={radios.wifi} title="Over the USB cable" onClick={() => radio('wifi')} />
+          <Toggle Icon={Bluetooth} label="Bluetooth" on={radios.bluetooth} title="Over the USB cable" onClick={() => radio('bluetooth')} />
+        </div>
+      )}
       {!s ? (
         <div className="text-[12.5px] text-muted">{err || 'Asking the phone…'}{err && <button className="no-drag ml-2 text-accent" onClick={() => { setErr(''); ask(1); }}>Try again</button>}</div>
       ) : (

@@ -20,6 +20,10 @@ export function MirrorApp() {
   const params = new URLSearchParams(location.hash.slice(1));
   const id = params.get('mirror');
   const name = params.get('name') || 'Phone';
+  // An app in its own window (Elevated, over USB): id is aw:<phone id>:<package>.
+  const appMode = params.get('app') === '1';
+  const phoneId = params.get('phone') || id;
+  const pkg = appMode ? id.split(':').slice(2).join(':') : '';
   const canvas = useRef(null);
   const [state, setState] = useState({ state: 'asking' });
   const [size, setSize] = useState(null);
@@ -61,10 +65,11 @@ export function MirrorApp() {
 
   // Is control from the PC turned on, on the phone?
   useEffect(() => {
+    if (appMode) { setControl(true); return undefined; } // the helper taps on its own display, no Accessibility needed
     const pick = (p) => p?.id === id && setControl(!!p.status?.controlAccess);
     api.phoneList().then((r) => pick(r.phones.find((p) => p.id === id)));
     return api.onPhone(pick);
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Decode and draw.
   useEffect(() => {
@@ -104,6 +109,7 @@ export function MirrorApp() {
       }),
       api.onMirrorState((s) => setState(s)),
     ];
+    api.mirrorReady?.(); // frames may have started before this window was listening
     return () => { offs.forEach((f) => f()); clearInterval(fpsTimer); decoder?.close?.(); };
   }, []);
 
@@ -120,7 +126,7 @@ export function MirrorApp() {
       e.preventDefault(); depth = 0; setDropping(false);
       const paths = api.pathsFromFiles([...e.dataTransfer.files]);
       if (!paths.length) return;
-      try { await api.sendPaths(id, paths); flash(`Sending ${paths.length} item${paths.length > 1 ? 's' : ''} to ${name}…`); }
+      try { await api.sendPaths(phoneId, paths); flash(`Sending ${paths.length} item${paths.length > 1 ? 's' : ''} to ${name}…`); }
       catch (err) { flash(String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
     };
     window.addEventListener('dragenter', enter); window.addEventListener('dragover', over);
@@ -193,19 +199,19 @@ export function MirrorApp() {
         {live && <span className="text-white/45 tabular">{size ? `${size.w}×${size.h} · ` : ''}{fps} fps</span>}
       </div>
       <div className="relative grid min-h-0 flex-1 place-items-center p-2">
-        <canvas ref={canvas} width={360} height={780} className={`max-h-full max-w-full rounded-[18px] bg-black shadow-2xl ${live ? '' : 'opacity-0'} ${control ? 'cursor-pointer' : ''}`} style={{ aspectRatio: size ? `${size.w}/${size.h}` : undefined }} />
+        <canvas ref={canvas} width={360} height={780} className={`max-h-full max-w-full rounded-[18px] bg-black shadow-2xl ${live ? '' : 'opacity-0'} ${control ? 'cursor-pointer' : ''}`} style={{ aspectRatio: size ? `${size.w}/${size.h}` : undefined, maxHeight: 'calc(100vh - 112px)' }} />
         {!live && (
           <div className="absolute inset-0 grid place-items-center px-8 text-center">
             <div>
               {state.state === 'asking' ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-white/60" /> : <Smartphone className="mx-auto h-8 w-8 text-white/50" />}
               <div className="mt-4 font-display text-[16px] font-semibold">
-                {{ asking: 'Waiting for the phone…', declined: 'The phone said no', off: 'Stopped', error: 'Couldn’t show the screen' }[state.state] || 'Connecting…'}
+                {{ asking: appMode ? `Opening ${name} on the phone…` : 'Waiting for the phone…', declined: 'The phone said no', off: appMode ? `${name} was closed` : 'Stopped', error: appMode ? `Couldn’t open ${name} here` : 'Couldn’t show the screen' }[state.state] || 'Connecting…'}
               </div>
               <div className="mt-1 text-[12.5px] text-white/60">
-                {state.state === 'asking' ? `On ${name}, tap “Start now” (or tap DropWave’s notification first).` : state.error || 'Close this window, or start again from Home.'}
+                {state.state === 'asking' ? (appMode ? 'Over the USB cable. It runs on the phone in the background, so you can keep using the phone.' : `On ${name}, tap “Start now” (or tap DropWave’s notification first).`) : state.error || (appMode ? 'Close this window, or open it again from Apps.' : 'Close this window, or start again from Home.')}
               </div>
               {['declined', 'off', 'error'].includes(state.state) && (
-                <button onClick={() => { setState({ state: 'asking' }); api.mirrorStart(id).catch((e) => setState({ state: 'error', error: e.message })); }}
+                <button onClick={() => { setState({ state: 'asking' }); (appMode ? api.appWinStart(phoneId, pkg, name) : api.mirrorStart(id)).catch((e) => setState({ state: 'error', error: String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') })); }}
                   className="no-drag mt-4 h-9 rounded-xl bg-white/15 px-4 text-[13px] font-semibold hover:bg-white/25">Try again</button>
               )}
             </div>
@@ -226,14 +232,14 @@ export function MirrorApp() {
       </div>
       <div className="flex h-14 shrink-0 items-center justify-center gap-2">
         <Btn title="Back (right-click, Esc)" onClick={() => send({ t: 'back' })}><ArrowLeft className="h-5 w-5" /></Btn>
-        <Btn title="Home" onClick={() => send({ t: 'home' })}><Circle className="h-5 w-5" /></Btn>
-        <Btn title="Recent apps" onClick={() => send({ t: 'recents' })}><Square className="h-4.5 w-4.5" /></Btn>
-        <Btn title="Notifications" onClick={() => send({ t: 'notifications' })}><Bell className="h-5 w-5" /></Btn>
+        {!appMode && <Btn title="Home" onClick={() => send({ t: 'home' })}><Circle className="h-5 w-5" /></Btn>}
+        {!appMode && <Btn title="Recent apps" onClick={() => send({ t: 'recents' })}><Square className="h-4.5 w-4.5" /></Btn>}
+        {!appMode && <Btn title="Notifications" onClick={() => send({ t: 'notifications' })}><Bell className="h-5 w-5" /></Btn>}
         <Btn title="Screenshot to this PC" onClick={shot}><Camera className="h-5 w-5" /></Btn>
         <Btn title={hasSound ? (muted ? 'Unmute the phone’s sound' : 'Mute the phone’s sound') : 'No sound from the phone (allow the microphone on the phone to get it)'} onClick={() => setMuted((m) => !m)}>
           {muted || !hasSound ? <VolumeX className={`h-5 w-5 ${hasSound ? '' : 'opacity-40'}`} /> : <Volume2 className="h-5 w-5" />}
         </Btn>
-        <Btn title="Stop showing the screen" danger onClick={() => { api.mirrorStop(id); window.close(); }}><X className="h-5 w-5" /></Btn>
+        <Btn title={appMode ? `Close ${name}` : 'Stop showing the screen'} danger onClick={() => { if (!appMode) api.mirrorStop(id); window.close(); }}><X className="h-5 w-5" /></Btn>
       </div>
     </div>
   );

@@ -217,6 +217,8 @@ class WebShare extends EventEmitter {
 
   // Browsers authenticate with the cookie; the Android app sends the same key in a header
   // (or ?key= for EventSource / media URLs, which can't set headers).
+  #streams = new Map(); // token -> stop() for a running screen / app stream
+
   #authed(req) {
     const k = parseCookies(req.headers.cookie)[COOKIE] || req.headers['x-dropwave-key'] || new URL(req.url, 'http://x').searchParams.get('key');
     if (!k) return false;
@@ -599,16 +601,25 @@ class WebShare extends EventEmitter {
   // ---------- phone screen on PC ----------
 
   /** Accept one screen stream from this phone with this token. onFrame(type, ptsUs, Buffer), onEnd(). */
-  allowMirror(token, { clientId, onFrame, onEnd }) {
-    this.mirrorTokens.set(token, { clientId, onFrame, onEnd, created: Date.now() });
+  allowMirror(token, { clientId, onFrame, onEnd, loopback = false }) {
+    this.mirrorTokens.set(token, { clientId, onFrame, onEnd, loopback, created: Date.now() });
   }
+
+  /** The key a helper this PC starts itself (over USB) uses, like a logged-in phone. */
+  appKey() { return this.#cookieValue(); }
+
+  /** End a running stream (e.g. its window was closed). */
+  endStream(token) { this.mirrorTokens.get(token)?.stop?.(); this.#streams.get(token)?.(); }
 
   #mirror(req, res, url, ip) {
     const token = String(url.searchParams.get('token') || '');
     const m = this.mirrorTokens.get(token);
-    const from = this.#liveClient(url.searchParams.get('from'), ip);
+    // A helper this PC started on the phone over USB (adb reverse) reaches us on loopback and isn't a
+    // logged-in device: the one-time secret token it was given is what identifies its stream.
+    const viaUsb = m?.loopback && /^(127\.0\.0\.1|::1)$/.test(ip);
+    const from = viaUsb ? { id: m.clientId } : this.#liveClient(url.searchParams.get('from'), ip);
     if (process.env.DROPWAVE_DEBUG) console.log('[mirror] stream', { token: !!m, from: from?.id, want: m?.clientId, ip });
-    if (!m || !from || from.id !== m.clientId) { req.resume(); return json(res, 403, { error: 'Not requested' }); }
+    if (!m || !from || from.id !== m.clientId || (m.loopback && !viaUsb)) { req.resume(); return json(res, 403, { error: 'Not requested' }); }
     this.mirrorTokens.delete(token);
     this.mirrorInputs.set(token, { clientId: from.id, ip, res: null });
     req.socket.setNoDelay(true);
@@ -637,7 +648,8 @@ class WebShare extends EventEmitter {
     };
     req.on('end', () => { end(); json(res, 200, { ok: true }); });
     req.on('close', end);
-    m.stop = () => req.destroy();
+    this.#streams.set(token, () => req.destroy());
+    req.on('close', () => this.#streams.delete(token));
   }
 
   // The phone's mirroring service reads input here directly (one JSON event per line), so control

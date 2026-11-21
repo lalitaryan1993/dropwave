@@ -8,6 +8,8 @@ import {
 import { api, fmtSize, fmtSpeed, fmtEta, timeAgo, hueFor, initials, label, peerOf, isPlayable, playStream } from './lib.js';
 import { Play, MessageCircle, Phone, Video, MonitorUp } from 'lucide-react';
 
+import { Globe } from './orbit.jsx';
+
 const spring = { type: 'spring', stiffness: 420, damping: 32 };
 
 export function Avatar({ id, name, size = 48, ring = false }) {
@@ -149,8 +151,7 @@ export function Radar({ me, onAdd, onPhone, onCheck }) {
         {[0, 1, 2].map((i) => (
           <span key={i} className="radar-ring absolute inset-0 rounded-full border border-accent/40" style={{ animationDelay: `${i * 1.05}s` }} />
         ))}
-        <span className="absolute inset-16 rounded-full bg-accent/10 blur-2xl" />
-        <Avatar id={me.id} name={me.name} size={76} ring />
+        <Globe size={112} />
       </div>
       <h2 className="mt-2 font-display text-[22px] font-semibold">Looking for nearby devices…</h2>
       <p className="mt-2 max-w-md text-[13.5px] leading-relaxed text-muted">

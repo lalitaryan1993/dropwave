@@ -16,6 +16,7 @@ const { RemoteInput } = require('./input.cjs');
 const { PhoneHub } = require('./phone.cjs');
 const { UsbLink } = require('./usb.cjs');
 const { setupDocs } = require('./docs.cjs');
+const { Flow } = require('./flow.cjs');
 
 // Remote control: off unless the user allows it for the screen share that is running now.
 const remoteInput = new RemoteInput();
@@ -592,6 +593,45 @@ async function stopWeb() {
   phoneHub.sync([]);
 }
 
+// ---- one mouse and keyboard for two PCs (flow.cjs + native/kvm/dwkvm.exe) ----
+let flow = null;
+const kvmExe = () => { const p = app.isPackaged ? path.join(process.resourcesPath, 'kvm', 'dwkvm.exe') : path.join(__dirname, '..', 'build', 'kvm', 'dwkvm.exe'); return process.platform === 'win32' && fs.existsSync(p) ? p : null; };
+let flowToldControlled = false;
+function startFlow() {
+  flow = new Flow({
+    engine,
+    helper: kvmExe,
+    config: () => settings.kvm || { on: false },
+    // Another PC wants its mouse to reach this screen: only with this PC user's yes (remembered).
+    allow: async (from) => {
+      if (settings.kvmAllowed?.[from.id]) return true;
+      showWindow();
+      const r = await dialog.showMessageBox(win, {
+        type: 'question', buttons: ['Allow', 'Decline'], defaultId: 1, cancelId: 1, noLink: true,
+        title: 'One mouse, two PCs',
+        message: `${from.name} wants to share its mouse and keyboard with this PC`,
+        detail: 'Its pointer can then move onto this screen and type here, and what you copy goes along. Allow only your own PCs. You can turn this off in Settings.',
+      });
+      if (r.response !== 0) return false;
+      settings.kvmAllowed = { ...settings.kvmAllowed, [from.id]: from.name };
+      save('settings.json', settings);
+      return true;
+    },
+    clipboard: {
+      read: () => { const img = clipboard.readImage(); return { text: clipboard.readText(), html: clipboard.readHTML(), png: img.isEmpty() ? null : img.toPNG() }; },
+      write: ({ text, html, png }) => clipboard.write({ ...(text ? { text } : {}), ...(html ? { html } : {}), ...(png ? { image: nativeImage.createFromBuffer(png) } : {}) }),
+    },
+  });
+  flow.on('state', (s) => push('flow', { ...s, allowed: settings.kvmAllowed || {} }));
+  flow.on('log', (m) => console.log('[flow]', m));
+  flow.on('controlled', (p) => {
+    if (flowToldControlled) return;
+    flowToldControlled = true;
+    if (Notification.isSupported()) new Notification({ title: 'One mouse, two PCs', body: `${p?.name || 'Another PC'} is using this PC’s screen with its mouse and keyboard. Move the pointer back, or press Ctrl+Alt+Home on it.` }).show();
+  });
+  setTimeout(() => flow.sync(), 3000); // once the other PC has been discovered
+}
+
 // ---- engine wiring ----
 async function startEngine() {
   const port = Number(process.env.DROPWAVE_PORT) || DEFAULT_TCP_PORT;
@@ -612,6 +652,7 @@ async function startEngine() {
   engine.on('transfer', handleTransfer);
   engine.on('text', handleText);
   engine.on('rtc', handleRtc);
+  startFlow();
 
   try {
     await engine.start();
@@ -758,6 +799,20 @@ function registerIpc() {
   ipcMain.handle('webcam:start', (_e, id, front) => phoneHub.webcamStart(String(id), !!front));
   ipcMain.handle('webcam:stop', (_e, id) => phoneHub.webcamStop(String(id)));
   ipcMain.handle('scan:start', (_e, id) => phoneHub.scanStart(String(id)));
+  ipcMain.handle('flow:get', () => ({ ...(flow?.state() || {}), config: settings.kvm || { on: false }, allowed: settings.kvmAllowed || {} }));
+  ipcMain.handle('flow:set', (_e, patch) => {
+    const c = { on: false, peer: '', side: 'right', ...settings.kvm, ...patch };
+    settings.kvm = { on: !!c.on, peer: String(c.peer || ''), side: c.side === 'left' ? 'left' : 'right' };
+    save('settings.json', settings);
+    flow?.sync();
+    return { ...(flow?.state() || {}), config: settings.kvm, allowed: settings.kvmAllowed || {} };
+  });
+  ipcMain.handle('flow:forget', (_e, id) => {
+    const a = { ...settings.kvmAllowed }; delete a[String(id)];
+    settings.kvmAllowed = a; save('settings.json', settings);
+    if (flow?.peer?.id === String(id) && !flow.outgoing) flow.stop();
+    return a;
+  });
   ipcMain.handle('mic:start', (_e, id) => phoneHub.micStart(String(id)));
   ipcMain.handle('mic:stop', (_e, id) => phoneHub.micStop(String(id)));
   ipcMain.handle('webcam:set', (_e, id, patch) => phoneHub.webcamSet(String(id), patch && typeof patch === 'object' ? patch : {}));

@@ -5,11 +5,12 @@ import {
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
   Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
-  Contact, LayoutGrid, Camera, Usb, Wifi,
+  Contact, LayoutGrid, Camera, Usb, Wifi, Globe2,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
 import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, Toasts } from './components.jsx';
+import { Orbit } from './orbit.jsx';
 import { ChatsView } from './chat.jsx';
 import { useCalls, CallLayer } from './call.jsx';
 import { Home, usePhones, RemoteAskModal, RemotePill } from './home.jsx';
@@ -401,7 +402,7 @@ export default function App() {
                 )}
                 {view === 'chats' && <ChatsView peers={peers} list={chatList} selected={chatPeer} onSelect={setChatPeer} />}
                 {view === 'activity' && <Activity activeList={activeList} history={history} onClear={async () => setHistory(await api.clearHistory())} />}
-                {view === 'settings' && <Settings state={state} update={updateSettings} chooseDir={async () => setState(await api.chooseSaveDir())} checkSignal={checkSignal} appUpdate={update} setAppUpdate={setUpdate} />}
+                {view === 'settings' && <Settings peers={peers} state={state} update={updateSettings} chooseDir={async () => setState(await api.chooseSaveDir())} checkSignal={checkSignal} appUpdate={update} setAppUpdate={setUpdate} />}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -451,6 +452,8 @@ function SectionTitle({ title, sub, right }) {
 function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPaths, onPick, onAdd, onPhone, onSeeAll, onCheck, onText, onCall }) {
   // Computers first, then phones/TVs; alphabetical inside each group.
   const sorted = useMemo(() => [...peers].sort((a, b) => Number(!!a.web) - Number(!!b.web) || a.name.localeCompare(b.name)), [peers]);
+  const [look, setLook] = useState(() => { try { return localStorage.getItem('dw_nearby_look') || 'orbit'; } catch { return 'orbit'; } });
+  const pickLook = (v) => { setLook(v); try { localStorage.setItem('dw_nearby_look', v); } catch {} };
   return (
     <div className="flex h-full">
       <section className="relative min-w-0 flex-1 overflow-auto p-7">
@@ -463,11 +466,20 @@ function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPath
               sub={dragging ? 'Drop on a device to send' : 'Drag files or folders onto a device to send them'}
               right={
                 <div className="flex gap-2">
-                  <Button variant="soft" onClick={onPhone}><QrCode className="h-4 w-4" /> Phone or TV</Button>
-                  <Button variant="ghost" onClick={onAdd}><Plus className="h-4 w-4" /> Add by IP</Button>
+                  <div className="flex rounded-xl border border-line p-0.5">
+                    <button onClick={() => pickLook('orbit')} title="Orbit" className={`no-drag grid h-8 w-8 place-items-center rounded-lg ${look === 'orbit' ? 'bg-raised text-fg shadow-sm' : 'text-muted'}`}><Globe2 className="h-4 w-4" /></button>
+                    <button onClick={() => pickLook('grid')} title="Cards" className={`no-drag grid h-8 w-8 place-items-center rounded-lg ${look === 'grid' ? 'bg-raised text-fg shadow-sm' : 'text-muted'}`}><LayoutGrid className="h-4 w-4" /></button>
+                  </div>
+                  <Button variant="soft" className="whitespace-nowrap" onClick={onPhone}><QrCode className="h-4 w-4" /> Phone or TV</Button>
+                  <Button variant="ghost" className="whitespace-nowrap" onClick={onAdd}><Plus className="h-4 w-4" /> Add by IP</Button>
                 </div>
               }
             />
+            {look === 'orbit' ? (
+              <div className="mt-2 h-[calc(100%-64px)]">
+                <Orbit me={me} peers={sorted} dragging={dragging} busyPeers={busyPeers} onDropPaths={onDropPaths} onPick={onPick} onText={onText} onCall={onCall} />
+              </div>
+            ) : (
             <motion.div layout className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">
               <AnimatePresence>
                 {sorted.map((p) => (
@@ -475,6 +487,7 @@ function Nearby({ me, peers, dragging, busyPeers, activeList, recent, onDropPath
                 ))}
               </AnimatePresence>
             </motion.div>
+            )}
           </>
         )}
 
@@ -659,7 +672,7 @@ function UpdatesCard({ version, appUpdate, setAppUpdate }) {
   );
 }
 
-function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpdate }) {
+function Settings({ peers = [], state, update, chooseDir, checkSignal, appUpdate, setAppUpdate }) {
   const s = state.settings;
   const [name, setName] = useState(s.deviceName);
   const [editing, setEditing] = useState(false);
@@ -702,6 +715,8 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
         <NetworkCheck signal={checkSignal} />
 
         <UpdatesCard version={state.version} appUpdate={appUpdate} setAppUpdate={setAppUpdate} />
+
+        <FlowCard pcs={peers.filter((p) => p.port && !p.web)} />
 
         <Card title="Phones & TVs">
           <Row label="Allow phones, tablets and TVs" hint="They connect from their web browser using a QR code or PIN">
@@ -834,6 +849,58 @@ function Settings({ state, update, chooseDir, checkSignal, appUpdate, setAppUpda
         </Card>
       </div>
     </div>
+  );
+}
+
+// One mouse and keyboard for two PCs: pick the other PC and which side of this screen it stands on.
+function FlowCard({ pcs }) {
+  const [st, setSt] = useState(null);
+  useEffect(() => { api.flowGet?.().then(setSt); return api.onFlow?.((s) => setSt((o) => ({ ...o, ...s }))); }, []);
+  if (!st || !api.flowSet) return null;
+  const c = st.config || { on: false, side: 'right' };
+  const set = async (patch) => setSt(await api.flowSet(patch));
+  const peer = pcs.find((p) => p.id === c.peer);
+  const allowed = Object.entries(st.allowed || {});
+  const status = !st.helper ? { t: 'The mouse helper (dwkvm.exe) is missing from this copy of DropWave.', cls: 'text-bad' }
+    : st.mode === 'controlling' ? { t: `Your mouse is on ${st.peer?.name}. Move it back, or press Ctrl+Alt+Home.`, cls: 'text-accent' }
+    : st.mode === 'controlled' ? { t: `${st.peer?.name} is using this screen.`, cls: 'text-accent' }
+    : st.connected ? { t: `Connected to ${st.peer?.name}. Push the pointer off the ${st.edge || c.side} edge of this screen.`, cls: 'text-good' }
+    : c.on ? { t: peer ? `Connecting to ${peer.name}… (DropWave must be open there)` : 'Waiting for the other PC to appear on this network…', cls: 'text-muted' } : null;
+  return (
+    <Card title="One mouse, two PCs">
+      <Row label="Use this mouse and keyboard on another PC" hint="Push the pointer off the edge of this screen and it carries on on the other PC; the keyboard follows, and what you copy comes along (text and pictures).">
+        <Toggle on={!!c.on} set={(v) => set({ on: v, peer: c.peer || pcs[0]?.id || '' })} />
+      </Row>
+      {c.on && (
+        <div className="space-y-3 rounded-xl border border-line bg-bg-2/40 px-3 py-3 text-[12.5px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted">The other PC</span>
+            <select value={c.peer} onChange={(e) => set({ peer: e.target.value })} className="no-drag h-9 min-w-44 rounded-lg border border-line bg-raised px-2 outline-none focus:border-accent">
+              {!peer && <option value={c.peer}>{c.peer ? 'Not on the network right now' : 'Pick a PC'}</option>}
+              {pcs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <span className="text-muted">is on the</span>
+            <div className="flex rounded-lg border border-line p-0.5">
+              {['left', 'right'].map((s) => (
+                <button key={s} onClick={() => set({ side: s })} className={`no-drag h-8 rounded-md px-3 capitalize ${c.side === s ? 'bg-raised font-semibold shadow-sm' : 'text-muted'}`}>{s}</button>
+              ))}
+            </div>
+            <span className="text-muted">of this screen</span>
+          </div>
+          {status && <div className={status.cls}>{status.t}</div>}
+          <div className="text-faint">The other PC asks once before it lets this mouse in. Ctrl+Alt+Home always brings the mouse back here.</div>
+        </div>
+      )}
+      {allowed.length > 0 && (
+        <Row label="PCs that may use this screen" hint="These PCs can move their mouse onto this PC after you allowed them.">
+          <div className="flex flex-wrap gap-2">
+            {allowed.map(([id, name]) => (
+              <Button key={id} variant="soft" onClick={async () => { const a = await api.flowForget(id); setSt((o) => ({ ...o, allowed: a })); }} title="Remove">{typeof name === 'string' ? name : 'PC'} <X className="h-3.5 w-3.5" /></Button>
+            ))}
+          </div>
+        </Row>
+      )}
+    </Card>
   );
 }
 

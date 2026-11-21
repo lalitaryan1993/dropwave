@@ -227,3 +227,26 @@ input[type="text"], input:not([type]) { user-select: text; }
     radial-gradient(800px 500px at 90% -10%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
     var(--bg);
 }
+
+/* ---------- Nearby: globe, waves and floating devices (orbit.jsx) ---------- */
+@keyframes orbit-wave { from { transform: translate(-50%, -50%) scale(0.18); opacity: 0.55; } 70% { opacity: 0.12; } to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+.orbit-wave { position: absolute; border-radius: 9999px; border: 1.5px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  background: radial-gradient(circle, transparent 58%, color-mix(in oklab, var(--accent) 7%, transparent) 70%, transparent 72%);
+  animation: orbit-wave 4.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite; pointer-events: none; }
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
+@keyframes orbit-dash { to { stroke-dashoffset: -240; } }
+.orbit-spin { animation: orbit-dash 30s linear infinite; }
+.orbit-spin-rev { animation: orbit-dash 45s linear infinite reverse; }
+@keyframes orbit-float { 0%, 100% { transform: translateY(-4px); } 50% { transform: translateY(4px); } }
+.orbit-node { position: absolute; transform: translate(-50%, -50%) scale(var(--s, 1)); will-change: left, top, transform; }
+.orbit-bob { animation: orbit-float 4.6s ease-in-out infinite; }
+@keyframes orbit-beam { to { stroke-dashoffset: -28; } }
+.orbit-beam { stroke-dasharray: 3 11; animation: orbit-beam 1.6s linear infinite; }
+.orbit-beam.busy { stroke-dasharray: 6 8; animation-duration: 0.45s; }
+@keyframes globe-turn { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.globe-map { animation: globe-turn 26s linear infinite; }
+@keyframes globe-glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.9; } }
+.globe-glow { animation: globe-glow 4.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .orbit-wave, .orbit-spin, .orbit-spin-rev, .orbit-bob, .orbit-beam, .globe-map, .globe-glow { animation: none; }
+}

@@ -15,9 +15,10 @@
     "test:engine": "node test/engine.test.cjs",
     "icon": "electron scripts/process-icons.cjs",
     "vcam": "native\\vcam\\build.cmd",
-    "dist": "npm run vcam && vite build && electron-builder --win nsis",
+    "kvm": "native\\kvm\\build.cmd",
+    "dist": "npm run vcam && npm run kvm && vite build && electron-builder --win nsis",
     "test:web": "node test/web.test.cjs",
-    "test": "node test/engine.test.cjs && node test/web.test.cjs"
+    "test": "node test/engine.test.cjs && node test/web.test.cjs && node test/flow.test.cjs"
   },
   "build": {
     "appId": "com.dropwave.app",
@@ -36,6 +37,13 @@
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "build/kvm",
+        "to": "kvm",
+        "filter": [
+          "dwkvm.exe"
+        ]
+      },
       {
         "from": "build/vcam",
         "to": "vcam",

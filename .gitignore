@@ -19,5 +19,6 @@ marketing/
 
 # DropWave Camera binaries (built by npm run vcam)
 build/vcam/
+build/kvm/
 research_notes/
 reports/

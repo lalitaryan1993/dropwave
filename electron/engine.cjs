@@ -505,6 +505,14 @@ class Engine extends EventEmitter {
     });
   }
 
+  /** Long-lived encrypted channel for mouse and keyboard sharing (see flow.cjs). */
+  async openKvm(peer) {
+    if (peer.outdated) throw new Error(`${peer.name} needs to update DropWave`);
+    const { ch } = await this.#connect(peer.ip, peer.port, peer.id);
+    send(ch, { type: 'kvm', from: { name: this.name } });
+    return ch;
+  }
+
   // ---------- receiving ----------
 
   #startServer() {
@@ -545,6 +553,14 @@ class Engine extends EventEmitter {
           const from = { id: peerId, name: String(m.from?.name || this.#nameOf(peerId, sock)).slice(0, 64), ip: sock.remoteAddress?.replace(/^::ffff:/, '') };
           if (text) this.emit('text', { id: crypto.randomUUID(), from, text, at: Date.now() });
           send(sock, { type: 'ok' }); sock.end(); state = 'closed'; return;
+        }
+        if (m.type === 'kvm') {
+          // One mouse and keyboard for two PCs: a long-lived channel; messages are control frames,
+          // clipboard pictures are data. main decides whether this PC lets that one in.
+          state = 'closed';
+          sock.removeAllListeners('data');
+          this.emit('kvm', { ch: sock, from: { id: peerId, name: String(m.from?.name || this.#nameOf(peerId, sock)).slice(0, 64) } });
+          return;
         }
         if (m.type === 'rtc') {
           // Call signaling: handed to the window, which asks the user before anything starts.

@@ -22,3 +22,4 @@ build/vcam/
 build/kvm/
 research_notes/
 reports/
+build/*.preview.png

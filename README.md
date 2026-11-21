@@ -6,7 +6,7 @@
 
 ### Stop picking up your phone. 📵
 
-**Calls, WhatsApp & SMS, OTPs, photos, the camera as a webcam and every app, right on your Windows PC.<br />Plus files to any PC, phone or TV. All over your own Wi-Fi: no cloud, no account, no cables.**
+**Calls, WhatsApp & SMS, OTPs, photos, the camera as a webcam and every app, right on your Windows PC.<br />Print and scan from the phone, one mouse and keyboard for two PCs, files to any PC, phone or TV.<br />All over your own Wi-Fi: no cloud, no account, no cables.**
 
 <br />
 
@@ -58,6 +58,17 @@
   <sub><b>Safe by default:</b> when a bank or UPI app opens on the phone, control from the PC switches itself off.</sub>
 </p>
 
+## 🆕 Print, scan, and one mouse for two PCs
+
+<table>
+<tr>
+<td width="25%" valign="top"><img src="docs/readme/n-print.png" alt="Print from the phone on the PC's printer, scan pages to PDF" /><br /><b>🖨️ Print & 📄 scan</b><br />Share a PDF or photo to DropWave and print it on any printer the PC can use. Scan pages with Google's document scanner on the phone; save as <b>PDF, JPG or PNG</b>, even under 200 KB for portals.</td>
+<td width="25%" valign="top"><img src="docs/readme/n-mouse.png" alt="One mouse and keyboard for two laptops, copy and paste files between them" /><br /><b>🖱️ One mouse, two PCs</b><br />Push the pointer off the edge of the screen and keep working on the other PC. The keyboard follows; copy text, pictures or <b>whole files</b> on one and paste on the other.</td>
+<td width="25%" valign="top"><img src="docs/readme/n-nearby.png" alt="Nearby devices circling a globe in 3D" /><br /><b>🌍 Nearby, in 3D</b><br />Your PC is a turning globe; PCs, phones and TVs circle it. Drop files on one, or click it for files, chat, calls and screen sharing.</td>
+<td width="25%" valign="top"><img src="docs/readme/n-apps.png" alt="Phone apps in their own PC windows" /><br /><b>🪟 Apps in PC windows</b><br />Any phone app in its own window, over USB or Wireless debugging. Banking and UPI apps never show on the PC.</td>
+</tr>
+</table>
+
 ## 💻 PC ↔ PC, phone screen, calls and your TV
 
 DropWave started as the fastest way to move files around the house, and it does a lot more between your devices:
@@ -101,6 +112,71 @@ DropWave started as the fastest way to move files around the house, and it does 
 - **📲 Phone app**: remembers every PC address (home, office, Tailscale), *Lock PC* tile, home-screen widget. Install an APK from the PC over USB.
 
 <sub>1.8: phone as webcam, call popup, Hindi, contacts, apps, phone controls, styles. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
+
+## 🆕 New since 1.9 (in the next release)
+
+- **🖨️ Print on PC**: share any PDF or photo to DropWave on the phone (or *Home › Print & scan*), pick a printer on the PC (USB or network), copies, paper, black & white, both sides. Nothing prints until you press Print on the PC.
+- **📄 Scan to PC**: Google's on-device document scanner (live edges, auto capture, clean-up, many pages); the PC can start it too (*Camera › Scan document*). Edit on the PC: Magic / Auto / Grey / B&W, brightness, contrast, sharpness, straighten, crop, page order. Save as **PDF, JPG or PNG**, with size limits for portals.
+- **🖱️ One mouse, two PCs** (*Settings › One mouse, two PCs*): mouse and keyboard move to the other PC at the screen's edge; text, pictures and files copied on one PC paste on the other; **Ctrl+Alt+Home** brings the mouse back.
+- **🌍 Nearby in 3D**: a turning globe with your devices on an orbit (the card grid is one click away).
+- **🛡️ Safer**: banking and UPI apps stop screen sharing and never open in a PC window; "Your PC is controlling this phone" notice with Stop; a scam warning in English and Hindi.
+- **✨ A new-look installer**.
+
+## 📋 Complete feature list
+
+<details open>
+<summary><b>📱 Your Android phone on your Windows PC</b></summary>
+
+- **Notifications** from every app (WhatsApp, Telegram, Gmail…) on the PC, with **Reply** from the keyboard; dismiss them from the PC.
+- **SMS**: read conversations and send texts from the PC.
+- **OTP**: *Copy code* in one click; **Smart OTP** copies new codes by itself and clears them after a minute.
+- **Calls**: a popup on top of every window for SIM and WhatsApp calls: Answer, Decline, Silence, decline with a message, then Mute, Speaker and Hang up. Call or text any contact; call history.
+- **Phone screen on the PC** (screen mirroring) with mouse and keyboard control and the phone's sound; drop files onto it.
+- **Phone apps in their own PC windows** (USB cable or Wireless debugging, no cable).
+- **Photos**: the camera roll by day, originals; **photo auto-backup** by year and month. **Phone files**: browse and copy.
+- **Apps**: open, info, uninstall, copy the APK, recent and most used; install an APK from the PC over USB.
+- **Contacts**: search, call, message.
+- **Phone as webcam**: *DropWave Camera* in Zoom, Meet, Teams (Windows 11); front or back camera, torch, mirror. Take a photo or record a video on the phone from the PC.
+- **Phone as microphone** for the PC (any app with the free VB-CABLE).
+- **Phone controls**: torch, Do Not Disturb, volumes, brightness, lock, Wi-Fi and Bluetooth (over USB); **Find phone** rings it even on silent.
+- **Clipboard** both ways, a *Send clipboard* tile, music controls, battery, *Lock PC* tile, home-screen widget.
+- **Print on PC** and **Scan to PC** (see above).
+</details>
+
+<details>
+<summary><b>💻 Between your PCs, phones and TVs</b></summary>
+
+- **Drag & drop files and folders** between PCs, no size limit, original quality, end-to-end encrypted, resumable.
+- **One mouse and keyboard for two PCs**, with copy and paste of text, pictures and files.
+- **Voice and video calls, screen sharing**, and **remote control** (asks first) between PCs and phones.
+- **Phones, iPhones and smart TVs from the browser**: scan a QR code, no app needed. Stream photos and videos to the TV; **Play now** before you accept a big video.
+- **Control the PC from the phone**: touchpad, keyboard and a **Deck** of shortcuts (media, volume, slides, lock, sleep).
+- **Chat** with any device; right-click **Send with DropWave** in File Explorer.
+</details>
+
+<details>
+<summary><b>🔒 Privacy, safety and comfort</b></summary>
+
+- **No cloud, no account**: your own Wi-Fi, a phone hotspot or a USB cable. TLS 1.3 with a pinned certificate to the phone; X25519 + AES-256-GCM between PCs.
+- **A switch for every feature** on the phone; pause everything in one tap.
+- **Bank and UPI guard**: control from the PC switches off, screen sharing stops, and banking apps never open in a PC window.
+- **Scam safety**: "Your PC is controlling this phone" with Stop, and a warning in English and Hindi.
+- **Works while the phone is locked**; battery steps for Realme, Oppo, Vivo, iQOO, Xiaomi, Samsung, OnePlus and Motorola.
+- **English and हिन्दी**, five styles in light and dark, **Ctrl + K** for everything, auto-update.
+</details>
+
+## 🧩 One app instead of five
+
+DropWave covers what you would otherwise need several apps for:
+
+| You want to… | Usually you'd use | In DropWave |
+|---|---|---|
+| Use your Android phone on a Windows PC (messages, calls, notifications) | Microsoft Phone Link, KDE Connect, AirDroid | ✅ Free, any Android brand, no Microsoft account |
+| Use one mouse and keyboard for two PCs | Mouse without Borders, Synergy, Input Leap | ✅ With copy and paste of files |
+| Scan documents to PDF | CamScanner, Adobe Scan, Google Drive scan | ✅ Straight onto the PC, PDF / JPG / PNG |
+| Print from the phone | Printer apps, emailing the file to yourself | ✅ Any printer the PC can use |
+| Send big files between PC, phone and TV | ShareIt, LocalSend, Nearby Share, pen drives | ✅ Encrypted, no size limit, TVs from the browser |
+| Phone camera as a webcam | DroidCam, Iriun | ✅ Built in (Windows 11) |
 
 ## 🤔 Why DropWave?
 
@@ -157,7 +233,17 @@ It's free and open source under the MIT licence. There is no server, so there is
 
 <details>
 <summary><b>Which phones work?</b></summary>
-Any Android 10+ phone, any brand. Some brands (Realme, Oppo, Vivo, Xiaomi, Samsung, OnePlus) stop apps in the background; the phone app shows the one setting to allow for your brand. iPhones can send and receive files from the browser.
+Any Android 10+ phone, any brand. Some brands (Realme, Oppo, Vivo, iQOO, Xiaomi, Samsung, OnePlus, Motorola) stop apps in the background; the phone app shows the one setting to allow for your brand. iPhones can send and receive files from the browser.
+</details>
+
+<details>
+<summary><b>How do I use one mouse and keyboard for two PCs?</b></summary>
+Install DropWave on both PCs (same Wi-Fi). On the PC whose mouse you use: <i>Settings › One mouse, two PCs</i>, turn it on, pick the other PC and say whether it is on the left or the right. The other PC asks once to allow it. Then push the pointer off that edge of the screen. Copy something first (text, a picture or files in File Explorer) and paste it on the other PC. <b>Ctrl+Alt+Home</b> always brings the mouse back.
+</details>
+
+<details>
+<summary><b>How do I print from my phone, or scan a document to PDF?</b></summary>
+On the phone: <i>Home › Print & scan</i>. <b>Print on PC</b> sends a PDF or photo to a print window on the PC (or use <i>Share › DropWave › Print on PC</i> from any app). <b>Scan to PC</b> opens Google's document scanner; the pages open on the PC, where you can clean them up, print them, or save a PDF, JPG or PNG (with "under 200 KB / 500 KB / 1 MB" for upload portals).
 </details>
 
 <details>
@@ -198,7 +284,7 @@ flowchart LR
   M[📱 Android app]
   P[📱 Phone / 📺 TV browser]
   A <-- "UDP 47821 · discovery" --> B
-  A -- "TCP 47822 · encrypted transfers" --> B
+  A -- "TCP 47822 · encrypted transfers, one mouse for two PCs" --> B
   M <-- "HTTPS 47824 · TLS 1.3, pinned · phone link" --> A
   P <-- "HTTP 47823 · PIN · files · live updates" --> A
 ```
@@ -217,7 +303,7 @@ git clone https://github.com/lalitaryan1993/dropwave.git
 cd dropwave
 npm install
 npm run dev        # run with hot reload
-npm test           # headless tests: PC transfers + phone/TV access
+npm test           # headless tests: PC transfers, phone/TV access, one mouse for two PCs
 npm run dist       # build release/DropWave-Setup-x.y.z.exe
 ```
 
@@ -226,11 +312,13 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 | `electron/engine.cjs` | PC discovery and transfer protocol (pure Node, unit-tested) |
 | `electron/webshare.cjs` + `electron/web/` | Phone/TV server and the phone page (also used inside the Android app) |
 | `electron/phone.cjs` | The phone link: notifications, calls, SMS, photos, controls, webcam |
+| `electron/flow.cjs` + `native/kvm/` | One mouse and keyboard for two PCs, clipboard and files with it (C++ helper `dwkvm.exe`) |
+| `electron/docs.cjs` + `src/docs.jsx` | Print on PC and Scan to PC: pages, editing, printing, PDF / JPG / PNG |
 | `electron/main.cjs` | Windows, tray, notifications, settings, the DropWave Camera manager |
 | `src/` | Desktop UI (React, Tailwind, Motion) |
 | `native/vcam/` | DropWave Camera, a Windows 11 virtual camera (C++, Media Foundation) |
 | `mobile/` | Android app (Capacitor + Kotlin) |
-| `test/` | `engine.test.cjs`, `web.test.cjs` |
+| `test/` | `engine.test.cjs`, `web.test.cjs`, `flow.test.cjs` |
 
 **Android build** (JDK 21 + Android SDK): `cd mobile && npm install && npm run apk` → `mobile/android/app/build/outputs/apk/release/`. Release signing reads `%USERPROFILE%\.dropwave\keystore.properties`.
 
@@ -242,6 +330,8 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Call popup with mute and speaker, Hindi, auto-discovery
 - [x] Each phone app in its own window on the PC
 - [x] The phone's microphone as the PC's microphone (with the free VB-CABLE for other apps)
+- [x] Print from the phone on the PC's printer; scan documents to PDF / JPG / PNG
+- [x] One mouse and keyboard for two PCs, with copy and paste of files
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)
 

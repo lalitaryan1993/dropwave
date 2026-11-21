@@ -1,0 +1,30 @@
+<p>DropWave is the Android companion of the free DropWave app for Windows. Your phone and your PC talk directly over your own Wi-Fi (or a USB cable): no cloud, no account, no login. Scan a QR code once and you're connected.</p>
+
+<p><b>On your PC, from your phone</b></p>
+<ul>
+<li><b>Messages:</b> WhatsApp and other notifications with Reply, and your SMS conversations.</li>
+<li><b>OTP in one click:</b> copy a bank code from the PC. Smart OTP can copy new codes for you and clear them after a minute.</li>
+<li><b>Calls:</b> answer, decline or silence SIM and WhatsApp calls from a popup on the PC, then mute or use the speaker.</li>
+<li><b>Photos and files:</b> your camera roll and phone storage on the PC, drag &amp; drop both ways, photo auto-backup.</li>
+<li><b>Phone as webcam</b> (DropWave Camera on Windows 11) and <b>phone as microphone</b>.</li>
+<li><b>Screen:</b> see and control the phone from the PC; open phone apps in their own PC windows (USB or Wireless debugging).</li>
+<li><b>Apps and contacts:</b> every app with its icon, contacts and call history.</li>
+<li><b>Phone controls:</b> torch, Do Not Disturb, volume, brightness, lock, and Find phone (rings even on silent).</li>
+<li>Clipboard both ways, music controls, Lock PC tile and home-screen widget.</li>
+</ul>
+
+<p><b>Files everywhere</b><br/>Send files to any PC, phone or TV on your network, at Wi-Fi speed.</p>
+
+<p><b>Private by design</b></p>
+<ul>
+<li>Everything stays between your own devices, encrypted with a pinned certificate.</li>
+<li>A switch for every feature in Privacy: turn off what you don't want the PC to see.</li>
+<li>When a bank or UPI app opens on the phone, control from the PC switches itself off.</li>
+<li>No ads, no trackers, no analytics. Open source (MIT).</li>
+</ul>
+
+<p><b>Why so many permissions?</b> Each one is used for one feature only (SMS for messages, call log and phone for calls, camera for the webcam, microphone for the PC mic, notification access for notifications). You can turn each feature off in Privacy.</p>
+
+<p>Needs the DropWave app on a Windows 10 or 11 PC: https://github.com/lalitaryan1993/dropwave/releases/latest</p>
+
+<p>English and हिन्दी.</p>

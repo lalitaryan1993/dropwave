@@ -10,7 +10,7 @@
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.8.1-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.9.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 &nbsp;
 [![Get the Android app](https://img.shields.io/badge/Android%20app-APK-3ddc84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
@@ -92,15 +92,15 @@ DropWave started as the fastest way to move files around the house, and it does 
 
 > Phone and PC must be on the **same Wi-Fi**. No internet is needed. iPhones and smart TVs can still send and receive files from the browser, no install (see below).
 
-## 🆕 New in 1.8.1
+## 🆕 New in 1.9
 
-- **📞 Call popup on the PC** with Answer, Decline, Silence, quick replies, Mute, Speaker and Hang up, for SIM and WhatsApp calls.
-- **🇮🇳 Hindi**: the PC app and the phone app in Hindi (*Settings › Appearance › Language*, or Ctrl+K).
-- **📋 Send clipboard tile** on the phone's Quick Settings, **drag & drop** onto the phone-screen window, **Recent apps** on the PC.
-- **📡 Finds the PC by itself**, instantly, and follows it when the router gives it a new address. Battery steps for Realme, Oppo, Vivo, Xiaomi, Samsung and OnePlus.
-- **Fixes**: no more *Send to device* bubble on Android 13+, no more clipboard error dialog.
+- **🎙️ Phone as the PC's microphone**: press *Use as mic* on Home. With the free [VB-CABLE](https://vb-audio.com/Cable/) it's a mic in Zoom, Meet, Discord and OBS (pick *CABLE Input* in DropWave, *CABLE Output* in the app).
+- **🔌 USB cable connection** (*Settings › Phones & TVs*): works when the Wi-Fi is slow or missing. DropWave downloads Google's adb tool for you if needed.
+- **🪟 Phone apps in their own PC windows**, with touch and typing, over USB or **without a cable** (Wireless debugging, paired once with a code).
+- **🔢 Smart OTP**: new one-time codes are copied to the PC clipboard and cleared after a minute.
+- **📲 Phone app**: remembers every PC address (home, office, Tailscale), *Lock PC* tile, home-screen widget. Install an APK from the PC over USB.
 
-<sub>1.8: phone as webcam and *DropWave Camera*, contacts, apps, phone controls, styles, works while locked, privacy tab. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
+<sub>1.8: phone as webcam, call popup, Hindi, contacts, apps, phone controls, styles. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
 
 ## 🤔 Why DropWave?
 
@@ -240,7 +240,7 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Android app: share, notifications, calls, SMS, photos, files, screen with mouse and keyboard
 - [x] Phone as webcam (and a Windows 11 camera), contacts, apps, phone controls, styles
 - [x] Call popup with mute and speaker, Hindi, auto-discovery
-- [ ] Each phone app in its own window on the PC
+- [x] Each phone app in its own window on the PC
 - [x] The phone's microphone as the PC's microphone (with the free VB-CABLE for other apps)
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)

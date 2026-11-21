@@ -1,0 +1,6 @@
+- Phone as the PC's microphone (Zoom, Meet, Discord with VB-CABLE)
+- USB cable connection when Wi-Fi is slow or missing
+- Phone apps in their own PC windows, over USB or Wireless debugging
+- Smart OTP: new codes copied to the PC, cleared after a minute
+- Remembers every PC address (home, office, Tailscale)
+- Lock PC tile and home-screen widget

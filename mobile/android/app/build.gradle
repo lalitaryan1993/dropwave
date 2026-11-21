@@ -37,6 +37,10 @@ android {
             }
         }
     }
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
     kotlinOptions {
         jvmTarget = '21' // same as Capacitor's Java target
     }
@@ -71,11 +75,3 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}

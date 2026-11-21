@@ -5,7 +5,7 @@ import {
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
   Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
-  Contact, LayoutGrid, Camera, Usb,
+  Contact, LayoutGrid, Camera, Usb, Wifi,
 } from 'lucide-react';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
@@ -849,31 +849,64 @@ function Card({ title, children }) {
 // USB cable: adb reverse makes the phone's 127.0.0.1 reach this PC, for when Wi-Fi is slow or missing.
 function UsbRows({ on, set }) {
   const [st, setSt] = useState(null);
+  const [code, setCode] = useState('');
+  const [addr, setAddr] = useState('');
+  const [typeAddr, setTypeAddr] = useState(false);
+  const [pairing, setPairing] = useState(null); // null | 'busy' | { ok, error }
   useEffect(() => { api.usbStatus?.().then(setSt); return api.onUsb?.(setSt); }, []);
   const ready = (st?.devices || []).filter((d) => d.state === 'device' && d.reversed);
   const unauthorized = (st?.devices || []).some((d) => d.state === 'unauthorized');
+  const pair = async () => {
+    setPairing('busy');
+    const r = await api.usbPair(code, typeAddr ? addr : '').catch((e) => ({ ok: false, error: String(e.message || e) }));
+    setPairing(r);
+    if (r.ok) setCode('');
+  };
   return (
     <>
-      <Row label="Connect over a USB cable too" hint="For when the Wi-Fi is slow or not there. Needs USB debugging on the phone (Android developer options).">
+      <Row label="Connect over USB or Wireless debugging" hint="Also works when the Wi-Fi link is slow, and lets phone apps open in their own windows here. Uses Android’s developer options.">
         <Toggle on={on} set={set} />
       </Row>
       {on && st && (
-        <div className="space-y-2 rounded-xl border border-line bg-bg-2/40 px-3 py-2.5 text-[12.5px]">
+        <div className="space-y-2.5 rounded-xl border border-line bg-bg-2/40 px-3 py-2.5 text-[12.5px]">
           {!st.adb ? (
             <div className="flex flex-wrap items-center gap-3">
-              <span className="flex-1 text-muted">USB needs Google’s free adb tool (Android platform-tools, about 7 MB).</span>
+              <span className="flex-1 text-muted">This needs Google’s free adb tool (Android platform-tools, about 7 MB).</span>
               <Button variant="soft" disabled={st.downloading} onClick={() => api.usbDownload()}>
                 {st.downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {st.downloading ? 'Downloading…' : 'Download adb'}
               </Button>
             </div>
-          ) : ready.length ? (
-            ready.map((d) => (
-              <div key={d.serial} className="flex items-center gap-2 text-good"><Usb className="h-4 w-4" /> {d.model || d.serial}: connected over USB. In the DropWave app, tap <b className="font-semibold">Scan</b> if it doesn’t switch by itself.</div>
-            ))
-          ) : unauthorized ? (
-            <div className="flex items-center gap-2 text-warn"><AlertTriangle className="h-4 w-4" /> On the phone, tap <b className="font-semibold">Allow</b> on “Allow USB debugging?”.</div>
           ) : (
-            <div className="text-muted">Plug in the phone. First time: Settings › About phone › tap <b className="font-semibold">Build number</b> 7 times, then Developer options › <b className="font-semibold">USB debugging</b> on.</div>
+            <>
+              {ready.map((d) => (
+                <div key={d.serial} className="flex items-center gap-2 text-good">
+                  {d.wireless ? <Wifi className="h-4 w-4" /> : <Usb className="h-4 w-4" />} {d.model || d.serial}: connected {d.wireless ? 'without a cable (Wireless debugging)' : 'over USB'}.
+                </div>
+              ))}
+              {unauthorized && <div className="flex items-center gap-2 text-warn"><AlertTriangle className="h-4 w-4" /> On the phone, tap <b className="font-semibold">Allow</b> on “Allow USB debugging?”.</div>}
+              {!ready.length && !unauthorized && (
+                <div className="text-muted"><b className="font-semibold text-fg">With a cable:</b> plug in the phone. First time: Settings › About phone › tap <b className="font-semibold">Build number</b> 7 times, then Developer options › <b className="font-semibold">USB debugging</b> on.</div>
+              )}
+              {!ready.some((d) => d.wireless) && (
+                <div className="space-y-2 border-t border-line pt-2.5">
+                  <div className="text-muted"><b className="font-semibold text-fg">Without a cable</b> (same Wi-Fi, once): on the phone open Developer options › <b className="font-semibold">Wireless debugging</b> › turn it on › <b className="font-semibold">Pair device with pairing code</b>, then type the 6-digit code here.</div>
+                  {st.pairable?.length > 0 && <div className="text-good">Found {st.pairable[0].name.replace(/^adb-/, '').replace(/-.*$/, '')} waiting to pair.</div>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="Pairing code" inputMode="numeric"
+                      className="no-drag h-9 w-36 rounded-lg border border-line bg-raised px-3 font-mono tracking-[.2em] outline-none focus:border-accent" />
+                    {typeAddr && <input value={addr} onChange={(e) => setAddr(e.target.value.trim())} placeholder="192.168.1.16:37099"
+                      className="no-drag h-9 w-48 rounded-lg border border-line bg-raised px-3 font-mono outline-none focus:border-accent" />}
+                    <Button variant="soft" disabled={code.length !== 6 || pairing === 'busy'} onClick={pair}>
+                      {pairing === 'busy' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />} Pair
+                    </Button>
+                    {!typeAddr && <button className="no-drag text-[12px] text-accent" onClick={() => setTypeAddr(true)}>Type the address</button>}
+                  </div>
+                  {pairing && pairing !== 'busy' && (pairing.ok
+                    ? <div className="text-good">Paired. DropWave now reconnects by itself whenever Wireless debugging is on.</div>
+                    : <div className="text-bad">{pairing.error}</div>)}
+                </div>
+              )}
+            </>
           )}
           {st.error && <div className="text-bad">{st.error}</div>}
         </div>

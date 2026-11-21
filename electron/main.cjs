@@ -740,11 +740,14 @@ function registerIpc() {
   ipcMain.handle('mirror:stop', (_e, id) => phoneHub.mirrorStop(String(id)));
   ipcMain.handle('webcam:start', (_e, id, front) => phoneHub.webcamStart(String(id), !!front));
   ipcMain.handle('webcam:stop', (_e, id) => phoneHub.webcamStop(String(id)));
+  ipcMain.handle('mic:start', (_e, id) => phoneHub.micStart(String(id)));
+  ipcMain.handle('mic:stop', (_e, id) => phoneHub.micStop(String(id)));
   ipcMain.handle('webcam:set', (_e, id, patch) => phoneHub.webcamSet(String(id), patch && typeof patch === 'object' ? patch : {}));
   ipcMain.handle('callwin:size', (_e, h) => { if (callWin && !callWin.isDestroyed()) callWin.setSize(540, Math.max(110, Math.min(360, Number(h) || 130))); });
   ipcMain.handle('vcam:status', () => vcamStatus());
   ipcMain.handle('usb:status', () => usb.status());
   ipcMain.handle('usb:download', () => usb.download());
+  ipcMain.handle('usb:pair', (_e, code, addr) => usb.pair(code, addr));
   ipcMain.handle('usb:install', async (_e, apk) => {
     const d = usb.ready();
     if (!d) throw new Error('Connect the phone with a USB cable first (Settings › Phones & TVs › Connect over a USB cable).');
@@ -1010,6 +1013,8 @@ app.whenReady().then(async () => {
     openCam,
     camFrame: (id, type, pts, data) => sendFrame(camWins.get(id), type, pts, data),
     camState: (id, s) => { const w = camWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-state', s); },
+    micFrame: (id, type, pts, data) => { if (win && !win.isDestroyed()) win.webContents.send('mic-frame', { id, type, data: Buffer.from(data) }); }, // a copy: a view into the socket's buffer doesn't reach the window
+    micState: (id, s) => push('phone-mic', { id, ...s }),
     mirrorFrame: (id, type, pts, data) => sendFrame(mirrorWins.get(id), type, pts, data),
     mirrorState: (id, s) => { const w = mirrorWins.get(id); if (w && !w.isDestroyed()) w.webContents.send('mirror-state', s); },
     inputLog: process.env.DROPWAVE_INPUT_LOG,

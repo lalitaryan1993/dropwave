@@ -10,7 +10,7 @@ import {
 import { api, timeAgo } from './lib.js';
 import { Avatar, Button, Modal } from './components.jsx';
 import { RecentCalls } from './phonecalls.jsx';
-import { ControlsCard, CameraCard } from './phonetools.jsx';
+import { ControlsCard, CameraCard, MicCard } from './phonetools.jsx';
 
 const RELEASES = 'https://github.com/lalitaryan1993/dropwave/releases/latest';
 
@@ -85,6 +85,7 @@ export function Home({ phones, peers, timeline, history, selected, onSelect, onC
           <div className="min-w-0 space-y-4">
             <ControlsCard phone={phone} toast={toast} />
             <CameraCard phone={phone} toast={toast} />
+            <MicCard phone={phone} />
             <MediaCard phone={phone} />
             <RecentCalls phone={phone} />
             <RemoteCard phone={phone} />

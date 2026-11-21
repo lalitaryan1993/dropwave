@@ -317,6 +317,17 @@ class DropWavePlugin : Plugin() {
     @PluginMethod
     fun linkStop(call: PluginCall) { Link.stop(); call.resolve() }
 
+    /** Developer options, at Wireless debugging (for pairing with the PC without a cable). */
+    @PluginMethod
+    fun openWirelessDebugging(call: PluginCall) {
+        val dev = android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1
+        if (!dev) return call.reject("Developer options are off. Settings › About phone › tap Build number 7 times first.")
+        val i = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            .putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { context.startActivity(i); call.resolve() } catch (e: Exception) { call.reject(e.message ?: "Couldn’t open settings") }
+    }
+
     /** The page takes a PC command / event; false when the native link already did. */
     @PluginMethod
     fun linkClaim(call: PluginCall) = call.resolve(JSObject().put("ok", Link.claim(call.getString("id", "")!!, true)))
@@ -396,6 +407,18 @@ class DropWavePlugin : Plugin() {
 
     @PluginMethod
     fun webcamStop(call: PluginCall) { WebcamService.pending = null; WebcamService.stop(context); call.resolve() }
+
+    /** Phone as the PC's microphone: start (asks on screen or by notification), stop. */
+    @PluginMethod
+    fun micStart(call: PluginCall) {
+        val base = call.getString("base", "")!!
+        if (!(base.startsWith("http://") || base.startsWith("https://"))) return call.reject("No PC address")
+        val r = MicService.ask(context, MicService.Request(base, call.getString("key", "")!!, call.getString("token", "")!!, call.getString("from", "")!!), onScreen)
+        call.resolve(JSObject().put("result", r))
+    }
+
+    @PluginMethod
+    fun micStop(call: PluginCall) { MicService.pending = null; MicService.stop(context); call.resolve() }
 
     @PluginMethod
     fun webcamSet(call: PluginCall) {

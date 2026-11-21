@@ -241,7 +241,7 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] Phone as webcam (and a Windows 11 camera), contacts, apps, phone controls, styles
 - [x] Call popup with mute and speaker, Hindi, auto-discovery
 - [ ] Each phone app in its own window on the PC
-- [ ] The phone's microphone as the PC's microphone
+- [x] The phone's microphone as the PC's microphone (with the free VB-CABLE for other apps)
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)
 

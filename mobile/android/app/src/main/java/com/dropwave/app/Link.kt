@@ -82,7 +82,7 @@ object Link {
 
     private fun shareJson(): JSONObject = runCatching { JSONObject(Access.prefs(app).getString("share", "{}")!!) }.getOrDefault(JSONObject())
     fun setShare(ctx: Context, json: String) { Access.prefs(ctx).edit().putString("share", json).apply() }
-    private val SHARE_KEYS = listOf("notifs", "clip", "photos", "calls", "sms", "contacts", "files", "apps", "controls", "camera", "mirror", "ring")
+    private val SHARE_KEYS = listOf("notifs", "clip", "photos", "calls", "sms", "contacts", "files", "apps", "controls", "camera", "mirror", "ring", "mic")
     private fun on(k: String): Boolean { val s = shareJson(); return !s.optBoolean("paused", false) && s.optBoolean(k, true) }
 
     // ---------- the stream from the PC ----------
@@ -199,7 +199,7 @@ object Link {
         "ring" to "ring", "media" to "notifs", "notif" to "notifs", "clip" to "clip", "photos" to "photos", "photo-get" to "photos",
         "call" to "calls", "dial" to "calls", "calllog" to "calls", "sms-threads" to "sms", "sms-thread" to "sms", "sms-send" to "sms",
         "files-list" to "files", "files-get" to "files", "mirror-start" to "mirror", "camera" to "camera", "app-apk" to "apps",
-        "webcam-start" to "camera", "webcam-set" to "camera",
+        "webcam-start" to "camera", "webcam-set" to "camera", "mic-start" to "mic",
     )
 
     private fun strs(o: JSObject, k: String): List<String> = o.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
@@ -269,6 +269,9 @@ object Link {
             "webcam-start" -> WebcamService.ask(app, WebcamService.Request(k.base, k.key, c.optString("token"), k.id, c.optBoolean("front")), false)
                 .let { post("webcam", JSObject().put("asked", it)) }
             "webcam-stop" -> { WebcamService.pending = null; WebcamService.stop(app) }
+            "mic-start" -> MicService.ask(app, MicService.Request(k.base, k.key, c.optString("token"), k.id), false)
+                .let { post("mic", JSObject().put("asked", it)) }
+            "mic-stop" -> { MicService.pending = null; MicService.stop(app) }
             "webcam-set" -> WebcamService.instance?.let { s -> if (c.has("front")) s.switchCamera(c.optBoolean("front")); if (c.has("torch")) s.setTorch(c.optBoolean("torch")) }
         }
     }
@@ -336,7 +339,7 @@ object Link {
     /** Called for every event the plugin passes to the page. */
     fun onEvent(event: String, data: JSObject) {
         if (cfg == null || !::app.isInitialized) return
-        val kinds = setOf("phoneNotifs", "phoneMedia", "battery", "volume", "access", "call", "appcall", "callaudio", "sms", "controls", "mirror", "camera", "webcam")
+        val kinds = setOf("phoneNotifs", "phoneMedia", "battery", "volume", "access", "call", "appcall", "callaudio", "sms", "controls", "mirror", "camera", "webcam", "mic")
         if (event !in kinds || pageAwake()) return
         val n = synchronized(claimed) { ++probeN }
         val id = "ev$n"
@@ -363,7 +366,7 @@ object Link {
             "call", "appcall", "callaudio" -> if (on("calls")) post(event, d)
             "sms" -> if (on("sms")) post("sms", d)
             "controls" -> if (on("controls")) post("controls", d)
-            "mirror", "camera", "webcam" -> post(event, d)
+            "mirror", "camera", "webcam", "mic" -> post(event, d)
         }
     }
 

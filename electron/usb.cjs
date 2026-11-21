@@ -26,6 +26,8 @@ class UsbLink extends EventEmitter {
     this.busy = false;
     this.downloading = false;
     this.error = null;
+    this.services = []; // Wireless debugging services seen on the network: { name, type: 'pair'|'connect', addr }
+    this.ticks = 0;
   }
 
   candidates() {
@@ -46,7 +48,7 @@ class UsbLink extends EventEmitter {
   }
 
   status() {
-    return { running: !!this.timer, adb: this.adb, downloading: this.downloading, error: this.error, devices: this.devices };
+    return { running: !!this.timer, adb: this.adb, downloading: this.downloading, error: this.error, devices: this.devices, pairable: this.services.filter((x) => x.type === 'pair') };
   }
 
   #emit() { this.emit('status', this.status()); }
@@ -73,6 +75,9 @@ class UsbLink extends EventEmitter {
     this.busy = true;
     try {
       if (!this.adb && !this.findAdb()) { this.devices = []; return; }
+      // Wireless debugging: every ~12 s look for phones on the Wi-Fi and reconnect the paired ones
+      // (their port changes after a reboot or a Wi-Fi change).
+      if (this.ticks++ % 3 === 0) await this.scan();
       const r = await run(this.adb, ['devices']);
       if (!r.ok) { this.error = 'adb did not start'; return; }
       this.error = null;
@@ -81,7 +86,7 @@ class UsbLink extends EventEmitter {
       const next = [];
       for (const [serial, state] of seen) {
         const old = this.devices.find((d) => d.serial === serial);
-        const d = { serial, state, model: old?.model || '', reversed: !!old?.reversed && old.state === 'device' && state === 'device' && old.ports === ports.join(','), ports: ports.join(',') };
+        const d = { serial, state, wireless: serial.includes(':') || serial.includes('._adb-tls'), model: old?.model || '', reversed: !!old?.reversed && old.state === 'device' && state === 'device' && old.ports === ports.join(','), ports: ports.join(',') };
         if (state === 'device') {
           if (!d.model) d.model = (await run(this.adb, ['-s', serial, 'shell', 'getprop', 'ro.product.model'])).out.trim();
           if (!d.reversed && ports.length) {
@@ -120,6 +125,55 @@ class UsbLink extends EventEmitter {
     const cmd = which === 'wifi' ? `cmd wifi set-wifi-enabled ${on ? 'enabled' : 'disabled'}` : `cmd bluetooth_manager ${on ? 'enable' : 'disable'}`;
     const r = await run(this.adb, ['-s', serial, 'shell', cmd], 15000);
     return { ok: r.ok && !/Exception|Security|not allowed|Unknown/i.test(r.out + r.err), error: (r.out + r.err).trim().split(/\r?\n/).pop() };
+  }
+
+  /** Phones with Wireless debugging on, seen over mDNS. Connects the ones already paired. */
+  async scan() {
+    const r = await run(this.adb, ['mdns', 'services'], 6000);
+    const list = r.out.split(/\r?\n/).map((l) => l.trim().split(/\s+/)).filter((p) => p.length >= 3 && /_adb-tls-(pairing|connect)\._tcp/.test(p[1]))
+      .map(([name, t, addr]) => ({ name, type: t.includes('pairing') ? 'pair' : 'connect', addr }));
+    const before = JSON.stringify(this.services);
+    this.services = list;
+    for (const c of list.filter((x) => x.type === 'connect')) {
+      if (this.devices.some((d) => d.serial === c.addr || d.serial.startsWith(c.name))) continue;
+      await run(this.adb, ['connect', c.addr], 8000); // fails quietly for phones that never paired with this PC
+    }
+    if (JSON.stringify(list) !== before) this.emit('status', this.status());
+  }
+
+  /**
+   * Pair with a phone over Wi-Fi: on the phone, Developer options > Wireless debugging > Pair device
+   * with pairing code shows a 6-digit code (and an address). We find the address over mDNS if not given.
+   */
+  async pair(code, addr) {
+    if (!this.adb && !this.findAdb()) return { ok: false, error: 'adb isn’t installed yet' };
+    code = String(code || '').replace(/\D/g, '');
+    if (code.length !== 6) return { ok: false, error: 'The pairing code has 6 digits' };
+    let target = String(addr || '').trim();
+    for (let i = 0; !target && i < 5; i++) {
+      await this.scan();
+      target = this.services.find((x) => x.type === 'pair')?.addr || '';
+      if (!target) await new Promise((r) => setTimeout(r, 1500));
+    }
+    if (!/^[\w.:[\]-]+:\d+$/.test(target)) return { ok: false, error: 'Couldn’t find the phone. Keep “Pair device with pairing code” open on the phone, or type the IP address and port it shows.' };
+    const r = await run(this.adb, ['pair', target, code], 20000);
+    const out = (r.out + r.err).trim();
+    if (!/Successfully paired/i.test(out)) {
+      const error = /wrong|incorrect|protocol fault/i.test(out) ? 'Wrong code, or the code expired. Try again with the new code.'
+        : /Command failed|unable to connect|cannot connect|refused|timed out/i.test(out) ? `Couldn’t reach the phone at ${target}. Check the address and that “Pair device with pairing code” is still open.`
+          : out.split(/\r?\n/).pop() || 'Pairing failed';
+      return { ok: false, error };
+    }
+    // Connect now (the connect port is different from the pairing port).
+    const host = target.replace(/:\d+$/, '');
+    for (let i = 0; i < 5; i++) {
+      await this.scan();
+      const c = this.services.find((x) => x.type === 'connect' && x.addr.startsWith(host + ':'));
+      if (c) { await run(this.adb, ['connect', c.addr], 8000); break; }
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+    this.poll();
+    return { ok: true };
   }
 
   /** A phone connected over USB with our ports forwarded, if any. */

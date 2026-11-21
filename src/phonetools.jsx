@@ -1,8 +1,9 @@
 // Home cards: quick phone controls (torch, Do Not Disturb, ring mode, volumes, brightness, lock)
 // and the camera (take a photo / video with the phone, it lands on this PC and in the clipboard).
 import { useEffect, useRef, useState } from 'react';
-import { Flashlight, MoonStar, Vibrate, Bell, Sun, Lock, Camera, Video, Copy, FolderOpen, Loader2, SlidersHorizontal, Webcam, Wifi, Bluetooth } from 'lucide-react';
+import { Flashlight, MoonStar, Vibrate, Bell, Sun, Lock, Camera, Video, Copy, FolderOpen, Loader2, SlidersHorizontal, Webcam, Wifi, Bluetooth, Mic, MicOff, Volume2 } from 'lucide-react';
 import { api } from './lib.js';
+import { mic } from './micplayer.js';
 import { Button } from './components.jsx';
 
 const clean = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -164,3 +165,71 @@ export function CameraCard({ phone, toast }) {
   );
 }
 
+
+// Phone as microphone: the phone's mic plays on the output picked here. With a virtual cable
+// (VB-CABLE: pick "CABLE Input" here, "CABLE Output" as the mic in Zoom / Meet / Discord) every
+// app can use the phone as its microphone.
+export function MicCard({ phone }) {
+  const id = phone.id;
+  const off = !!phone.status?.off?.includes('mic');
+  const [s, setS] = useState(mic.get());
+  const [outs, setOuts] = useState([]);
+  useEffect(() => mic.subscribe(setS), []);
+  useEffect(() => {
+    const refresh = () => mic.outputs().then(setOuts);
+    refresh();
+    navigator.mediaDevices?.addEventListener?.('devicechange', refresh);
+    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refresh);
+  }, []);
+  if (off) return null;
+  const mine = s.id === id;
+  const live = mine && s.state === 'live';
+  const asking = mine && s.state === 'asking';
+  const cable = outs.find((o) => o.cable);
+  const sinkLabel = outs.find((o) => o.id === s.sink)?.label;
+  const onCable = !!cable && s.sink === cable.id;
+  return (
+    <section className="rounded-3xl border border-line bg-raised/60 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Mic className="h-4 w-4 text-accent" />
+        <h3 className="text-[13.5px] font-semibold">Microphone</h3>
+        <span className="ml-auto text-[11.5px] text-faint">phone as PC mic</span>
+      </div>
+      {asking && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl bg-accent/10 px-3 py-2 text-[12.5px]">
+          <Loader2 className="h-4 w-4 animate-spin text-accent" />
+          {s.notified ? `Tap the notification on ${phone.name} to turn on its microphone` : `Turning on the microphone on ${phone.name}…`}
+        </div>
+      )}
+      {mine && s.state === 'error' && <div className="mb-3 text-[12.5px] text-bad">{s.error}</div>}
+      {live && (
+        <div className="mb-3 flex items-center gap-2.5">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-good" />
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-bg-2">
+            <div className="h-full rounded-full bg-good transition-[width] duration-75" style={{ width: `${Math.round(s.level * 100)}%` }} />
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {live || asking
+          ? <Button variant="soft" onClick={() => mic.stop()}><MicOff className="h-4 w-4" /> Stop</Button>
+          : <Button variant="primary" onClick={() => mic.start(id)}><Mic className="h-4 w-4" /> Use as mic</Button>}
+        <label className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] text-muted" title="Where the phone’s sound plays on this PC">
+          <Volume2 className="h-4 w-4 shrink-0" />
+          <select value={s.sink} onChange={(e) => mic.setSink(e.target.value)}
+            className="no-drag h-9 min-w-0 flex-1 rounded-lg border border-line bg-raised px-2 text-[12.5px] text-fg outline-none focus:border-accent">
+            {outs.map((o) => <option key={o.id || 'default'} value={o.id}>{o.label}</option>)}
+            {!outs.some((o) => o.id === s.sink) && <option value={s.sink}>{sinkLabel || 'Default speaker'}</option>}
+          </select>
+        </label>
+      </div>
+      <div className="mt-2.5 text-[12px] leading-relaxed text-muted">
+        {onCable
+          ? <>In Zoom, Meet, Discord or OBS, pick <b className="font-semibold text-fg">CABLE Output</b> as the microphone.</>
+          : cable
+            ? <>To use it as a mic in other apps, play it on <button className="no-drag text-accent" onClick={() => mic.setSink(cable.id)}>{cable.label}</button>, then pick <b className="font-semibold text-fg">CABLE Output</b> as the microphone there.</>
+            : <>Plays on the speaker now. To use it as a mic in Zoom, Meet or Discord, install the free <button className="no-drag text-accent" onClick={() => api.openLink('https://vb-audio.com/Cable/')}>VB-CABLE</button> once, then choose “CABLE Input” here.</>}
+      </div>
+    </section>
+  );
+}

@@ -193,6 +193,13 @@ class PhoneHub {
         else if (d.on === false) this.o.camState(p.id, { state: 'off' });
         return;
       }
+      case 'mic': {
+        if (d.asked === 'notified') this.o.micState(p.id, { state: 'asking', notified: true });
+        else if (d.error) this.o.micState(p.id, { state: 'error', error: str(d.error, 200) });
+        else if (d.on === true) this.o.micState(p.id, { state: 'live' });
+        else if (d.on === false) this.o.micState(p.id, { state: 'off' });
+        return;
+      }
       case 'camera': {
         // The phone opened its camera, the user cancelled, or the upload failed.
         if (d.opened) { this.o.push('phone-camera', { id: p.id, state: d.opened === 'notified' ? 'notified' : 'open' }); return; }
@@ -480,6 +487,29 @@ class PhoneHub {
     if (patch && 'front' in patch) c.front = !!patch.front;
     if (patch && 'torch' in patch) c.torch = !!patch.torch;
     this.o.web()?.sendPhone(id, c);
+  }
+
+  /** Phone as microphone: its sound plays here, on the output the user picks (e.g. a virtual cable). */
+  micStart(id) {
+    this.#need(id);
+    this.mics ||= new Map(); // phone id -> stream token
+    if (this.mics.has(id)) this.o.web()?.endStream(this.mics.get(id));
+    const token = crypto.randomBytes(16).toString('hex');
+    this.mics.set(id, token);
+    this.o.web().allowMirror(token, {
+      clientId: id,
+      onFrame: (type, pts, data) => this.o.micFrame(id, type, pts, data),
+      onEnd: () => { if (this.mics.get(id) === token) { this.mics.delete(id); this.o.micState(id, { state: 'off' }); } },
+    });
+    if (!this.o.web().sendPhone(id, { type: 'mic-start', token })) { this.mics.delete(id); throw new Error('The phone is not connected right now. Open DropWave on the phone.'); }
+    this.o.micState(id, { state: 'asking' });
+    return true;
+  }
+  micStop(id) {
+    this.o.web()?.sendPhone(id, { type: 'mic-stop' });
+    const token = this.mics?.get(id);
+    if (token) { this.mics.delete(id); this.o.web()?.endStream(token); }
+    this.o.micState(id, { state: 'off' });
   }
 
   mirrorStop(id) {

@@ -187,7 +187,7 @@
   // ---------- what this phone shares with PCs (Privacy tab) ----------
   // Two layers: DropWave's own "Share with PC" switch per feature (instant, nothing to re-allow), and
   // Android's access, which can be given back from here too.
-  const SHARE_KEYS = ['notifs', 'clip', 'photos', 'calls', 'sms', 'contacts', 'files', 'apps', 'controls', 'camera', 'mirror', 'ring'];
+  const SHARE_KEYS = ['notifs', 'clip', 'photos', 'calls', 'sms', 'contacts', 'files', 'apps', 'controls', 'camera', 'mirror', 'ring', 'mic'];
   let share = { paused: false };
   try { share = { ...share, ...JSON.parse(store.get('dw_share') || '{}') }; } catch {}
   const on = (k) => !share.paused && share[k] !== false;
@@ -206,7 +206,7 @@
     ring: 'ring', media: 'notifs', notif: 'notifs', clip: 'clip', photos: 'photos', 'photo-get': 'photos',
     call: 'calls', dial: 'calls', calllog: 'calls', 'sms-threads': 'sms', 'sms-thread': 'sms', 'sms-send': 'sms',
     'files-list': 'files', 'files-get': 'files', 'mirror-start': 'mirror', 'mirror-input': 'mirror',
-    camera: 'camera', 'app-apk': 'apps', 'webcam-start': 'camera', 'webcam-set': 'camera',
+    camera: 'camera', 'app-apk': 'apps', 'webcam-start': 'camera', 'webcam-set': 'camera', 'mic-start': 'mic',
   };
   // Requests from the PC that expect one answer ({ type: 'rpc', rid, method, args } -> phone('rpc', { rid, ... })).
   const RPC = {
@@ -335,6 +335,7 @@
     DW.addListener('controls', (d) => connected && on('controls') && phone('controls', d));
     DW.addListener('camera', (d) => connected && phone('camera', d));
     DW.addListener('webcam', (d) => connected && phone('webcam', d));
+    DW.addListener('mic', (d) => connected && phone('mic', d));
     DW.addListener('photoUpload', (d) => { if (d.done === d.total) P().toast(`${d.total} sent to ${P().pcName()}`); });
     DW.addListener('ring', (d) => connected && phone('ring', { on: !!d.on }));
     DW.addListener('clip', (d) => { if (connected && on('clip') && d.text && d.text !== lastClip && !d.sensitive) { lastClip = d.text; phone('clip', { text: d.text }); } });
@@ -403,6 +404,13 @@
       DW.webcamStop().catch(() => {});
     } else if (c.type === 'webcam-set') {
       DW.webcamSet({ ...(c.front !== undefined ? { front: !!c.front } : {}), ...(c.torch !== undefined ? { torch: !!c.torch } : {}) }).catch(() => {});
+    } else if (c.type === 'mic-start') {
+      const app = window.DW_APP || {};
+      DW.micStart({ token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
+        .then((r) => phone('mic', { asked: r?.result || 'opened' }))
+        .catch((e) => phone('mic', { on: false, error: e?.message || 'Couldn’t start the microphone' }));
+    } else if (c.type === 'mic-stop') {
+      DW.micStop().catch(() => {});
     } else if (c.type === 'app-apk') {
       const app = window.DW_APP || {};
       DW.appApk({ pkg: String(c.pkg || ''), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
@@ -607,7 +615,7 @@
     bell: ICONS.bell, clip: ICONS.clip, photo: ICONS.shot, files: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>',
     msg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>', screen: ICONS.desk, ring: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M2 8c0-2 .7-3.8 2-5M22 8c0-2-.7-3.8-2-5"/>',
-    pointer: '<path d="M4 4l7 17 2.5-7.5L21 11 4 4Z"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', cam: '<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    pointer: '<path d="M4 4l7 17 2.5-7.5L21 11 4 4Z"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', cam: '<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>', mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/>',
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
@@ -623,6 +631,7 @@
     { k: 'apps', icon: 'grid', t: 'Apps', d: 'See this phone’s apps on the PC, open them, copy an APK. Uninstall always asks on the phone.' },
     { k: 'controls', icon: 'sliders', t: 'Phone controls', d: 'Flashlight, Do Not Disturb, ring / vibrate, volumes, brightness from the PC.' },
     { k: 'camera', icon: 'cam', t: 'Camera for the PC', d: 'Photos and videos for the PC, and this phone as the PC’s webcam. A notification shows whenever the camera is on.', acc: 'camera', accT: 'Camera' },
+    { k: 'mic', icon: 'mic', t: 'Microphone for the PC', d: 'Use this phone as the PC’s microphone in calls and recordings. A notification shows whenever it’s on.', acc: 'mic', accT: 'Microphone' },
     { k: 'mirror', icon: 'screen', t: 'Screen on PC', d: 'Android asks “Start recording or casting?” every time. Sound needs the microphone permission.', acc: 'mic', accT: 'Sound (microphone)' },
     { k: 'ring', icon: 'ring', t: 'Find my phone', d: 'Let the PC ring this phone, even on silent.' },
   ];
@@ -684,10 +693,12 @@
     const cur = store.get('dw_style') || 'aurora';
     const lang = store.get('dw_lang') || 'en';
     return `<div class="sec-h" style="margin-top:18px">Look</div><div class="looks">${LOOKS.map(([k, t, bg]) => `<button data-look="${k}" class="${k === cur ? 'on' : ''}"><i style="background:${bg}"></i>${t}</button>`).join('')}</div>
-      <div class="sec-h" style="margin-top:18px">Language</div><div class="looks" data-no-translate style="grid-template-columns:1fr 1fr">${[['en', 'English'], ['hi', 'हिन्दी']].map(([k, t]) => `<button data-lang="${k}" class="${k === lang ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+      <div class="sec-h" style="margin-top:18px">Language</div><div class="looks" data-no-translate style="grid-template-columns:1fr 1fr">${[['en', 'English'], ['hi', 'हिन्दी']].map(([k, t]) => `<button data-lang="${k}" class="${k === lang ? 'on' : ''}">${t}</button>`).join('')}</div>
+      ${DW?.openWirelessDebugging ? `<div class="sec-h" style="margin-top:18px">Apps in PC windows</div><div class="pcard-row" style="padding:4px 2px"><div><small>To open this phone’s apps in their own windows on the PC without a cable, turn on Wireless debugging once and pair it from the PC (Settings › Phones &amp; TVs).</small></div></div><button class="pbtn outline" data-wdebug style="margin-top:8px;width:100%"><span>Open Wireless debugging</span></button>` : ''}`;
   }
   function bindLook(box) {
     box.querySelectorAll('[data-look]').forEach((b) => { b.onclick = () => { store.set('dw_style', b.dataset.look); applyLook(b.dataset.look); renderPrivacy(); }; });
+    box.querySelector('[data-wdebug]')?.addEventListener('click', () => DW.openWirelessDebugging().catch(() => P().toast('Open Settings › Developer options › Wireless debugging')));
     box.querySelectorAll('[data-lang]').forEach((b) => { b.onclick = () => { store.set('dw_lang', b.dataset.lang); window.DWTranslate?.set(b.dataset.lang); renderPrivacy(); }; });
   }
 

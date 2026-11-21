@@ -113,6 +113,15 @@
             android:exported="false"
             android:foregroundServiceType="camera" />
         <activity
+            android:name=".MicActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service
+            android:name=".MicService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <activity
             android:name=".CameraActivity"
             android:exported="false"
             android:excludeFromRecents="true"

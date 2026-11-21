@@ -482,6 +482,13 @@ class PhoneHub {
     return true;
   }
   webcamStop(id) { this.o.web()?.sendPhone(id, { type: 'webcam-stop' }); }
+
+  /** Opens the document scanner on the phone; its pages come back as a "scan" upload (see docs.cjs). */
+  scanStart(id) {
+    this.#need(id);
+    if (!this.o.web().sendPhone(id, { type: 'scan-start' })) throw new Error('The phone is not connected right now. Open DropWave on the phone.');
+    return true;
+  }
   webcamSet(id, patch) {
     const c = { type: 'webcam-set' };
     if (patch && 'front' in patch) c.front = !!patch.front;

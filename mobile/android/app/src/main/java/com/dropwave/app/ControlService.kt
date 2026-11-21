@@ -25,7 +25,9 @@ class ControlService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
-        if (pkg == packageName || !Access.prefs(this).getBoolean("controlBankingOff", true) || !Access.isPaymentApp(pkg)) return
+        if (pkg == packageName || !Access.isPaymentApp(pkg)) return
+        Access.paymentAppOpened(this, pkg)
+        if (!Access.prefs(this).getBoolean("controlBankingOff", true)) return
         val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
         Notifs.post(this, 7321, androidx.core.app.NotificationCompat.Builder(this, Notifs.CH_STATUS)
             .setSmallIcon(R.drawable.ic_stat_dropwave)
@@ -37,8 +39,30 @@ class ControlService : AccessibilityService() {
         off()
     }
 
+    // While the PC taps and types here, a notice says so, with a way to stop it at once.
+    private val notice = android.os.Handler(android.os.Looper.getMainLooper())
+    private val clearNotice = Runnable { androidx.core.app.NotificationManagerCompat.from(this).cancel(NOTICE_ID) }
+    private var noticeShown = 0L
+    private fun controlling() {
+        val now = System.currentTimeMillis()
+        if (now - noticeShown > 15_000) {
+            noticeShown = now
+            val off = android.app.PendingIntent.getBroadcast(this, NOTICE_ID, android.content.Intent(this, ControlOffReceiver::class.java), android.app.PendingIntent.FLAG_IMMUTABLE)
+            Notifs.post(this, NOTICE_ID, androidx.core.app.NotificationCompat.Builder(this, Notifs.CH_STATUS)
+                .setSmallIcon(R.drawable.ic_stat_dropwave)
+                .setContentTitle("Your PC is controlling this phone")
+                .setContentText("Not you? Tap Stop.")
+                .setOngoing(true).setSilent(true)
+                .addAction(0, "Stop", off)
+                .setContentIntent(Notifs.openApp(this)))
+        }
+        notice.removeCallbacks(clearNotice)
+        notice.postDelayed(clearNotice, 20_000)
+    }
+
     /** Switch this service off (Android shows it as off in Accessibility settings too). */
     fun off() {
+        notice.removeCallbacks(clearNotice); androidx.core.app.NotificationManagerCompat.from(this).cancel(NOTICE_ID)
         instance = null
         DropWavePlugin.emit("access", com.getcapacitor.JSObject())
         disableSelf()
@@ -56,6 +80,7 @@ class ControlService : AccessibilityService() {
 
     /** One input event from the PC: { t: tap | long | swipe | back | home | recents | notifications | text | backspace | enter, x, y, x2, y2, ms, s } */
     fun handle(e: com.getcapacitor.JSObject): Boolean {
+        controlling()
         when (e.getString("t")) {
             "tap", "long" -> {
                 val (x, y) = px(e.optDouble("x"), e.optDouble("y"))
@@ -91,10 +116,19 @@ class ControlService : AccessibilityService() {
 
     companion object {
         @Volatile var instance: ControlService? = null
+        private const val NOTICE_ID = 7323
 
         fun enabled(ctx: Context): Boolean {
             val list = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
             return list.split(':').any { it.startsWith(ctx.packageName + "/") }
         }
+    }
+}
+
+/** "Stop" on the "Your PC is controlling this phone" notice. */
+class ControlOffReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+        ControlService.instance?.off()
+        androidx.core.app.NotificationManagerCompat.from(context).cancel(7323)
     }
 }

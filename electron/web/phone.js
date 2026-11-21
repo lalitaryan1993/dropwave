@@ -172,8 +172,9 @@
     realme: ['Realme', 'Realme stops apps in the background on its own. In App info › Battery turn on <b>Allow background activity</b> and <b>Allow auto launch</b>.'],
     oppo: ['Oppo', 'Oppo stops apps in the background on its own. In App info › Battery turn on <b>Allow background activity</b> and <b>Allow auto launch</b>.'],
     oneplus: ['OnePlus', 'OnePlus stops apps in the background on its own. In App info › Battery pick <b>Unrestricted</b> (or Don’t optimise).'],
-    vivo: ['Vivo', 'Vivo stops apps in the background on its own. Turn on <b>Autostart</b> for DropWave and allow <b>High background power use</b>.'],
+    vivo: ['Vivo / iQOO', 'Vivo stops apps in the background on its own. Turn on <b>Autostart</b> for DropWave and allow <b>High background power use</b>.'],
     samsung: ['Samsung', 'Samsung puts unused apps to sleep. In Battery › Background usage limits, take DropWave out of <b>Sleeping apps</b> (or add it to Never sleeping apps).'],
+    motorola: ['Motorola', 'Motorola can pause apps in the background. In App info › Battery pick <b>Unrestricted</b>, and turn off <b>Adaptive battery</b> for DropWave if your phone has it.'],
     huawei: ['Huawei', 'Huawei stops apps in the background on its own. In App launch pick <b>Manage manually</b> for DropWave and turn all three switches on.'],
   };
   let photosAccess = 'none';
@@ -206,7 +207,7 @@
     ring: 'ring', media: 'notifs', notif: 'notifs', clip: 'clip', photos: 'photos', 'photo-get': 'photos',
     call: 'calls', dial: 'calls', calllog: 'calls', 'sms-threads': 'sms', 'sms-thread': 'sms', 'sms-send': 'sms',
     'files-list': 'files', 'files-get': 'files', 'mirror-start': 'mirror', 'mirror-input': 'mirror',
-    camera: 'camera', 'app-apk': 'apps', 'webcam-start': 'camera', 'webcam-set': 'camera', 'mic-start': 'mic',
+    camera: 'camera', 'app-apk': 'apps', 'webcam-start': 'camera', 'webcam-set': 'camera', 'mic-start': 'mic', 'scan-start': 'camera',
   };
   // Requests from the PC that expect one answer ({ type: 'rpc', rid, method, args } -> phone('rpc', { rid, ... })).
   const RPC = {
@@ -411,6 +412,9 @@
         .catch((e) => phone('mic', { on: false, error: e?.message || 'Couldn’t start the microphone' }));
     } else if (c.type === 'mic-stop') {
       DW.micStop().catch(() => {});
+    } else if (c.type === 'scan-start') {
+      DW.openFor({ action: 'scan', title: 'Your PC wants to scan a document', text: 'Tap to open the scanner' })
+        .then((r) => phone('scan', { asked: r?.result || 'opened' })).catch(() => {});
     } else if (c.type === 'app-apk') {
       const app = window.DW_APP || {};
       DW.appApk({ pkg: String(c.pkg || ''), token: String(c.token || ''), base: app.base || '', key: app.key || '', from: P().myId })
@@ -717,6 +721,8 @@
       <div class="pv-top ${paused ? 'paused' : ''}"><span class="ic">${I(SVG.shield)}</span>
         <div style="flex:1;min-width:0"><b>${paused ? 'Sharing is paused' : 'Shared with your PCs'}</b><small>${paused ? 'PCs can’t see notifications, photos, calls, messages, files or the screen.' : 'Everything stays on your Wi-Fi. Switch any feature off below.'}</small></div>
         <button class="sw big ${paused ? '' : 'on'}" data-pause aria-label="Pause sharing"></button></div>
+      <div class="group pcard" style="margin-top:10px"><div class="pcard-row"><span class="pcard-ic">${I(SVG.shield)}</span><div><b>Stay safe from scams</b>
+        <small>DropWave works only with your own PC, on your Wi-Fi or a USB cable. Banks, police and customer care never ask you to install it or to share your screen. If a caller asks, hang up. Banking and UPI apps are never shown on the PC.</small></div></div></div>
       <div class="sec-h">Features</div>
       ${ROWS.map((r) => {
         const sOn = share[r.k] !== false;

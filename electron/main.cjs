@@ -15,6 +15,7 @@ const { loadOrCreate: loadOrCreateTls } = require('./tls.cjs');
 const { RemoteInput } = require('./input.cjs');
 const { PhoneHub } = require('./phone.cjs');
 const { UsbLink } = require('./usb.cjs');
+const { setupDocs } = require('./docs.cjs');
 
 // Remote control: off unless the user allows it for the screen share that is running now.
 const remoteInput = new RemoteInput();
@@ -375,6 +376,21 @@ function openCam(p) {
   w.on('closed', () => { camWins.delete(p.id); phoneHub?.webcamStop(p.id); });
 }
 
+// ---- "Print on PC" / "Scan to PC" windows ----
+let docsUi = null;
+function openDocs(d) {
+  docsUi ||= setupDocs({
+    preload: path.join(__dirname, 'preload.cjs'),
+    iconPath,
+    colors: () => {
+      const dark = settings.theme === 'dark' || (settings.theme === 'system' && nativeTheme.shouldUseDarkColors);
+      return dark ? { bg: '#0b0d14', bar: '#0b0d14', symbol: '#e6e8f0' } : { bg: '#f5f6fa', bar: '#f5f6fa', symbol: '#1d2030' };
+    },
+    load: (w, hash) => { if (DEV_URL) w.loadURL(`${DEV_URL}#${hash}`); else w.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash }); },
+  });
+  docsUi.open(d);
+}
+
 function showWindow() {
   if (!win) createWindow();
   if (win.isMinimized()) win.restore();
@@ -554,6 +570,7 @@ async function startWeb() {
   w.on('transfer', handleTransfer);
   w.on('text', handleText);
   w.on('rtc', handleRtc);
+  w.on('docs', openDocs);
   w.on('request-closed', (id) => { pendingRequests.delete(id); push('request-closed', id); });
   try {
     await w.start();
@@ -740,6 +757,7 @@ function registerIpc() {
   ipcMain.handle('mirror:stop', (_e, id) => phoneHub.mirrorStop(String(id)));
   ipcMain.handle('webcam:start', (_e, id, front) => phoneHub.webcamStart(String(id), !!front));
   ipcMain.handle('webcam:stop', (_e, id) => phoneHub.webcamStop(String(id)));
+  ipcMain.handle('scan:start', (_e, id) => phoneHub.scanStart(String(id)));
   ipcMain.handle('mic:start', (_e, id) => phoneHub.micStart(String(id)));
   ipcMain.handle('mic:stop', (_e, id) => phoneHub.micStop(String(id)));
   ipcMain.handle('webcam:set', (_e, id, patch) => phoneHub.webcamSet(String(id), patch && typeof patch === 'object' ? patch : {}));

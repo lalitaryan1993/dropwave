@@ -43,6 +43,7 @@ object AppWindowServer {
     fun main(args: Array<String>) {
         if (args.size < 8) { System.err.println("usage: <base> <key> <token> <from> <package> <w> <h> <dpi>"); return }
         val (base, key, token, from, pkg) = args
+        if (com.dropwave.app.Payment.isPaymentApp(pkg)) { System.err.println("Banking and UPI apps can’t be opened on the PC, to keep them safe."); return }
         w = args[5].toInt() / 2 * 2; h = args[6].toInt() / 2 * 2
         val dpi = args[7].toInt()
         Looper.prepareMainLooper()

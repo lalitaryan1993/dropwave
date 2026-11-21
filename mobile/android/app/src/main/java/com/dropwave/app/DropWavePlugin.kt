@@ -142,6 +142,7 @@ class DropWavePlugin : Plugin() {
     override fun handleOnResume() {
         super.handleOnResume()
         onScreen = true
+        pendingAction?.let { emit("action", JSObject().put("action", it)) } // e.g. the PC asked for a scan
         Notifs.cancelAll(context) // the page shows everything now
         emit("access", JSObject()) // a permission may have changed while we were away
     }
@@ -419,6 +420,27 @@ class DropWavePlugin : Plugin() {
 
     @PluginMethod
     fun micStop(call: PluginCall) { MicService.pending = null; MicService.stop(context); call.resolve() }
+
+    /** Bring DropWave up on a page action ("scan"): now if it's on screen, otherwise by a notification. */
+    @PluginMethod
+    fun openFor(call: PluginCall) {
+        val r = openFor(context, call.getString("action", "")!!, call.getString("title", "DropWave")!!, call.getString("text", "Tap to open")!!)
+        call.resolve(JSObject().put("result", r))
+    }
+
+    /** Google's document scanner; the pages arrive as a "docScanned" event. */
+    @PluginMethod
+    fun docScan(call: PluginCall) {
+        try { activity.startActivity(Intent(context, DocScanActivity::class.java)); call.resolve() }
+        catch (e: Exception) { call.reject(e.message ?: "unavailable") }
+    }
+
+    @PluginMethod
+    fun takeAction(call: PluginCall) {
+        val a = pendingAction
+        pendingAction = null
+        call.resolve(JSObject().put("action", a ?: ""))
+    }
 
     @PluginMethod
     fun webcamSet(call: PluginCall) {
@@ -839,6 +861,14 @@ class DropWavePlugin : Plugin() {
         // Capacitor keeps the WebView running in the background, so it can still say "visible".
         @Volatile private var onScreen = true
         fun isOnScreen() = onScreen
+
+        @Volatile var pendingAction: String? = null
+        fun openFor(ctx: Context, action: String, title: String, text: String): String {
+            pendingAction = action
+            if (onScreen && instance != null) { emit("action", JSObject().put("action", action)); return "opened" }
+            val i = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            return Launch.openOrNotify(ctx, i, false, title, text)
+        }
 
         /** Pass an event to the page (phone notifications, media, battery, ring, clipboard). */
         fun emit(event: String, data: JSObject) {

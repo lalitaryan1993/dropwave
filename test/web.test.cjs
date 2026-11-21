@@ -118,6 +118,26 @@ const post = (p, cookie, body, raw = false) => fetch(base + p, {
   acceptPhone = true;
   console.log('ok  PC can decline files sent from a phone');
 
+  // 3b2. Print / scan: no Accept prompt (even when the PC would decline), opened as documents, never saved to the inbox.
+  acceptPhone = false;
+  const pdf = Buffer.from('%PDF-1.4 test');
+  const docsEv = new Promise((r) => web.once('docs', r));
+  r = await post('/api/batch', cookie, { from: 'phone1', to: 'PC', files: [{ name: 'form.pdf', size: pdf.length }], purpose: 'print' });
+  assert.equal(r.status, 200);
+  const { id: pb } = await r.json();
+  assert.equal((await post('/api/upload?batch=' + pb + '&i=0', cookie, pdf, true)).status, 200);
+  const docs = await docsEv;
+  assert.equal(docs.purpose, 'print');
+  assert.equal(docs.from.name, 'Riya iPhone');
+  assert.equal(sha(fs.readFileSync(docs.files[0].path)), sha(pdf));
+  assert.ok(!fs.existsSync(path.join(saveDir, 'form.pdf')), 'pages to print must not land in the PC inbox');
+  r = await post('/api/batch', cookie, { from: 'phone1', to: 'PC', files: [{ name: 'setup.exe', size: 10 }], purpose: 'print' });
+  assert.equal(r.status, 400, 'only PDFs and pictures can be printed');
+  r = await post('/api/batch', cookie, { from: 'phone1', to: 'tv1', files: [{ name: 'a.jpg', size: 10 }], purpose: 'scan' });
+  assert.equal(r.status, 400, 'print / scan only goes to the PC');
+  acceptPhone = true;
+  console.log('ok  print / scan from a phone: opens on the PC, no prompt, PDFs and photos only');
+
   // 3c. Text: phone -> PC and phone -> TV
   const pcText = new Promise((r) => web.once('text', r));
   assert.equal((await post('/api/text', cookie, { from: 'phone1', to: 'PC', text: 'hello PC' })).status, 200);

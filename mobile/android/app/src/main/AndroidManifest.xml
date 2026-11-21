@@ -147,6 +147,14 @@
         <receiver
             android:name=".NotifActionReceiver"
             android:exported="false" />
+        <activity
+            android:name=".DocScanActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <receiver
+            android:name=".ControlOffReceiver"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

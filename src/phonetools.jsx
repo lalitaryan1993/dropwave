@@ -1,7 +1,7 @@
 // Home cards: quick phone controls (torch, Do Not Disturb, ring mode, volumes, brightness, lock)
 // and the camera (take a photo / video with the phone, it lands on this PC and in the clipboard).
 import { useEffect, useRef, useState } from 'react';
-import { Flashlight, MoonStar, Vibrate, Bell, Sun, Lock, Camera, Video, Copy, FolderOpen, Loader2, SlidersHorizontal, Webcam, Wifi, Bluetooth, Mic, MicOff, Volume2 } from 'lucide-react';
+import { Flashlight, MoonStar, Vibrate, Bell, Sun, Lock, Camera, Video, Copy, FolderOpen, Loader2, SlidersHorizontal, Webcam, Wifi, Bluetooth, Mic, MicOff, Volume2, ScanLine } from 'lucide-react';
 import { api } from './lib.js';
 import { mic } from './micplayer.js';
 import { Button } from './components.jsx';
@@ -156,6 +156,7 @@ export function CameraCard({ phone, toast }) {
         <Button variant="primary" disabled={busy} onClick={() => take('photo')}><Camera className="h-4 w-4" /> Take photo</Button>
         <Button variant="soft" disabled={busy} onClick={() => take('video')}><Video className="h-4 w-4" /> Video</Button>
         <Button variant="soft" title="Live camera in a window: use it in calls and streams" onClick={() => api.webcamStart(id, false).catch((e) => toast(clean(e), 'error'))}><Webcam className="h-4 w-4" /> Webcam</Button>
+        <Button variant="soft" title="Scan pages with the phone: straightened, cleaned up, ready to print or save as PDF" onClick={() => api.scanStart(id).then(() => toast(`Opening the scanner on ${phone.name}…`)).catch((e) => toast(clean(e), 'error'))}><ScanLine className="h-4 w-4" /> Scan document</Button>
         {st?.state === 'done' && st.path && <>
           {!st.video && <Button variant="ghost" title="Copy again" onClick={() => api.cameraCopy(st.path).then(() => toast('Copied — paste with Ctrl+V'))}><Copy className="h-4 w-4" /></Button>}
           <Button variant="ghost" title="Show in folder" onClick={() => api.showInFolder(st.path)}><FolderOpen className="h-4 w-4" /></Button>

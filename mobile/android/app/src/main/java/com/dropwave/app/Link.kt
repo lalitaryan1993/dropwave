@@ -199,7 +199,7 @@ object Link {
         "ring" to "ring", "media" to "notifs", "notif" to "notifs", "clip" to "clip", "photos" to "photos", "photo-get" to "photos",
         "call" to "calls", "dial" to "calls", "calllog" to "calls", "sms-threads" to "sms", "sms-thread" to "sms", "sms-send" to "sms",
         "files-list" to "files", "files-get" to "files", "mirror-start" to "mirror", "camera" to "camera", "app-apk" to "apps",
-        "webcam-start" to "camera", "webcam-set" to "camera", "mic-start" to "mic",
+        "webcam-start" to "camera", "webcam-set" to "camera", "mic-start" to "mic", "scan-start" to "camera",
     )
 
     private fun strs(o: JSObject, k: String): List<String> = o.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
@@ -272,6 +272,8 @@ object Link {
             "mic-start" -> MicService.ask(app, MicService.Request(k.base, k.key, c.optString("token"), k.id), false)
                 .let { post("mic", JSObject().put("asked", it)) }
             "mic-stop" -> { MicService.pending = null; MicService.stop(app) }
+            "scan-start" -> DropWavePlugin.openFor(app, "scan", "Your PC wants to scan a document", "Tap to open the scanner")
+                .let { post("scan", JSObject().put("asked", it)) }
             "webcam-set" -> WebcamService.instance?.let { s -> if (c.has("front")) s.switchCamera(c.optBoolean("front")); if (c.has("torch")) s.setTorch(c.optBoolean("torch")) }
         }
     }

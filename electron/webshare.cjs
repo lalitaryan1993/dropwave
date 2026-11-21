@@ -30,6 +30,10 @@ const STREAM_TTL_MS = 3 * 60 * 60 * 1000;
 const DECISION_TIMEOUT_MS = 60000;
 const APP_ORIGINS = new Set(['http://localhost', 'https://localhost', 'capacitor://localhost']);
 const PROGRESS_EVERY_MS = 200;
+// "Print on PC" and "Scan to PC": documents and photos only, opened in a window on the PC (not saved to Downloads).
+const DOC_PURPOSES = new Set(['print', 'scan']);
+const DOC_EXT = /\.(pdf|jpe?g|png|webp|gif|bmp|heic|heif)$/i;
+const DOC_MAX_BYTES = 300 * 1024 * 1024;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -104,6 +108,7 @@ class WebShare extends EventEmitter {
     this.mirrorTokens = new Map(); // token -> a screen-mirroring stream the PC asked a phone for
     this.mirrorInputs = new Map(); // token -> { clientId, res }: taps/keys for a mirroring phone, read by its native service
     this.relayDir = path.join(os.tmpdir(), 'dropwave-relay');
+    this.docsDir = path.join(os.tmpdir(), 'dropwave-docs'); // pages to print or scans, until their window closes
     this.server = null;
     this.timer = null;
   }
@@ -426,6 +431,22 @@ class WebShare extends EventEmitter {
 
     const id = crypto.randomUUID();
     const total = files.reduce((a, f) => a + f.size, 0);
+    const purpose = DOC_PURPOSES.has(b.purpose) ? b.purpose : '';
+    if (purpose) {
+      // Print / scan: only for this PC, only PDFs and pictures. No Accept prompt: the window that opens
+      // is the PC user's say (nothing prints until they press Print).
+      if (!toPc) return json(res, 400, { error: 'Printing goes to a PC' });
+      if (files.some((f) => !DOC_EXT.test(f.name))) return json(res, 400, { error: 'Only PDFs and photos can be printed' });
+      if (total > DOC_MAX_BYTES) return json(res, 400, { error: 'That’s too big to print' });
+      const dir = path.join(this.docsDir, id);
+      await fsp.mkdir(dir, { recursive: true });
+      this.uploads.set(id, {
+        id, from, toPc: false, purpose, dir, files, received: new Array(files.length).fill(false), paths: [],
+        t: { id, direction: 'in', files, count: files.length, total, done: 0, status: 'active', startedAt: Date.now() },
+        lastEmit: 0, reqs: new Set(),
+      });
+      return json(res, 200, { id });
+    }
 
     // Files for this PC need the same Accept / Decline as PC-to-PC transfers
     // (trusted devices are auto-accepted by the decide() callback).
@@ -527,6 +548,15 @@ class WebShare extends EventEmitter {
   #finishBatch(batch) {
     this.uploads.delete(batch.id);
     batch.t.finishedAt = Date.now();
+    if (batch.purpose) {
+      if (batch.t.status !== 'completed') { fsp.rm(batch.dir, { recursive: true, force: true }).catch(() => {}); return; }
+      this.emit('docs', {
+        id: batch.id, purpose: batch.purpose, dir: batch.dir,
+        from: { id: batch.from.id, name: batch.from.name, kind: batch.from.kind },
+        files: batch.paths.map((abs, k) => ({ path: abs, name: path.basename(batch.files[k].name), size: batch.files[k].size })),
+      });
+      return;
+    }
     if (batch.toPc) {
       const tops = new Set(batch.paths.filter(Boolean).map((p) => path.join(batch.dir, path.relative(batch.dir, p).split(path.sep)[0])));
       batch.t.savedTo = [...tops];

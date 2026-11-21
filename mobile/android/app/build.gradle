@@ -62,6 +62,8 @@ repositories {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    // Scan to PC: Google's on-device document scanner (needs Google Play services; the page has its own fallback).
+    implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0'
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')

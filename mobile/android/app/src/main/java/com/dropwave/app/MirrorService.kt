@@ -77,6 +77,14 @@ class MirrorService : Service() {
         running = true
         DropWavePlugin.emit("mirror", JSObject().put("on", true))
         thread(name = "dropwave-mirror") { stream(req, p) }
+        // Banking / UPI app in front: stop (works with Usage access; Accessibility catches it too).
+        thread(name = "dropwave-mirror-guard") {
+            while (!stopping) {
+                Thread.sleep(1200)
+                val top = Access.foregroundApp(this) ?: continue
+                if (top != packageName && Access.isPaymentApp(top)) { main.post { Access.paymentAppOpened(this, top) }; break }
+            }
+        }
         return START_NOT_STICKY
     }
 
@@ -87,7 +95,8 @@ class MirrorService : Service() {
         runCatching { projection?.stop() }
         projection = null
         running = false
-        DropWavePlugin.emit("mirror", JSObject().put("on", false))
+        DropWavePlugin.emit("mirror", JSObject().put("on", false).apply { stopReason?.let { put("error", it) } })
+        stopReason = null
         super.onDestroy()
     }
 
@@ -267,6 +276,7 @@ class MirrorService : Service() {
         private const val NOTIF_ID = 7310
         @Volatile var running = false
         @Volatile var pending: Request? = null
+        @Volatile var stopReason: String? = null
 
         fun stop(ctx: Context) {
             if (running) ctx.startService(Intent(ctx, MirrorService::class.java).setAction(ACTION_STOP))

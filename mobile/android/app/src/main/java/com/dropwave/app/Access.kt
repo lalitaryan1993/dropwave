@@ -85,15 +85,31 @@ object Access {
 
     // ---------- payment apps: control from PC switches itself off ----------
 
-    private val PAYMENT_APPS = setOf(
-        "com.phonepe.app", "net.one97.paytm", "com.google.android.apps.nbu.paisa.user", "in.org.npci.upiapp",
-        "com.sbi.lotusintouch", "com.sbi.SBIFreedomPlus", "com.snapwork.hdfc", "com.csam.icici.bank.imobile", "com.axis.mobile",
-        "com.msf.kbank.mobile", "com.mobikwik_new", "com.freecharge.android",
-        "com.dreamplug.androidapp", "com.bankofbaroda.mconnect", "com.infrasofttech.mahabank", "com.canarabank.mobility",
-        "com.unionbank.ecommerce.mobile.android", "com.pnb.mobile", "com.idbibank.abhay_card", "com.fss.indus", "com.rbl.mobank",
-        "com.yesbank", "com.federalbank.fedmobile", "com.whatsapp.w4b.payments", "com.paypal.android.p2pmobile",
-    )
-    private val PAYMENT_WORDS = Regex("(?i)(bank|upi|wallet|payments?|\\.pay\\.|paisa|banking|finance|trading|broker|zerodha|groww|upstox)")
+    fun isPaymentApp(pkg: String) = Payment.isPaymentApp(pkg)
 
-    fun isPaymentApp(pkg: String) = pkg in PAYMENT_APPS || PAYMENT_WORDS.containsMatchIn(pkg)
+    /** A banking / payment app came to the front: its screen never goes to the PC. */
+    fun paymentAppOpened(ctx: Context, pkg: String) {
+        if (!MirrorService.running) return
+        val pm = ctx.packageManager
+        val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+        MirrorService.stopReason = "Screen sharing stopped: $label opened. Banking and UPI apps are never shown on the PC."
+        MirrorService.stop(ctx)
+        Notifs.post(ctx, 7322, androidx.core.app.NotificationCompat.Builder(ctx, Notifs.CH_STATUS)
+            .setSmallIcon(R.drawable.ic_stat_dropwave)
+            .setContentTitle("Screen sharing stopped")
+            .setContentText("$label opened, so your PC no longer sees this screen.")
+            .setAutoCancel(true)
+            .setContentIntent(Notifs.openApp(ctx)))
+    }
+
+    /** The app in front right now, if Usage access is allowed (DropWave › Apps › Most used); else null. */
+    fun foregroundApp(ctx: Context): String? = runCatching {
+        val usm = ctx.getSystemService(android.app.usage.UsageStatsManager::class.java)
+        val now = System.currentTimeMillis()
+        val ev = usm.queryEvents(now - 10_000, now)
+        val e = android.app.usage.UsageEvents.Event()
+        var last: String? = null
+        while (ev.hasNextEvent()) { ev.getNextEvent(e); if (e.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED) last = e.packageName }
+        last
+    }.getOrNull()
 }

@@ -709,9 +709,11 @@ function registerIpc() {
   });
 
   // Updates
-  ipcMain.handle('update:state', () => ({ ...update, supported: !!updater, version: app.getVersion() }));
+  // store: the Microsoft Store copy, which the Store updates.
+  const store = !!process.windowsStore;
+  ipcMain.handle('update:state', () => ({ ...update, supported: !!updater, store, version: app.getVersion() }));
   ipcMain.handle('update:check', async () => {
-    if (!updater) return { ...update, supported: false };
+    if (!updater) return { ...update, supported: false, store };
     try { await updater.checkForUpdates(); } catch (e) { setUpdate({ state: 'error', error: String(e?.message || e).split('\n')[0] }); }
     return { ...update, supported: true };
   });

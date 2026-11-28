@@ -5,7 +5,7 @@ import {
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
   Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
-  Contact, LayoutGrid, Camera, Usb, Wifi, Globe2, Tv,
+  Contact, LayoutGrid, Camera, Usb, Wifi, Globe2, Tv, ExternalLink,
 } from 'lucide-react';
 import { TvView } from './tv.jsx';
 import { api, fmtSize } from './lib.js';
@@ -22,6 +22,9 @@ import { FilesView } from './files.jsx';
 import { ContactsView } from './contacts.jsx';
 import { AppsView } from './apps.jsx';
 import { CallBanner } from './phonecalls.jsx';
+
+// DropWave's page in the Microsoft Store (the Store copy updates from there).
+const STORE_URL = 'https://apps.microsoft.com/detail/9MT1LJ95VB1H';
 
 const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
@@ -246,7 +249,7 @@ export default function App() {
       { id: 'lang-en', title: 'Show in English', Icon: Palette, group: 'Appearance', keywords: 'language english', run: () => updateSettings({ language: 'en' }) },
       ...STYLES.map(([id, name, hint]) => ({ id: `style-${id}`, title: `${name} style`, hint, Icon: Palette, group: 'Appearance', keywords: 'theme look design style', run: () => updateSettings({ style: id }) })),
       ...ACCENTS.map(([id, name]) => ({ id: `accent-${id}`, title: `${name} colours`, Icon: Palette, group: 'Appearance', keywords: 'theme accent color', run: () => updateSettings({ accent: id }) })),
-      { id: 'update', title: 'Check for updates', Icon: Download, group: 'Actions', run: () => api.checkUpdate().then(setUpdate) },
+      { id: 'update', title: 'Check for updates', Icon: Download, group: 'Actions', run: () => api.checkUpdate().then((u) => { setUpdate(u); if (u?.store) api.openLink(STORE_URL); }) },
     ];
     for (const p of peers) {
       const g = p.name;
@@ -714,12 +717,15 @@ function UpdatesCard({ version, appUpdate, setAppUpdate }) {
     ready: `Version ${u.version} is downloaded and installs on restart.`,
     latest: 'You have the latest version.',
     error: `Couldn’t check for updates${u.error ? `: ${u.error}` : ''}.`,
-  }[u.state] || (u.supported === false ? 'Updates are checked automatically in the installed app.' : 'DropWave checks for updates automatically.');
+  }[u.state] || (u.store ? 'The Microsoft Store keeps DropWave up to date.'
+    : u.supported === false ? 'Updates are checked automatically in the installed app.' : 'DropWave checks for updates automatically.');
   const check = async () => { setBusy(true); try { setAppUpdate(await api.checkUpdate()); } finally { setBusy(false); } };
   return (
     <Card title="Updates">
       <Row label={`DropWave ${version}`} hint={status}>
-        {u.state === 'ready'
+        {u.store
+          ? <Button variant="soft" onClick={() => api.openLink(STORE_URL)}><ExternalLink className="h-4 w-4" /> Open in Microsoft Store</Button>
+          : u.state === 'ready'
           ? <Button variant="primary" onClick={() => api.installUpdate()}><RotateCw className="h-4 w-4" /> Restart to update</Button>
           : <Button variant="soft" onClick={check} disabled={busy || u.state === 'checking' || u.state === 'downloading'}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Check for updates

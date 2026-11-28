@@ -2,7 +2,7 @@
   "name": "dropwave",
   "productName": "DropWave",
   "version": "1.11.0",
-  "description": "Drag and drop files between computers on your local network",
+  "description": "Your Android phone on your PC, and files to any PC, phone or TV on your own Wi-Fi. No cloud, no account.",
   "main": "electron/main.cjs",
   "author": "LALIT ARYAN",
   "license": "MIT",
@@ -18,7 +18,8 @@
     "kvm": "native\\kvm\\build.cmd",
     "dist": "npm run vcam && npm run kvm && vite build && electron-builder --win nsis",
     "test:web": "node test/web.test.cjs",
-    "test": "node test/engine.test.cjs && node test/web.test.cjs && node test/flow.test.cjs"
+    "test": "node test/engine.test.cjs && node test/web.test.cjs && node test/flow.test.cjs",
+    "dist:store": "npm run vcam && npm run kvm && vite build && electron-builder --win appx"
   },
   "build": {
     "appId": "com.dropwave.app",
@@ -80,7 +81,22 @@
         "owner": "lalitaryan1993",
         "repo": "dropwave"
       }
-    ]
+    ],
+    "appx": {
+      "applicationId": "DropWave",
+      "identityName": "DropWave.DropWave",
+      "publisher": "CN=00000000-0000-0000-0000-000000000000",
+      "publisherDisplayName": "LALIT ARYAN",
+      "displayName": "DropWave",
+      "backgroundColor": "#0B0D14",
+      "languages": [
+        "en-US",
+        "hi-IN"
+      ],
+      "artifactName": "DropWave-Store-${version}.${ext}",
+      "minVersion": "10.0.19041.0",
+      "maxVersionTested": "10.0.26100.0"
+    }
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.5",

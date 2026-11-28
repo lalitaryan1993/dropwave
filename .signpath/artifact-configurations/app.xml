@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "app": the unpacked app (release/win-unpacked) as built by
+     .github/workflows/build.yml. Signs only DropWave's own programs; the Electron runtime files
+     are left as they are. Paste this into the SignPath project's artifact configuration. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="DropWave.exe">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="resources/kvm/dwkvm.exe">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="resources/vcam/dwcam.exe">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="resources/vcam/DropWaveCam.dll">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -1106,7 +1106,8 @@ let updater = null;
 function setUpdate(u) { update = { ...update, ...u }; push('update', update); }
 function initUpdater() {
   // Only the installed app updates itself (dev builds and test profiles don't).
-  if (!app.isPackaged || PROFILE) return;
+  // The Microsoft Store build is updated by the Store.
+  if (!app.isPackaged || PROFILE || process.windowsStore) return;
   try { updater = require('electron-updater').autoUpdater; } catch { return; }
   updater.autoDownload = true;
   updater.autoInstallOnAppQuit = true;

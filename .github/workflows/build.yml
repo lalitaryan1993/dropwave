@@ -1,0 +1,159 @@
+# Builds DropWave for Windows and Android from this public repository.
+#
+# - Every push and pull request: builds everything and keeps the files as workflow artifacts.
+# - A tag like v1.12.0: the same, and the Windows app is code-signed through SignPath
+#   when the SIGNPATH_API_TOKEN secret and the SIGNPATH_ORGANIZATION_ID variable are set.
+#   (Free signing for open-source projects: https://signpath.org)
+#
+# The Android release key never leaves the developer's PC, so the APK built here is unsigned:
+# it proves the code builds and lets anyone compare it with the published one.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      SIGN: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the camera and two-PC helpers (C++)
+        run: |
+          npm run vcam
+          npm run kvm
+
+      - run: npm test
+
+      - name: Build the app
+        run: npx vite build
+
+      - name: Package the app files
+        run: npx electron-builder --win --dir --publish never
+
+      # ---- signed path (release tags with SignPath set up) ----
+      - name: Upload the app files for signing
+        if: env.SIGN == 'true'
+        id: app-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-unsigned
+          path: release/win-unpacked/
+
+      - name: Sign the app files
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: dropwave
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: app
+          github-artifact-id: ${{ steps.app-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: release/win-unpacked-signed
+
+      - name: Use the signed app files
+        if: env.SIGN == 'true'
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force release/win-unpacked
+          Move-Item release/win-unpacked-signed release/win-unpacked
+
+      - name: Build the installer
+        run: npx electron-builder --win nsis --prepackaged release/win-unpacked --publish never
+
+      - name: Upload the installer for signing
+        if: env.SIGN == 'true'
+        id: installer-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-unsigned
+          path: release/DropWave-Setup-*.exe
+
+      - name: Sign the installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: dropwave
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.installer-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: release
+
+      - name: Update the auto-update file for the signed installer
+        if: env.SIGN == 'true'
+        run: node scripts/update-latest-yml.cjs release
+
+      - name: Microsoft Store package
+        run: npx electron-builder --win appx --prepackaged release/win-unpacked --publish never
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem release -File -Include *.exe,*.appx -Recurse -Depth 0 |
+            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content release/SHA256SUMS-windows.txt
+          Get-Content release/SHA256SUMS-windows.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropWave-Windows
+          path: |
+            release/DropWave-Setup-*.exe
+            release/DropWave-Setup-*.exe.blockmap
+            release/latest.yml
+            release/*.appx
+            release/SHA256SUMS-windows.txt
+
+  android:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: 21
+          cache: gradle
+
+      - name: Build the phone pages
+        working-directory: mobile
+        run: |
+          npm ci
+          node build-www.cjs
+          npx cap sync android
+
+      - name: Build the APK (unsigned)
+        working-directory: mobile/android
+        run: ./gradlew.bat assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropWave-Android-unsigned
+          path: mobile/android/app/build/outputs/apk/release/*.apk

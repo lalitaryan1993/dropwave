@@ -43,6 +43,8 @@ The certificate will name **SignPath Foundation** as the publisher. SmartScreen 
 
 ## 2. Microsoft Store (free for individual developers)
 
+Done so far: developer account created, name **DropWave** reserved (Store ID `9MT1LJ95VB1H`, page https://apps.microsoft.com/detail/9MT1LJ95VB1H once published), identity values already in `package.json`. The reservation lapses if nothing is submitted within three months.
+
 1. Sign up from https://developer.microsoft.com/microsoft-store/register (individual account, free). You do the sign-up and verification.
 2. **Reserve the name** "DropWave" in Partner Center.
 3. Open **Product identity** and copy three values into `package.json` › `build.appx`:

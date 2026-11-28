@@ -26,9 +26,10 @@ The biggest thing stopping people is **install warnings**, not missing features.
 
 - [x] Back up the release keystore offline (losing it blocks Google registration forever)
 - [x] Build Windows + Android in GitHub Actions, with SignPath signing ready for release tags (`.github/workflows/build.yml`)
-- [ ] Apply to SignPath Foundation (free code signing for open source); steps in `docs/distribution.md`
+- [x] Apply to SignPath Foundation (free code signing for open source), applied 28 Nov 2026; waiting for their reply. Steps after approval in `docs/distribution.md`
 - [x] Microsoft Store package, tiles, listing text and privacy policy
-- [ ] Microsoft Store account, name reservation and first submission (free for individuals; the Store signs it, so no SmartScreen warning)
+- [x] Microsoft Store developer account and the name "DropWave" reserved (28 Nov 2026, Store ID 9MT1LJ95VB1H; submit within 3 months)
+- [ ] First Microsoft Store submission (free for individuals; the Store signs it, so no SmartScreen warning)
 - [ ] Play Console account ($25, also covers Android developer verification)
 - [ ] Release the done-but-unreleased fixes (1.11.1)
 - [ ] Reliability check: reconnect after reboot, sleep and Windows update, published as a table in the README

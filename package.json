@@ -84,9 +84,9 @@
     ],
     "appx": {
       "applicationId": "DropWave",
-      "identityName": "DropWave.DropWave",
-      "publisher": "CN=00000000-0000-0000-0000-000000000000",
-      "publisherDisplayName": "LALIT ARYAN",
+      "identityName": "LalitAryan.DropWave",
+      "publisher": "CN=440102B7-C290-40D7-BD36-2E7CDFD1E87A",
+      "publisherDisplayName": "Lalit Aryan",
       "displayName": "DropWave",
       "backgroundColor": "#0B0D14",
       "languages": [

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, ClipboardPaste, Copy, Check, AlertCircle, Loader2, MessagesSquare, Trash2, ExternalLink } from 'lucide-react';
+import { Send, ClipboardPaste, Copy, Check, AlertCircle, Loader2, MessagesSquare, Trash2, ExternalLink, Paperclip, Archive, X } from 'lucide-react';
 import { api } from './lib.js';
 import { Avatar, Button, PlatformIcon } from './components.jsx';
 
@@ -30,6 +30,11 @@ function Bubble({ m }) {
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}
       className={`group flex items-end gap-1.5 ${out ? 'justify-end' : 'justify-start'}`}>
+      {out && m.status === 'queued' && (
+        <button onClick={() => api.vaultRemove(m.id)} title="Don’t send" className="mb-1 grid h-7 w-7 place-items-center rounded-lg text-faint opacity-0 transition hover:bg-[var(--line)] hover:text-fg group-hover:opacity-100">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
       {out && (
         <button onClick={copy} title="Copy" className="mb-1 grid h-7 w-7 place-items-center rounded-lg text-faint opacity-0 transition hover:bg-[var(--line)] hover:text-fg group-hover:opacity-100">
           {copied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />}
@@ -44,6 +49,7 @@ function Bubble({ m }) {
           {out && m.status === 'sending' && <Loader2 className="h-3 w-3 animate-spin" />}
           {out && m.status === 'sent' && <Check className="h-3 w-3" />}
           {out && m.status === 'failed' && <AlertCircle className="h-3 w-3" />}
+          {out && m.status === 'queued' && <span className="flex items-center gap-1" title="In the Vault: sent by itself when the device is back"><Archive className="h-3 w-3" /> waiting</span>}
         </div>
       </div>
       {!out && (
@@ -75,9 +81,24 @@ function Conversation({ peer, online }) {
 
   useLayoutEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [messages.length]);
 
+  const [dragOver, setDragOver] = useState(false);
+  const [note, setNote] = useState('');
+  const sendFiles = async (paths) => {
+    setNote('');
+    try {
+      const r = paths ? await api.vaultFiles(peer.id, paths) : await api.vaultPick(peer.id);
+      if (r?.queued) setNote(`Saved in the Vault. Goes to ${peer.name} when it’s back.`);
+      else if (r?.sent) setNote('Sending… see Activity');
+    } catch (e) { setNote(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')); }
+  };
+  const onDrop = (e) => {
+    e.preventDefault(); setDragOver(false);
+    const paths = api.pathsFromFiles(e.dataTransfer.files);
+    if (paths.length) sendFiles(paths);
+  };
   const send = async () => {
     const body = text.trim();
-    if (!body || !online) return;
+    if (!body) return;
     setText('');
     await api.chatSend(peer.id, body);
     input.current?.focus();
@@ -87,14 +108,17 @@ function Conversation({ peer, online }) {
 
   let lastDay = '';
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
+    <div className={`relative flex h-full min-w-0 flex-1 flex-col ${dragOver ? 'ring-2 ring-inset ring-accent' : ''}`}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragOver(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false); }}
+      onDrop={onDrop}>
       <div className="flex items-center gap-3 border-b border-line px-6 py-4">
         <Avatar id={peer.id} name={peer.name} size={40} />
         <div className="min-w-0 flex-1">
           <div className="truncate font-display text-[16px] font-semibold">{peer.name}</div>
           <div className="flex items-center gap-1.5 text-[12px] text-faint">
             <span className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-good' : 'bg-[var(--line-strong)]'}`} />
-            {online ? 'Online' : 'Offline — open DropWave on it to chat'}
+            {online ? 'Online' : 'Away — messages and files wait in the Vault and go when it’s back'}
             <PlatformIcon platform={peer.kind} className="ml-1 h-3.5 w-3.5" />
           </div>
         </div>
@@ -127,18 +151,20 @@ function Conversation({ peer, online }) {
           );
         })}
         {lastFailed && <div className="pt-1 text-right text-[11.5px] text-bad">Not delivered: {lastFailed.error}</div>}
+        {note && <div className="pt-1 text-right text-[11.5px] text-faint">{note}</div>}
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-end gap-2 border-t border-line px-4 py-3">
         <Button type="button" variant="ghost" className="h-10 w-10 shrink-0 px-0" onClick={paste} title="Paste clipboard"><ClipboardPaste className="h-[18px] w-[18px]" /></Button>
+        <Button type="button" variant="ghost" className="h-10 w-10 shrink-0 px-0" onClick={() => sendFiles(null)} title={online ? 'Send files' : 'Keep files for later (Vault)'}><Paperclip className="h-[18px] w-[18px]" /></Button>
         <textarea
-          ref={input} rows={1} value={text} disabled={!online}
+          ref={input} rows={1} value={text}
           onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`; }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={online ? `Message ${peer.name}…  (Enter to send, Shift+Enter for a new line)` : `${peer.name} is offline`}
+          placeholder={online ? `Message ${peer.name}…  (Enter to send, Shift+Enter for a new line)` : `${peer.name} is away. Write now, it goes when it’s back…`}
           className="max-h-[140px] min-h-10 flex-1 resize-none rounded-xl border border-line-strong bg-bg-2 px-3.5 py-2.5 text-[13.5px] outline-none transition focus:border-accent focus:shadow-[0_0_0_4px_var(--glow)] disabled:opacity-60"
         />
-        <Button type="submit" variant="primary" className="h-10 shrink-0" disabled={!text.trim() || !online}><Send className="h-4 w-4" /></Button>
+        <Button type="submit" variant="primary" className="h-10 shrink-0" disabled={!text.trim()} title={online ? 'Send' : 'Save in the Vault'}>{online ? <Send className="h-4 w-4" /> : <Archive className="h-4 w-4" />}</Button>
       </form>
     </div>
   );

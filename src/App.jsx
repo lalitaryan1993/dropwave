@@ -5,8 +5,9 @@ import {
   ShieldCheck, X, Pencil, Check, ArrowUpRight, ArrowDownLeft, Inbox, UploadCloud, QrCode, RefreshCw,
   Stethoscope, Loader2, Info, AlertTriangle, Sparkles, RotateCw, MessagesSquare, House, Command, BellRing,
   Send, FolderUp, ClipboardCopy, Phone, Video, MessageSquare, Smartphone, Palette, Download, Images, MessageSquareText, FolderTree,
-  Contact, LayoutGrid, Camera, Usb, Wifi, Globe2,
+  Contact, LayoutGrid, Camera, Usb, Wifi, Globe2, Tv,
 } from 'lucide-react';
+import { TvView } from './tv.jsx';
 import { api, fmtSize } from './lib.js';
 import appIcon from '../electron/web/icon-192.png';
 import { Avatar, Button, DeviceCard, Radar, TransferRow, IncomingModal, AddDeviceModal, PhoneModal, SendToModal, Toasts } from './components.jsx';
@@ -288,6 +289,7 @@ export default function App() {
     { id: 'apps', label: 'Apps', Icon: LayoutGrid },
     { id: 'files', label: 'Phone files', Icon: FolderTree },
     { id: 'nearby', label: 'Nearby', Icon: RadarIcon, badge: peers.length || null },
+    { id: 'tv', label: 'TV remote', Icon: Tv },
     { id: 'chats', label: 'Chats', Icon: MessagesSquare, badge: chatList.reduce((a, c) => a + (c.unread || 0), 0) || null },
     { id: 'activity', label: 'Activity', Icon: History, badge: activeList.length || null },
     { id: 'settings', label: 'Settings', Icon: SettingsIcon },
@@ -365,8 +367,9 @@ export default function App() {
         </aside>
 
         {/* main */}
-        <main className="min-w-0 flex-1 pb-3 pr-3">
-          <div className="glass relative h-full overflow-hidden rounded-[22px]">
+        <main className="flex min-w-0 flex-1 flex-col gap-2 pb-3 pr-3">
+          <NetBanner onMore={() => { setView('settings'); setCheckSignal((n) => n + 1); }} />
+          <div className="glass relative min-h-0 flex-1 overflow-hidden rounded-[22px]">
             <AnimatePresence mode="wait">
               <motion.div
                 key={view}
@@ -389,6 +392,7 @@ export default function App() {
                   <ContactsView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast}
                     onMessage={(n) => { const ph = phones[homePhone] || Object.values(phones)[0]; if (!ph) return; setView('messages'); api.smsOpen(ph.id, null, n).catch((e) => toast(cleanErr(e), 'error')); }} />
                 )}
+                {view === 'tv' && <TvView toast={toast} />}
                 {view === 'apps' && <AppsView phones={phones} selected={homePhone} onSelect={setHomePhone} toast={toast} />}
                 {view === 'nearby' && (
                   <Nearby
@@ -580,6 +584,59 @@ function Stat({ Icon, label, value, color }) {
       <div className="flex items-center gap-2 text-[12.5px] font-medium text-muted"><Icon className="h-4 w-4" style={{ color }} /> {label}</div>
       <div className="mt-2 font-display text-[28px] font-semibold tracking-tight tabular">{value}</div>
     </div>
+  );
+}
+
+// On a new PC the usual reason phones and PCs can't find it is Windows itself: a Wi-Fi marked
+// "Public" (Windows' default for a new network) or a firewall block. Checked on its own at start
+// and when the window comes back, so nobody has to find the check in Settings.
+function NetBanner({ onMore }) {
+  const [issue, setIssue] = useState(null);
+  const [hidden, setHidden] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [note, setNote] = useState('');
+  const last = useRef(0);
+  const check = useCallback(async () => {
+    if (Date.now() - last.current < 60000) return; // the check starts PowerShell: not on every focus
+    last.current = Date.now();
+    try {
+      const checks = await api.runChecks();
+      setIssue(checks.find((c) => !c.ok && !c.info && c.fix && ['profile', 'firewall'].includes(c.id)) || null);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    const t = setTimeout(check, 2500);
+    const onFocus = () => check();
+    window.addEventListener('focus', onFocus);
+    return () => { clearTimeout(t); window.removeEventListener('focus', onFocus); };
+  }, [check]);
+  const fix = async () => {
+    setFixing(true); setNote('');
+    try {
+      const r = await api.fixCheck(issue.id);
+      setIssue(r.checks.find((c) => !c.ok && !c.info && c.fix && ['profile', 'firewall'].includes(c.id)) || null);
+      if (!r.ran) setNote('Click "Yes" when Windows asks for permission.');
+    } catch {} finally { setFixing(false); }
+  };
+  return (
+    <AnimatePresence>
+      {issue && !hidden && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+          className="flex items-center gap-3 rounded-2xl border px-4 py-2.5"
+          style={{ borderColor: 'color-mix(in oklab, var(--warn) 45%, transparent)', background: 'color-mix(in oklab, var(--warn) 12%, var(--raised))' }}>
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warn" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-medium">Phones and other PCs can’t reach this PC: {issue.title}</div>
+            <div className="truncate text-[11.5px] text-faint">{note || issue.detail}</div>
+          </div>
+          <button onClick={onMore} className="shrink-0 text-[12px] font-medium text-accent hover:underline">Details</button>
+          <Button variant="primary" className="h-8 shrink-0" onClick={fix} disabled={fixing}>
+            {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} {issue.fix}
+          </Button>
+          <button onClick={() => setHidden(true)} aria-label="Hide" className="shrink-0 rounded-lg p-1 text-faint hover:text-fg"><X className="h-4 w-4" /></button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

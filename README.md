@@ -6,11 +6,11 @@
 
 ### Stop picking up your phone. 📵
 
-**Calls, WhatsApp & SMS, OTPs, photos, the camera as a webcam and every app, right on your Windows PC.<br />Print and scan from the phone, one mouse and keyboard for two PCs, files to any PC, phone or TV.<br />All over your own Wi-Fi: no cloud, no account, no cables.**
+**Calls, WhatsApp & SMS, OTPs, photos, the camera as a webcam and every app, right on your Windows PC.<br />Phone to phone without internet (like ShareIt / Xender, no ads), a TV remote for Android TV, print and scan, one mouse for two PCs.<br />All over your own Wi-Fi: no cloud, no account, no cables.**
 
 <br />
 
-[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.10.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download%20for%20Windows-v1.11.0-6d5dfc?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 &nbsp;
 [![Get the Android app](https://img.shields.io/badge/Android%20app-APK-3ddc84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/lalitaryan1993/dropwave/releases/latest)
 
@@ -58,7 +58,26 @@
   <sub><b>Safe by default:</b> when a bank or UPI app opens on the phone, control from the PC switches itself off.</sub>
 </p>
 
-## 🆕 Print, scan, and one mouse for two PCs
+## 🆕 New in 1.11: phone to phone, TV remote, Vault
+
+<table>
+<tr>
+<td width="33%" valign="top"><b>📲 Phone to phone, no internet</b><br />Send photos, videos, apps, contacts and files to <b>any phone nearby</b>. DropWave makes its own Wi-Fi: the other phone scans a QR code and downloads in its browser, <b>even an iPhone without the app</b>. Two DropWave phones on one Wi-Fi find each other without a QR. No ads, no data used.</td>
+<td width="33%" valign="top"><b>📺 TV remote (Android TV / Google TV)</b><br />Your phone <b>and your PC</b> become the remote: D-pad or swipe pad, volume, channels, numbers, colour buttons, playback, <b>voice search</b> in English, हिंदी, मराठी, தமிழ், typing from the keyboard, and one-tap YouTube, Netflix, Prime Video, JioHotstar… Several TVs, nothing to install on the TV.</td>
+<td width="33%" valign="top"><b>🗄️ Vault</b><br />PC off or phone away from the Wi-Fi? Share a link, note or file anyway: it waits in the Vault and goes by itself when the devices meet again. Works both ways, PC → phone too.</td>
+</tr>
+</table>
+
+<p align="center"><img src="docs/readme/n-tv-pc.png" alt="DropWave TV remote on the PC: D-pad, volume, channels, numbers, playback, typing and apps for an Android TV" width="760" /><br /><sub>The TV remote on the PC (also on the phone). Keyboard arrows, Enter and Backspace work like the remote.</sub></p>
+
+**Also in 1.11:**
+- 🛡️ **Asks before anyone sends you files**: “Redmi wants to send 7 files · Accept all”, with **trusted phones** that never need to ask again.
+- 📦 **Moving to a new phone?** All photos, videos and contacts in one go; pick only some contacts if you like.
+- 🎨 **Appearance**: Auto / Light / Dark, four styles, nine accent colours (Saffron too), a new font and calm or lively motion.
+- 🕘 History of everything sent and received phone to phone; speed, progress and time left while it runs.
+- 🔧 Fixes: a call popup that could stay after the call ended (SIM and WhatsApp), the PC app not starting after a Vault item, and a one-click fix when Windows treats your Wi-Fi as “Public”.
+
+## 🖨️ Print, scan, and one mouse for two PCs
 
 <table>
 <tr>
@@ -93,26 +112,39 @@ DropWave started as the fastest way to move files around the house, and it does 
 
 **Also:** 💬 chat with any device (links, notes, clipboard) · right-click **Send with DropWave** in File Explorer · one-click **network check** · Accept / Decline for every transfer · **auto-update**.
 
-## 🚀 Get started in 2 minutes
+## 🚀 Install in 2 minutes
 
-1. **PC:** download **`DropWave-Setup-x.y.z.exe`** from the [latest release](https://github.com/lalitaryan1993/dropwave/releases/latest) and run it.<br />
-   <sub>Windows may say *"Windows protected your PC"* because the app isn't code-signed yet: **More info → Run anyway**.</sub>
-2. **Phone:** install **`DropWave-Android-x.y.z.apk`** from the same release (Android 10+). It finds your PC on the Wi-Fi by itself; enter the PIN shown on the PC once.
-3. On the phone, open **Privacy** and turn on what you want to share. Android asks once for each permission. That's it.
-4. **More PCs?** Install DropWave on each one and they find each other. **TVs and iPhones** need nothing: click **Phone or TV** on the PC and scan the QR code.
+### 💻 On the Windows PC
+1. Open the [latest release](https://github.com/lalitaryan1993/dropwave/releases/latest) and download **`DropWave-Setup-1.11.0.exe`**.
+2. Run it. Windows may show a blue box, **“Windows protected your PC”**: click **More info → Run anyway**. *(Why? See below.)*
+3. Click **Next → Install**. DropWave opens and shows a QR code. It updates itself from then on.
 
-> Phone and PC must be on the **same Wi-Fi**. No internet is needed. iPhones and smart TVs can still send and receive files from the browser, no install (see below).
+### 📱 On the Android phone (Android 10+)
+1. On the phone, open the [latest release](https://github.com/lalitaryan1993/dropwave/releases/latest) and download **`DropWave-Android-1.11.0.apk`**. (Or send it from the PC with DropWave.)
+2. Open the file. Android asks to **allow installs from this source** (Chrome / Files): turn it on, go back, tap **Install**.
+3. If **Play Protect** says it doesn't know the app: **More details → Install anyway**. *(Why? See below.)*
+4. Open DropWave. It finds your PC on the Wi-Fi by itself; enter the PIN shown on the PC once. Then, in **Privacy**, turn on only what you want to share.
 
-## 🆕 New in 1.10
+> Phone and PC on the **same Wi-Fi**, no internet needed. **More PCs?** Install on each, they find each other. **iPhones and smart TVs** need nothing: click **Phone or TV** on the PC and scan the QR code.
 
-- **🖨️ Print on PC**: share any PDF or photo to DropWave on the phone (or *Home › Print & scan*), pick a printer on the PC (USB or network), copies, paper, black & white, both sides. Nothing prints until you press Print on the PC.
-- **📄 Scan to PC**: Google's on-device document scanner (live edges, auto capture, clean-up, many pages); the PC can start it too (*Camera › Scan document*). Edit on the PC: Magic / Auto / Grey / B&W, brightness, contrast, sharpness, straighten, crop, page order. Save as **PDF, JPG or PNG**, with size limits for portals.
-- **🖱️ One mouse, two PCs** (*Settings › One mouse, two PCs*): mouse and keyboard move to the other PC at the screen's edge; text, pictures and files copied on one PC paste on the other; **Ctrl+Alt+Home** brings the mouse back.
-- **🌍 Nearby in 3D**: a turning globe with your devices on an orbit (the card grid is one click away).
-- **🛡️ Safer**: banking and UPI apps stop screen sharing and never open in a PC window; "Your PC is controlling this phone" notice with Stop; a scam warning in English and Hindi.
-- **✨ A new-look installer**, and fixes for the clipboard (text and pictures with the mouse, the camera's *Copy again*, clearing a copied OTP).
+### ⚠️ Why do Windows and Android warn, and can I trust DropWave?
 
-<sub>1.9: phone as microphone, USB cable link, phone apps in PC windows (also without a cable), Smart OTP, Lock PC tile and widget. 1.8: phone as webcam, call popup, Hindi, contacts, apps, phone controls, styles. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
+The warnings are about **where the app comes from, not about what it does**:
+
+| Warning | Why it shows | What it would take to remove it |
+|---|---|---|
+| Windows: *“Windows protected your PC”* (SmartScreen) | The installer isn't **code-signed** with a paid certificate, and the app is new, so Windows hasn't seen many downloads yet | A code-signing certificate (yearly fee) or the Microsoft Store; it's on the roadmap |
+| Android: *“Install unknown apps”* | The APK comes from GitHub, not the Play Store | Publishing on the Play Store |
+| Android: Play Protect *“unknown app”* | Google hasn't scanned this developer's apps before | Same as above |
+
+**Why you can trust it:**
+- 🔓 **Fully open source (MIT).** Every line of code is in this repository: anyone can read it, and you can [build it yourself](#-build-from-source).
+- 🏠 **No server, no account, no tracking.** DropWave only talks to your own devices on your Wi-Fi. It has no analytics and no ads. (Internet is used only for: update checks on GitHub, the TV remote's voice search (the phone's Google speech service), and, if you use phone apps over a USB cable, a one-time download of Google's official adb tool.)
+- 🔐 **Encrypted, and you're asked first.** A PIN to pair, *Accept* before every file, phones ask before they send, TLS 1.3 with pinned certificates, X25519 + AES-256-GCM between PCs.
+- 🎚️ **Nothing is shared until you switch it on.** Every permission on the phone has its own switch in *Privacy*, and you can turn everything off in one tap. Banking and UPI apps are never shown on the PC.
+- ✅ **Check your download is the real one.** Each release lists SHA-256 checksums (`SHA256SUMS.txt`). On Windows: `certutil -hashfile DropWave-Setup-1.11.0.exe SHA256`. Every DropWave APK is signed with the same key, SHA-256 fingerprint:<br />`c4:86:10:41:ec:a6:7c:dd:b8:a1:21:93:8e:bf:a5:7b:7e:bd:86:b9:b7:4c:51:64:72:30:73:6f:82:dc:87:c2`<br /><sub>Android itself refuses an update signed with a different key, so a tampered APK can't replace yours.</sub>
+
+<sub>1.10: print on PC, scan to PC, one mouse for two PCs, Nearby in 3D, bank/UPI guard. 1.9: phone as microphone, USB cable link, phone apps in PC windows (also without a cable), Smart OTP, Lock PC tile and widget. 1.8: phone as webcam, call popup, Hindi, contacts, apps, phone controls, styles. [All releases →](https://github.com/lalitaryan1993/dropwave/releases)</sub>
 
 ## 📋 Complete feature list
 
@@ -136,6 +168,16 @@ DropWave started as the fastest way to move files around the house, and it does 
 </details>
 
 <details>
+<summary><b>📲 Phone to phone and 📺 TV remote</b></summary>
+
+- **Phone to phone without internet**: DropWave makes its own Wi-Fi (or uses the one you're on). The other phone scans a QR code: no app needed there, iPhones too. With DropWave on both: one scan, or no QR at all on the same Wi-Fi.
+- Pick **photos, videos, installed apps, contacts (all or some) and files**; **move to a new phone** in one go; send **DropWave itself** to a friend.
+- **Accept / Decline** before anyone sends to you, **trusted phones**, optional **PIN**, live progress and speed, **history**. Photos land in the Gallery, contacts import in one tap.
+- **TV remote for Android TV / Google TV** on the phone and the PC: D-pad or swipe / mouse pad, volume, channels, numbers, colour buttons, playback, subtitles, audio track, input, guide, all apps.
+- **Voice search** (English, हिंदी, मराठी, தமிழ்) and **typing** on the TV; **open apps** in one tap; **several TVs** with names. Pair once with the code on the TV.
+</details>
+
+<details>
 <summary><b>💻 Between your PCs, phones and TVs</b></summary>
 
 - **Drag & drop files and folders** between PCs, no size limit, original quality, end-to-end encrypted, resumable.
@@ -154,10 +196,11 @@ DropWave started as the fastest way to move files around the house, and it does 
 - **Bank and UPI guard**: control from the PC switches off, screen sharing stops, and banking apps never open in a PC window.
 - **Scam safety**: "Your PC is controlling this phone" with Stop, and a warning in English and Hindi.
 - **Works while the phone is locked**; battery steps for Realme, Oppo, Vivo, iQOO, Xiaomi, Samsung, OnePlus and Motorola.
-- **English and हिन्दी**, five styles in light and dark, **Ctrl + K** for everything, auto-update.
+- **Vault**: what can't be sent now (PC off, phone away) waits and goes by itself later, both ways.
+- **English and हिन्दी**, **Appearance** (Auto / Light / Dark, four styles, nine accent colours, font, motion), **Ctrl + K** for everything, auto-update.
 </details>
 
-## 🧩 One app instead of five
+## 🧩 One app instead of seven
 
 DropWave covers what you would otherwise need several apps for:
 
@@ -168,6 +211,8 @@ DropWave covers what you would otherwise need several apps for:
 | Scan documents to PDF | CamScanner, Adobe Scan, Google Drive scan | ✅ Straight onto the PC, PDF / JPG / PNG |
 | Print from the phone | Printer apps, emailing the file to yourself | ✅ Any printer the PC can use |
 | Send big files between PC, phone and TV | ShareIt, LocalSend, Nearby Share, pen drives | ✅ Encrypted, no size limit, TVs from the browser |
+| Send files phone to phone without internet | ShareIt, Xender, Quick Share | ✅ No ads, works with iPhones (browser), asks before receiving |
+| Control the TV from the phone or PC | Google TV app, TV remote apps | ✅ On the phone **and** the PC, voice in Indian languages |
 | Phone camera as a webcam | DroidCam, Iriun | ✅ Built in (Windows 11) |
 
 ## 🤔 Why DropWave?
@@ -221,6 +266,21 @@ DropWave covers what you would otherwise need several apps for:
 <details>
 <summary><b>Is it really free? What's the catch?</b></summary>
 It's free and open source under the MIT licence. There is no server, so there is nothing to pay for and nothing that sees your data.
+</details>
+
+<details>
+<summary><b>Windows / Android warned me. Is DropWave safe to install?</b></summary>
+Yes. The warning appears because the installer isn't code-signed (a yearly fee) and the APK isn't from the Play Store, not because of anything the app does. DropWave is open source, has no server or tracking, and only talks to your own devices. Check the SHA-256 of your download against <code>SHA256SUMS.txt</code> in the release. See <a href="#️-why-do-windows-and-android-warn-and-can-i-trust-dropwave">Why the warning</a>.
+</details>
+
+<details>
+<summary><b>How do I send files from one phone to another without internet?</b></summary>
+On the phone: <i>Phone to phone</i>, add photos / videos / apps / contacts / files, tap <b>Share</b>. The other phone scans step 1 (joins DropWave's Wi-Fi) and step 2 (opens the page) with its camera, no app needed. With DropWave on the other phone: <i>Phone to phone › Receive › Scan</i>, or, on the same Wi-Fi, just tap the phone in the list.
+</details>
+
+<details>
+<summary><b>Which TVs does the TV remote work with?</b></summary>
+Android TV and Google TV: Sony, Xiaomi / Mi TV and Mi TV Stick, OnePlus, TCL, Hisense, Realme, Chromecast with Google TV and others. Turn the TV on, same Wi-Fi, open <i>TV remote</i> on the phone or PC, pick the TV and type the code it shows (once). Samsung (Tizen) and LG (webOS) are on the roadmap.
 </details>
 
 <details>
@@ -287,6 +347,8 @@ flowchart LR
 | TCP **47822** | PC-to-PC: signed X25519 handshake → AES-256-GCM → file list → accept → stream (resumable) → SHA-256 check |
 | HTTP **47823** | The phone/TV page: PIN login, uploads, downloads with range support, Server-Sent Events, **Play now** streams |
 | HTTPS **47824** | The Android app: the same, over TLS 1.3 with the PC's certificate pinned |
+| HTTP **47830** | Phone to phone: the sharing phone's own page (random link per share, optional PIN, asks before receiving) |
+| TLS **6466 / 6467** | TV remote: the Android TV remote protocol (pairing on 6467, remote on 6466), from the phone and the PC |
 
 ## 🧑‍💻 Build from source
 
@@ -306,7 +368,10 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 | `electron/phone.cjs` | The phone link: notifications, calls, SMS, photos, controls, webcam |
 | `electron/flow.cjs` + `native/kvm/` | One mouse and keyboard for two PCs, clipboard and files with it (C++ helper `dwkvm.exe`) |
 | `electron/docs.cjs` + `src/docs.jsx` | Print on PC and Scan to PC: pages, editing, printing, PDF / JPG / PNG |
-| `electron/main.cjs` | Windows, tray, notifications, settings, the DropWave Camera manager |
+| `electron/main.cjs` | Windows, tray, notifications, settings, the DropWave Camera manager, Vault |
+| `electron/tv.cjs` + `src/tv.jsx` | TV remote on the PC: mDNS discovery, pairing, Android TV remote protocol |
+| `mobile/android/.../P2P.kt`, `P2PReceive.kt`, `mobile/www/p2p.html` | Phone to phone: own Wi-Fi, file server, receive, guest page |
+| `mobile/android/.../TvRemote.kt`, `mobile/www/tv.html` | TV remote on the phone, voice search |
 | `src/` | Desktop UI (React, Tailwind, Motion) |
 | `native/vcam/` | DropWave Camera, a Windows 11 virtual camera (C++, Media Foundation) |
 | `mobile/` | Android app (Capacitor + Kotlin) |
@@ -324,6 +389,12 @@ npm run dist       # build release/DropWave-Setup-x.y.z.exe
 - [x] The phone's microphone as the PC's microphone (with the free VB-CABLE for other apps)
 - [x] Print from the phone on the PC's printer; scan documents to PDF / JPG / PNG
 - [x] One mouse and keyboard for two PCs, with copy and paste of files
+- [x] Phone to phone without internet, asks before receiving, trusted phones
+- [x] TV remote for Android TV / Google TV on the phone and the PC, voice search
+- [x] Vault: send later when devices meet again
+- [ ] Resume an interrupted phone-to-phone transfer
+- [ ] Samsung and LG TV remote
+- [ ] Hindi for the newest screens
 - [ ] macOS & Linux builds
 - [ ] Code-signed installer / Microsoft Store (removes the SmartScreen warning)
 
@@ -331,4 +402,4 @@ Ideas and bug reports are welcome: [open an issue](https://github.com/lalitaryan
 
 ## License
 
-[MIT](LICENSE) © LALIT ARYAN. App icon and installer artwork were generated with ChatGPT.
+[MIT](LICENSE) © LALIT ARYAN. App icon and installer artwork were generated with ChatGPT. The app font is Plus Jakarta Sans (SIL Open Font License).

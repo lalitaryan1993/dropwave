@@ -73,7 +73,12 @@ class PhoneListener : NotificationListenerService() {
 
     private fun appCall(s: StatusBarNotification, removed: Boolean) {
         val n = s.notification
-        if (n.category != Notification.CATEGORY_CALL || s.packageName == packageName || s.packageName == dialer()) return
+        if (s.packageName == packageName || s.packageName == dialer()) return
+        // The same notification often turns into "Missed call" (not a call any more) when the call ends.
+        if (n.category != Notification.CATEGORY_CALL) {
+            if (appCalls.remove(s.key) != null) DropWavePlugin.emit("appcall", JSObject().put("key", s.key).put("state", "idle"))
+            return
+        }
         if (removed) {
             if (appCalls.remove(s.key) != null) DropWavePlugin.emit("appcall", JSObject().put("key", s.key).put("state", "idle"))
             return
@@ -94,7 +99,14 @@ class PhoneListener : NotificationListenerService() {
     private fun component() = ComponentName(this, PhoneListener::class.java)
 
     // Many notifications arrive in bursts (a group and its summary): send one snapshot.
-    private val pushNotifs = Runnable { DropWavePlugin.emit("phoneNotifs", JSObject().put("list", snapshot())) }
+    private val pushNotifs = Runnable { reconcileCalls(); DropWavePlugin.emit("phoneNotifs", JSObject().put("list", snapshot())) }
+
+    /** A call we told the PC about whose notification is gone (or no longer a call): tell the PC it ended. */
+    private fun reconcileCalls() {
+        if (appCalls.isEmpty()) return
+        val live = try { activeNotifications?.filter { it.notification.category == Notification.CATEGORY_CALL }?.map { it.key }?.toSet() } catch (_: Exception) { null } ?: return
+        for (k in appCalls.keys.toList()) if (k !in live) { appCalls.remove(k); DropWavePlugin.emit("appcall", JSObject().put("key", k).put("state", "idle")) }
+    }
     private fun changed() { main.removeCallbacks(pushNotifs); main.postDelayed(pushNotifs, 350) }
 
     // ---------- notifications ----------

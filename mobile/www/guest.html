@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d14" />
+<title>DropWave</title>
+<style>
+  @font-face { font-family:"DW Jakarta"; src:url("font.woff2") format("woff2"); font-weight:200 800; font-display:swap; }
+  :root { --bg:#f4f5fa; --panel:#ffffffe6; --raised:#fff; --sunk:rgba(20,24,40,.04); --line:rgba(20,24,40,.08); --line2:rgba(20,24,40,.15); --fg:#141726; --muted:#5d6278; --faint:#8a8fa3;
+    --accent:#6d5dfc; --accent2:#19b5d8; --good:#12a36b; --bad:#e5484d; --glow:rgba(109,93,252,.30); --a1:rgba(109,93,252,.14); --a2:rgba(25,181,216,.12);
+    --grad:linear-gradient(120deg,var(--accent),var(--accent2)); --ease:cubic-bezier(.2,.8,.2,1); --spring:cubic-bezier(.34,1.56,.64,1); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0c13; --panel:#151927e6; --raised:#1a1f30; --sunk:rgba(255,255,255,.03); --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13); --fg:#e9ebf4; --muted:#a1a7be; --faint:#6d7490;
+    --accent:#8b7dff; --accent2:#2cc8ea; --good:#3ddc97; --bad:#ff6369; --glow:rgba(139,125,255,.38); --a1:rgba(139,125,255,.16); --a2:rgba(44,200,234,.10); } }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; }
+  body { font-family:"DW Jakarta",system-ui,-apple-system,Roboto,"Segoe UI",sans-serif; color:var(--fg); font-size:15px; -webkit-font-smoothing:antialiased;
+    background:radial-gradient(700px 460px at 105% -10%,var(--a1),transparent 60%),radial-gradient(640px 460px at -15% 110%,var(--a2),transparent 60%),var(--bg); background-attachment:fixed; }
+  button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; }
+  a { color:inherit; text-decoration:none; }
+  .wrap { max-width:560px; margin:0 auto; padding:max(16px, env(safe-area-inset-top)) 18px calc(110px + env(safe-area-inset-bottom)); }
+  .i { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .hidden { display:none !important; }
+  .rise { animation:rise .45s var(--ease) both; }
+  @keyframes rise { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
+  @keyframes pop { 0% { transform:scale(.6); opacity:0 } 70% { transform:scale(1.08) } 100% { transform:scale(1); opacity:1 } }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  @keyframes ripple { from { transform:scale(.7); opacity:.9 } to { transform:scale(2.4); opacity:0 } }
+
+  .brand { display:flex; align-items:center; gap:10px; font-weight:820; font-size:17px; letter-spacing:-.015em; margin:2px 2px 16px; }
+  .logo { width:34px; height:34px; border-radius:11px; display:grid; place-items:center; color:#fff; background:var(--grad); box-shadow:0 10px 24px -12px var(--glow); }
+  .from { position:relative; overflow:hidden; border-radius:28px; padding:20px; color:#fff; min-height:132px;
+    background:radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--accent2) 72%, transparent), transparent 55%), linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 52%, #0b0d14));
+    box-shadow:0 26px 52px -28px var(--glow); }
+  .from small { font-size:12.5px; color:#ffffffc8; font-weight:650; position:relative; z-index:1; }
+  .from b { display:block; font-size:24px; letter-spacing:-.025em; margin-top:2px; max-width:calc(100% - 92px); position:relative; z-index:1; }
+  .from p { margin:8px 0 0; font-size:13px; color:#ffffffd6; max-width:calc(100% - 80px); position:relative; z-index:1; line-height:1.45; }
+  .orb { position:absolute; right:18px; top:22px; width:76px; height:76px; }
+  .orb .core { position:absolute; inset:22px; border-radius:10px; background:rgba(255,255,255,.95); color:var(--accent); display:grid; place-items:center; z-index:2; }
+  .orb .core svg { width:18px; height:18px; }
+  .orb .r { position:absolute; inset:22px; border-radius:50%; border:2px solid rgba(255,255,255,.75); animation:ripple 2.8s var(--ease) infinite; }
+  .orb .r:nth-child(2) { animation-delay:.93s } .orb .r:nth-child(3) { animation-delay:1.86s }
+
+  h2 { display:flex; align-items:baseline; justify-content:space-between; font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); margin:24px 4px 10px; font-weight:720; }
+  .list { border-radius:22px; background:var(--panel); border:1px solid var(--line); overflow:hidden; }
+  .it { display:flex; align-items:center; gap:12px; padding:10px 10px 10px 12px; animation:rise .4s var(--ease) both; }
+  .it + .it { border-top:1px solid var(--line); }
+  .thumb { width:48px; height:48px; border-radius:14px; flex:none; object-fit:cover; background:var(--sunk); }
+  .badge { width:48px; height:48px; border-radius:14px; display:grid; place-items:center; flex:none; font-size:11px; font-weight:820; }
+  .n { flex:1; min-width:0; }
+  .n b { display:block; font-size:14.5px; font-weight:620; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .n span { font-size:12.5px; color:var(--faint); }
+  .dl { height:38px; padding:0 14px; border-radius:12px; font-weight:700; font-size:13.5px; background:var(--a1); color:var(--accent); display:inline-flex; align-items:center; gap:6px; flex:none; transition:transform .18s var(--ease), background .25s; }
+  .dl:active { transform:scale(.94); }
+  .dl.done { background:color-mix(in oklab, var(--good) 15%, transparent); color:var(--good); animation:pop .4s var(--spring); }
+  .empty { padding:24px 18px; text-align:center; color:var(--faint); font-size:13.5px; line-height:1.55; }
+  .empty .em { width:52px; height:52px; margin:0 auto 10px; border-radius:16px; display:grid; place-items:center; background:var(--a1); color:var(--accent); } .empty .em svg { width:24px; height:24px; }
+
+  .app { display:flex; gap:14px; align-items:center; border-radius:22px; padding:16px; border:1px solid transparent;
+    background-image:linear-gradient(var(--panel),var(--panel)),var(--grad); background-origin:border-box; background-clip:padding-box,border-box; }
+  .app .logo { width:54px; height:54px; border-radius:17px; }
+  .app b { font-size:15.5px; } .app p { margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.45; }
+  .steps { margin:10px 4px 0; padding:0; list-style:none; counter-reset:s; font-size:13px; color:var(--muted); line-height:1.5; }
+  .steps li { counter-increment:s; display:flex; gap:8px; margin-top:6px; }
+  .steps li::before { content:counter(s); width:20px; height:20px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:11px; font-weight:800; color:#fff; background:var(--grad); margin-top:1px; }
+
+  .drop { display:flex; flex-direction:column; align-items:center; gap:8px; padding:24px 16px; border-radius:24px; border:2px dashed var(--line2); text-align:center; background:var(--panel); transition:border-color .25s, transform .18s var(--ease); cursor:pointer; }
+  .drop:active { transform:scale(.98); border-color:var(--accent); }
+  .drop b { font-size:15px; } .drop span { font-size:12.5px; color:var(--faint); }
+  .drop .logo { width:48px; height:48px; border-radius:15px; }
+  .bar { height:5px; border-radius:5px; background:var(--line); overflow:hidden; margin-top:6px; }
+  .bar i { display:block; height:100%; width:0; background:var(--grad); transition:width .25s var(--ease); }
+
+  .dock { position:fixed; left:0; right:0; bottom:0; padding:14px 18px calc(14px + env(safe-area-inset-bottom)); background:linear-gradient(transparent, var(--bg) 34%); z-index:5; }
+  .dock > div { max-width:560px; margin:0 auto; }
+  .btn { position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; gap:10px; width:100%; height:56px; border-radius:18px; font-weight:740; font-size:16px; color:#fff; background:var(--grad); box-shadow:0 16px 32px -14px var(--glow); transition:transform .18s var(--ease); }
+  .btn:active { transform:scale(.97); }
+  .btn::after { content:""; position:absolute; inset:0; background:linear-gradient(110deg, transparent 30%, rgba(255,255,255,.28) 50%, transparent 70%); transform:translateX(-120%); animation:shine 3.2s ease-in-out infinite 1s; }
+  @keyframes shine { 0%, 60% { transform:translateX(-120%) } 100% { transform:translateX(120%) } }
+  .btn small { font-weight:600; opacity:.85; font-size:13px; }
+
+  .pinv { text-align:center; padding-top:40px; }
+  .pinv h3 { margin:12px 0 4px; font-size:21px; letter-spacing:-.02em; } .pinv p { margin:0; color:var(--muted); font-size:13.5px; }
+  .pins { display:flex; justify-content:center; gap:10px; margin-top:18px; }
+  .pins input { width:56px; height:64px; text-align:center; font-size:26px; font-weight:800; border-radius:16px; border:1.5px solid var(--line2); background:var(--raised); color:var(--fg); outline:none; transition:border-color .2s, box-shadow .2s; }
+  .pins input:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--glow); }
+  .shake { animation:shake .4s; } @keyframes shake { 25% { transform:translateX(-8px) } 50% { transform:translateX(8px) } 75% { transform:translateX(-4px) } }
+  .foot { text-align:center; color:var(--faint); font-size:12px; margin-top:28px; line-height:1.6; }
+  .toast { position:fixed; left:50%; bottom:calc(92px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:30; max-width:90vw; animation:rise .3s var(--ease); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="logo"><svg class="i" viewBox="0 0 24 24"><path d="M2 12c3-5 6-5 9 0s6 5 9 0"/><path d="M2 17c3-5 6-5 9 0s6 5 9 0" opacity=".55"/></svg></span>DropWave</div>
+
+  <div id="pinV" class="pinv hidden">
+    <div class="empty" style="padding:0"><span class="em"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+    <h3>Enter the PIN</h3>
+    <p>It’s shown on the other phone, under its QR code.</p>
+    <div class="pins" id="pins"><input inputmode="numeric" maxlength="1" autocomplete="one-time-code"/><input inputmode="numeric" maxlength="1"/><input inputmode="numeric" maxlength="1"/><input inputmode="numeric" maxlength="1"/></div>
+  </div>
+
+  <div id="main">
+    <div class="from rise">
+      <div class="orb" aria-hidden="true"><span class="r"></span><span class="r"></span><span class="r"></span><span class="core"><svg class="i" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2.5"/></svg></span></div>
+      <small>Shared with you from</small>
+      <b id="from">a phone nearby</b>
+      <p>Straight from that phone over Wi-Fi. Nothing goes to the internet.</p>
+    </div>
+
+    <div id="appWrap" class="hidden rise" style="animation-delay:.06s">
+      <h2>The app</h2>
+      <div class="app">
+        <span class="logo"><svg class="i" viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M2 12c3-5 6-5 9 0s6 5 9 0"/><path d="M2 17c3-5 6-5 9 0s6 5 9 0" opacity=".55"/></svg></span>
+        <div style="flex:1;min-width:0"><b>Get DropWave</b><p>Free. Phone to phone without internet, and your phone on your PC.</p></div>
+        <a class="dl" id="appDl" href="#"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Get</a>
+      </div>
+      <ol class="steps"><li>Tap Get, then open the downloaded file.</li><li>If Android asks, allow “Install unknown apps” for your browser.</li><li>Tap Install. Done.</li></ol>
+    </div>
+
+    <h2><span id="filesH">Files</span></h2>
+    <div class="list" id="files"><div class="empty">Loading…</div></div>
+
+    <h2>Send back</h2>
+    <label class="drop" for="up">
+      <span class="logo"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V7M7 12l5-5 5 5M5 3h14"/></svg></span>
+      <b>Send files to <span id="to">this phone</span></b>
+      <span>Photos, videos, documents… anything</span>
+      <input id="up" type="file" multiple class="hidden" />
+    </label>
+    <div class="list hidden" id="ups" style="margin-top:10px"></div>
+
+    <div class="foot">Made with DropWave · free and open source<br/>Only people with the QR code can open this page.</div>
+  </div>
+</div>
+<div class="dock hidden" id="dock"><div><button class="btn" id="all"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span id="allT">Download all</span></button></div></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const fmt = (n) => (n == null || n < 0 ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(2)} GB`);
+  const toast = (t) => { $$('.toast').forEach((x) => x.remove()); const e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3000); };
+  const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+  const ua = navigator.userAgent;
+  const isAndroid = /Android/i.test(ua);
+  const me = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : isAndroid ? ((ua.match(/Android[^;]*;\s*([^;)]+?)(?:\sBuild|\))/) || [])[1] || 'Android phone').trim() : 'Browser';
+  let pin = sessionStorage.getItem('dw_pin') || '';
+  const q = () => (pin ? `pin=${pin}` : '');
+  // This browser's id, so the other phone can trust it once and not ask again.
+  let gid = '';
+  try { gid = localStorage.getItem('dw_gid') || ''; if (!gid) { gid = crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now(); localStorage.setItem('dw_gid', gid); } } catch { gid = String(Math.random()).slice(2); }
+  const KINDS = [
+    [/\.apk$/i, 'APP', '#22c55e'], [/\.vcf$/i, 'VCF', '#a855f7'], [/\.(jpe?g|png|gif|webp|heic|bmp)$/i, 'IMG', '#ff5a6e'], [/\.(mp4|mkv|mov|3gp|webm|avi)$/i, 'VID', '#f97316'],
+    [/\.(mp3|m4a|aac|wav|ogg|flac|opus)$/i, 'AUD', '#10b981'], [/\.pdf$/i, 'PDF', '#ef4444'], [/\.(docx?|odt|rtf|txt)$/i, 'DOC', '#3b82f6'],
+    [/\.(xlsx?|csv|ods)$/i, 'XLS', '#16a34a'], [/\.(pptx?|odp)$/i, 'PPT', '#ea580c'], [/\.(zip|rar|7z|tar|gz)$/i, 'ZIP', '#a16207'],
+  ];
+  const badge = (name) => { const k = KINDS.find(([re]) => re.test(name)) || [null, 'FILE', '#64748b']; return `<span class="badge" style="color:${k[2]};background:color-mix(in oklab, ${k[2]} 15%, transparent)">${k[1]}</span>`; };
+  const isImg = (x) => /^image\/(jpeg|png|gif|webp)/.test(x.type) && x.size > 0 && x.size < 15 * 1048576;
+  const done = new Set();
+  let items = [], sig = '';
+
+  const urlOf = (x) => `${base}f/${x.i}/${encodeURIComponent(x.name)}${pin ? `?${q()}` : ''}`;
+  function get(x) {
+    const a = document.createElement('a');
+    a.href = urlOf(x); a.download = x.name; document.body.appendChild(a); a.click(); a.remove();
+    done.add(x.i); render();
+  }
+
+  function render() {
+    const files = items.filter((x) => !x.app);
+    const app = items.find((x) => x.app);
+    $('#appWrap').classList.toggle('hidden', !app || !isAndroid);
+    if (app) $('#appDl').href = urlOf(app);
+    const total = files.reduce((a, x) => a + Math.max(0, x.size), 0);
+    $('#filesH').textContent = files.length ? `${files.length} file${files.length > 1 ? 's' : ''} · ${fmt(total)}` : 'Files';
+    $('#files').innerHTML = files.length ? files.map((x, k) => `<div class="it" style="animation-delay:${Math.min(k, 12) * 35}ms">${isImg(x) ? `<img class="thumb" loading="lazy" src="${urlOf(x)}" alt="" />` : badge(x.name)}<div class="n"><b>${esc(x.name)}</b><span>${fmt(x.size)}</span></div><button class="dl ${done.has(x.i) ? 'done' : ''}" data-i="${x.i}">${done.has(x.i) ? '✓ Saved' : 'Get'}</button></div>`).join('')
+      : `<div class="empty"><span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></svg></span>${app ? 'Only the app is shared.' : 'Nothing shared yet. Files they add show up here by themselves.'}</div>`;
+    $$('#files [data-i]').forEach((b) => (b.onclick = () => get(items.find((x) => x.i === +b.dataset.i))));
+    const left = files.filter((x) => !done.has(x.i));
+    $('#dock').classList.toggle('hidden', files.length < 2 || !left.length);
+    $('#allT').innerHTML = `Download all <small>· ${left.length} · ${fmt(left.reduce((a, x) => a + Math.max(0, x.size), 0))}</small>`;
+  }
+
+  // One at a time, so the browser doesn't block them as pop-ups.
+  $('#all').onclick = async () => { for (const x of items.filter((y) => !y.app && !done.has(y.i))) { get(x); await new Promise((r) => setTimeout(r, 900)); } };
+
+  async function load() {
+    try {
+      const r = await fetch(`${base}info?name=${encodeURIComponent(me)}${pin ? `&${q()}` : ''}`, { cache: 'no-store' });
+      if (r.status === 401) { showPin(!!pin); return; }
+      if (!r.ok) throw new Error();
+      $('#pinV').classList.add('hidden'); $('#main').classList.remove('hidden');
+      const j = await r.json();
+      $('#from').textContent = j.from || 'a phone nearby';
+      $('#to').textContent = j.from || 'this phone';
+      document.title = `From ${j.from} · DropWave`;
+      const s = JSON.stringify(j.items);
+      if (s !== sig) { sig = s; items = j.items; render(); }
+    } catch {
+      $('#files').innerHTML = '<div class="empty"><span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M12 20h.01"/></svg></span>The other phone stopped sharing. Ask for a new QR code.</div>';
+      $('#dock').classList.add('hidden');
+    }
+  }
+  function showPin(wrong) {
+    $('#main').classList.add('hidden'); $('#dock').classList.add('hidden'); $('#pinV').classList.remove('hidden');
+    if (wrong) { $('#pins').classList.remove('shake'); void $('#pins').offsetWidth; $('#pins').classList.add('shake'); $$('#pins input').forEach((x) => (x.value = '')); pin = ''; sessionStorage.removeItem('dw_pin'); }
+    setTimeout(() => $('#pins input').focus(), 100);
+  }
+  $$('#pins input').forEach((inp, k, all) => {
+    inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, '').slice(-1); if (inp.value && all[k + 1]) all[k + 1].focus(); const v = all.map((x) => x.value).join(''); if (v.length === 4) { pin = v; sessionStorage.setItem('dw_pin', v); load(); } });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !inp.value && all[k - 1]) all[k - 1].focus(); });
+  });
+  load();
+  setInterval(() => { if (document.visibilityState === 'visible' && !$('#main').classList.contains('hidden')) load(); }, 3000);
+
+  // Sending back: one file after another, with progress.
+  $('#up').addEventListener('change', async (e) => {
+    const list = [...e.target.files]; e.target.value = '';
+    if (!list.length) return;
+    const box = $('#ups'); box.classList.remove('hidden');
+    // Ask the other phone first (it may trust this browser and say yes by itself).
+    const bytes = list.reduce((a, f) => a + f.size, 0);
+    const wait = document.createElement('div'); wait.className = 'it';
+    wait.innerHTML = `<span class="badge" style="background:var(--a1);color:var(--accent)"><svg class="i" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></span><div class="n"><b>Waiting for ${esc($('#to').textContent)} to accept…</b><span>${list.length} file${list.length > 1 ? 's' : ''} · ${fmt(bytes)}</span></div>`;
+    box.prepend(wait);
+    let yes = false;
+    try {
+      const r = await fetch(`${base}ask?gid=${gid}&name=${encodeURIComponent(me)}&count=${list.length}&bytes=${bytes}&names=${encodeURIComponent(list.slice(0, 5).map((f) => f.name).join(', '))}${pin ? `&${q()}` : ''}`, { cache: 'no-store' });
+      yes = r.ok && (await r.json()).ok;
+    } catch {}
+    wait.remove();
+    if (!yes) { toast(`${$('#to').textContent} didn’t accept`); if (!box.children.length) box.classList.add('hidden'); return; }
+    let ok = 0;
+    for (const f of list) {
+      const row = document.createElement('div'); row.className = 'it';
+      row.innerHTML = `${badge(f.name)}<div class="n"><b>${esc(f.name)}</b><span data-s>${fmt(f.size)} · waiting</span><div class="bar"><i></i></div></div>`;
+      box.prepend(row);
+      await new Promise((resolve) => {
+        const x = new XMLHttpRequest();
+        x.open('POST', `${base}up?gid=${gid}&name=${encodeURIComponent(f.name)}${pin ? `&${q()}` : ''}`);
+        x.upload.onprogress = (ev) => { row.querySelector('.bar i').style.width = `${(ev.loaded / Math.max(1, ev.total)) * 100}%`; row.querySelector('[data-s]').textContent = `${fmt(ev.loaded)} of ${fmt(f.size)}`; };
+        x.onload = () => { const good = x.status === 200; if (good) ok++; row.querySelector('.bar')?.remove(); row.querySelector('[data-s]').innerHTML = good ? `<span style="color:var(--good);font-weight:650">Sent ✓ · ${fmt(f.size)}</span>` : '<span style="color:var(--bad)">Failed</span>'; resolve(); };
+        x.onerror = () => { row.querySelector('[data-s]').innerHTML = '<span style="color:var(--bad)">Connection lost</span>'; resolve(); };
+        x.send(f);
+      });
+    }
+    if (ok) toast(`Sent ${ok} file${ok > 1 ? 's' : ''}`);
+  });
+})();
+</script>
+</body>
+</html>

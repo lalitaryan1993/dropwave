@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#0b0d14" />
+<title>TV remote · DropWave</title>
+<script src="look.js"></script>
+<style>
+  :root { --bg:#f4f5fa; --panel:#ffffffdb; --raised:#fff; --sunk:rgba(20,24,40,.04); --line:rgba(20,24,40,.08); --line2:rgba(20,24,40,.15); --fg:#141726; --muted:#5d6278; --faint:#8a8fa3;
+    --accent:#6d5dfc; --accent2:#19b5d8; --good:#12a36b; --bad:#e5484d; --glow:rgba(109,93,252,.30); --a1:rgba(109,93,252,.14); --a2:rgba(25,181,216,.12);
+    --grad:linear-gradient(120deg,var(--accent),var(--accent2)); --ease:cubic-bezier(.2,.8,.2,1); --spring:cubic-bezier(.34,1.56,.64,1); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0c13; --panel:#151927d9; --raised:#1a1f30; --sunk:rgba(255,255,255,.03); --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13); --fg:#e9ebf4; --muted:#a1a7be; --faint:#6d7490;
+    --accent:#8b7dff; --accent2:#2cc8ea; --good:#3ddc97; --bad:#ff6369; --glow:rgba(139,125,255,.38); --a1:rgba(139,125,255,.16); --a2:rgba(44,200,234,.10); } }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+  html,body { margin:0; min-height:100%; overscroll-behavior:none; }
+  body { font-family:system-ui,-apple-system,Roboto,sans-serif; color:var(--fg); font-size:15px; -webkit-font-smoothing:antialiased;
+    background:radial-gradient(700px 460px at 105% -10%,var(--a1),transparent 60%),radial-gradient(640px 460px at -15% 110%,var(--a2),transparent 60%),var(--bg); background-attachment:fixed; }
+  button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; touch-action:manipulation; }
+  input { font:inherit; color:inherit; -webkit-user-select:text; user-select:text; }
+  .wrap { max-width:520px; margin:0 auto; padding:max(12px, env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom)); }
+  .i { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .hidden { display:none !important; }
+  @keyframes rise { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
+  @keyframes pop { 0% { transform:scale(.6); opacity:0 } 70% { transform:scale(1.08) } 100% { transform:scale(1); opacity:1 } }
+  @keyframes ripple { from { transform:scale(.7); opacity:.8 } to { transform:scale(2.2); opacity:0 } }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  @keyframes glow { 0%,100% { opacity:.55 } 50% { opacity:1 } }
+  .rise { animation:rise .45s var(--ease) both; }
+
+  .top { display:flex; align-items:center; gap:4px; margin:2px -8px 12px; }
+  .top b { flex:1; font-size:18px; font-weight:780; letter-spacing:-.015em; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .iconbtn { width:44px; height:44px; display:grid; place-items:center; border-radius:14px; transition:background .2s, transform .15s; }
+  .iconbtn:active { background:var(--line); transform:scale(.92); }
+  h2 { display:flex; align-items:center; justify-content:space-between; font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); margin:24px 4px 10px; font-weight:720; }
+
+  /* hero */
+  .hero { position:relative; overflow:hidden; border-radius:28px; padding:20px; color:#fff; min-height:150px;
+    background:radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--accent2) 72%, transparent), transparent 55%), linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 52%, #0b0d14)); box-shadow:0 26px 52px -28px var(--glow); }
+  .hero h1 { margin:0; font-size:24px; line-height:1.15; letter-spacing:-.025em; font-weight:820; max-width:calc(100% - 110px); }
+  .hero p { margin:10px 0 0; font-size:13.5px; color:#ffffffd9; line-height:1.45; max-width:calc(100% - 96px); }
+  .tvart { position:absolute; right:16px; top:22px; width:92px; }
+  .tvart .scr { height:58px; border-radius:10px; border:3px solid #fff; background:linear-gradient(135deg, rgba(255,255,255,.35), rgba(255,255,255,.08)); position:relative; overflow:hidden; }
+  .tvart .scr::after { content:""; position:absolute; inset:0; background:linear-gradient(110deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%); animation:shine 3s ease-in-out infinite; }
+  @keyframes shine { 0%,50% { transform:translateX(-120%) } 100% { transform:translateX(120%) } }
+  .tvart .leg { width:30px; height:6px; margin:4px auto 0; border-radius:3px; background:#fff; }
+  .tvart .wave { position:absolute; left:-30px; bottom:-8px; width:26px; height:26px; border-radius:50%; border:2px solid #fff; animation:ripple 2.4s var(--ease) infinite; }
+
+  .list { border-radius:22px; background:var(--panel); border:1px solid var(--line); overflow:hidden; backdrop-filter:blur(16px); }
+  .it { display:flex; align-items:center; gap:12px; padding:12px 10px 12px 12px; width:100%; text-align:left; animation:pop .45s var(--spring) both; transition:background .2s; }
+  .it:active { background:var(--sunk); }
+  .it + .it { border-top:1px solid var(--line); }
+  .tvic { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; flex:none; color:#fff; background:var(--grad); box-shadow:0 10px 20px -12px var(--glow); }
+  .n { flex:1; min-width:0; } .n b { display:block; font-size:15px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .n span { font-size:12.5px; color:var(--faint); }
+  .act { font-size:13px; font-weight:700; color:var(--accent); padding:8px 12px; border-radius:11px; background:var(--a1); flex:none; }
+  .x { width:36px; height:36px; display:grid; place-items:center; color:var(--faint); border-radius:10px; flex:none; }
+  .empty { padding:18px 16px; text-align:center; color:var(--faint); font-size:13.5px; line-height:1.55; }
+  .looking { display:inline-flex; gap:4px; } .looking i { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:blink 1.2s infinite; }
+  .looking i:nth-child(2) { animation-delay:.2s } .looking i:nth-child(3) { animation-delay:.4s }
+  @keyframes blink { 0%,100% { opacity:.25; transform:scale(.8) } 50% { opacity:1; transform:none } }
+  .tips { margin-top:14px; display:grid; gap:8px; }
+  .tips div { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:16px; background:var(--panel); border:1px solid var(--line); font-size:13px; color:var(--muted); line-height:1.45; }
+  .tips i { font-style:normal; width:22px; height:22px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:11.5px; font-weight:800; color:#fff; background:var(--grad); }
+
+  /* pairing */
+  .pair { text-align:center; padding-top:8px; }
+  .pair h3 { margin:16px 0 4px; font-size:21px; letter-spacing:-.02em; } .pair p { margin:0 auto; max-width:32ch; color:var(--muted); font-size:13.5px; line-height:1.5; }
+  .bigtv { width:180px; margin:10px auto 0; }
+  .bigtv .scr { height:104px; border-radius:16px; border:4px solid var(--fg); display:grid; place-items:center; background:var(--panel); font:800 26px/1 ui-monospace,Menlo,Consolas,monospace; letter-spacing:.18em; color:var(--accent); }
+  .bigtv .scr span { animation:glow 1.6s ease-in-out infinite; }
+  .bigtv .leg { width:56px; height:8px; margin:6px auto 0; border-radius:4px; background:var(--fg); }
+  .codes { display:flex; justify-content:center; gap:8px; margin-top:22px; }
+  .codes input { width:46px; height:58px; text-align:center; font:800 24px ui-monospace,Menlo,Consolas,monospace; text-transform:uppercase; border-radius:14px; border:1.5px solid var(--line2); background:var(--raised); outline:none; transition:border-color .2s, box-shadow .2s, transform .2s; }
+  .codes input:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--glow); transform:translateY(-2px); }
+  .shake { animation:shake .4s; } @keyframes shake { 25% { transform:translateX(-8px) } 50% { transform:translateX(8px) } 75% { transform:translateX(-4px) } }
+  .err { color:var(--bad); font-size:13.5px; min-height:20px; margin-top:12px; }
+  .btn { position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; gap:10px; width:100%; height:54px; border-radius:18px; font-weight:740; font-size:16px; transition:transform .18s var(--ease), opacity .2s; }
+  .btn:active { transform:scale(.97); }
+  .btn.primary { color:#fff; background:var(--grad); box-shadow:0 16px 32px -14px var(--glow); }
+  .btn.soft { background:var(--raised); border:1px solid var(--line2); }
+  .btn[disabled] { opacity:.55; }
+  .btn .spin { width:18px; height:18px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
+
+  /* remote */
+  .state { display:flex; align-items:center; gap:8px; justify-content:center; margin:-4px 0 14px; font-size:12.5px; color:var(--faint); font-weight:600; }
+  .state .dot { width:8px; height:8px; border-radius:50%; background:var(--good); box-shadow:0 0 8px var(--good); }
+  .state.off .dot { background:var(--bad); box-shadow:none; }
+  .state .chipapp { padding:3px 9px; border-radius:999px; background:var(--sunk); border:1px solid var(--line); max-width:46vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row { display:flex; gap:10px; }
+  .rb { flex:1; height:58px; border-radius:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:var(--panel); border:1px solid var(--line); font-size:11px; font-weight:700; color:var(--muted); transition:transform .12s var(--ease), background .15s; backdrop-filter:blur(12px); }
+  .rb svg { width:22px; height:22px; color:var(--fg); }
+  .rb:active, .rb.down { transform:scale(.93); background:var(--a1); }
+  .rb.power svg { color:var(--bad); }
+  .modes { display:flex; justify-content:center; gap:4px; margin:16px auto 10px; padding:4px; border-radius:14px; background:var(--sunk); border:1px solid var(--line); width:max-content; }
+  .modes button { height:32px; padding:0 14px; border-radius:10px; font-size:12.5px; font-weight:700; color:var(--muted); transition:background .25s, color .25s; }
+  .modes button.on { background:var(--raised); color:var(--fg); box-shadow:0 4px 12px -8px rgba(0,0,0,.5); }
+
+  .dpad { position:relative; width:min(78vw, 300px); aspect-ratio:1; margin:4px auto 0; border-radius:50%;
+    background:radial-gradient(circle at 50% 35%, color-mix(in oklab, var(--raised) 100%, transparent), var(--panel)); border:1px solid var(--line2); box-shadow:0 30px 60px -30px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08); }
+  .dpad button.dir { position:absolute; display:grid; place-items:center; color:var(--muted); transition:color .15s, transform .12s; }
+  .dpad .u { top:0; left:30%; width:40%; height:30%; } .dpad .d { bottom:0; left:30%; width:40%; height:30%; }
+  .dpad .l { left:0; top:30%; width:30%; height:40%; } .dpad .r { right:0; top:30%; width:30%; height:40%; }
+  .dpad button.dir svg { width:28px; height:28px; }
+  .dpad button.dir:active, .dpad button.dir.down { color:var(--accent); transform:scale(.9); }
+  .dpad .ok { position:absolute; inset:31%; border-radius:50%; background:var(--grad); color:#fff; font-weight:820; font-size:17px; letter-spacing:.04em; box-shadow:0 16px 30px -14px var(--glow); transition:transform .12s var(--ease); }
+  .dpad .ok:active, .dpad .ok.down { transform:scale(.92); }
+  .dpad .tap { position:absolute; width:60px; height:60px; margin:-30px 0 0 -30px; border-radius:50%; background:var(--accent); opacity:.35; pointer-events:none; animation:ripple .5s var(--ease) forwards; }
+  .pad { position:relative; width:100%; height:min(78vw, 300px); margin:4px auto 0; border-radius:30px; background:var(--panel); border:1px solid var(--line2); display:grid; place-items:center; color:var(--faint); font-size:13px; font-weight:600; touch-action:none; overflow:hidden; }
+  .pad .trail { position:absolute; width:46px; height:46px; margin:-23px 0 0 -23px; border-radius:50%; background:radial-gradient(circle, var(--accent), transparent 70%); opacity:.55; pointer-events:none; }
+
+  .vol { display:flex; flex-direction:column; align-items:stretch; gap:0; flex:1; border-radius:22px; overflow:hidden; background:var(--panel); border:1px solid var(--line); }
+  .vol button { height:52px; display:grid; place-items:center; transition:background .15s; } .vol button:active { background:var(--a1); }
+  .vol span { text-align:center; font-size:10.5px; font-weight:800; color:var(--faint); letter-spacing:.08em; padding:2px 0; }
+  .vbar { height:4px; border-radius:4px; background:var(--line); margin:12px 4px 0; overflow:hidden; } .vbar i { display:block; height:100%; width:0; background:var(--grad); transition:width .3s var(--ease); }
+  .apps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+  .app { min-width:0; display:flex; align-items:center; gap:8px; padding:9px; border-radius:18px; background:var(--panel); border:1px solid var(--line); text-align:left; font-size:13px; font-weight:680; transition:transform .15s var(--ease); }
+  .app:active { transform:scale(.95); }
+  .app span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .app i { width:34px; height:34px; border-radius:11px; flex:none; display:grid; place-items:center; color:#fff; font-style:normal; font-weight:900; font-size:14px; }
+
+  .sheet { position:fixed; inset:0; z-index:20; display:flex; align-items:flex-end; background:rgba(4,6,12,.5); opacity:0; pointer-events:none; transition:opacity .25s; }
+  .sheet.open { opacity:1; pointer-events:auto; }
+  .sheet .body { width:100%; max-width:520px; margin:0 auto; background:var(--bg); border-radius:26px 26px 0 0; padding:10px 18px calc(18px + env(safe-area-inset-bottom)); transform:translateY(100%); transition:transform .4s var(--ease); }
+  .sheet.open .body { transform:none; }
+  .grab { width:42px; height:5px; border-radius:3px; background:var(--line2); margin:0 auto 12px; }
+  .kb { display:flex; gap:8px; }
+  .kb input { flex:1; height:52px; padding:0 14px; border-radius:16px; border:1.5px solid var(--line2); background:var(--raised); outline:none; }
+  .kb input:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--glow); }
+  .kb .btn { width:auto; padding:0 18px; height:52px; }
+  .rb.mic svg { color:var(--accent); }
+  .voice { text-align:center; padding:6px 0 4px; }
+  .orbmic { position:relative; width:120px; height:120px; margin:10px auto 6px; display:grid; place-items:center; }
+  .orbmic button { position:relative; z-index:2; width:92px; height:92px; border-radius:50%; display:grid; place-items:center; color:#fff; background:var(--grad); box-shadow:0 22px 44px -16px var(--glow); transition:transform .15s var(--ease); }
+  .orbmic button:active { transform:scale(.94); }
+  .orbmic button svg { width:38px; height:38px; }
+  .orbmic .halo { position:absolute; inset:14px; border-radius:50%; background:var(--accent); opacity:.18; transition:transform .1s linear; }
+  .orbmic.on .ring { position:absolute; inset:14px; border-radius:50%; border:2px solid var(--accent); animation:ripple 1.6s var(--ease) infinite; }
+  .orbmic.on .ring:nth-child(2) { animation-delay:.8s }
+  .bars { display:flex; align-items:center; justify-content:center; gap:4px; height:34px; margin:4px 0; }
+  .bars i { width:5px; height:6px; border-radius:3px; background:var(--grad); transition:height .1s ease-out; }
+  .heard { min-height:52px; font-size:20px; font-weight:700; letter-spacing:-.01em; line-height:1.3; padding:0 8px; }
+  .heard.dim { color:var(--faint); font-weight:600; font-size:15px; }
+  .langs { display:flex; justify-content:center; gap:6px; margin:10px 0 2px; }
+  .langs button { height:34px; padding:0 14px; border-radius:999px; font-size:13px; font-weight:700; background:var(--sunk); border:1px solid var(--line); color:var(--muted); }
+  .langs button.on { background:var(--a1); border-color:var(--accent); color:var(--accent); }
+  .more h4 { margin:14px 2px 8px; font-size:11.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .k { height:48px; border-radius:15px; background:var(--panel); border:1px solid var(--line); font-weight:720; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px; transition:transform .12s var(--ease), background .15s; }
+  .k:active, .k.down { transform:scale(.93); background:var(--a1); }
+  .k.num { font-size:20px; font-weight:800; height:54px; }
+  .k svg { width:19px; height:19px; }
+  .k i { width:22px; height:22px; border-radius:7px; display:block; }
+  .sheet .body.tall { max-height:86vh; overflow-y:auto; }
+  .toast { position:fixed; left:50%; bottom:calc(26px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:50; max-width:90vw; animation:rise .3s var(--ease); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <button class="iconbtn" id="back" aria-label="Back"><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <b id="title">TV remote</b>
+    <button class="iconbtn hidden" id="switchBtn" aria-label="Switch TV"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M15 8l2 2-2 2M9 12l-2-2 2-2"/></svg></button>
+    <button class="iconbtn" onclick="DWLook.open()" aria-label="Appearance"><svg class="i" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-.5a2 2 0 0 1 2-2h1.5A4.5 4.5 0 0 0 22 13 10 10 0 0 0 12 2z"/></svg></button>
+  </div>
+
+  <!-- 1. TVs -->
+  <section id="vList">
+    <div class="hero rise">
+      <div class="tvart" aria-hidden="true"><div class="scr"></div><div class="leg"></div><span class="wave"></span></div>
+      <h1>Your phone is the TV remote</h1>
+      <p>Android TV and Google TV: Sony, Mi, OnePlus, TCL, Hisense, Realme, Chromecast… Nothing to install on the TV.</p>
+    </div>
+    <div id="savedWrap" class="hidden"><h2>Your TVs</h2><div class="list" id="saved"></div></div>
+    <h2><span>On this Wi-Fi</span><span class="looking"><i></i><i></i><i></i></span></h2>
+    <div class="list" id="found"><div class="empty" id="foundEmpty">Looking for TVs… Turn the TV on and keep it on the same Wi-Fi as this phone.</div></div>
+    <div class="tips">
+      <div><i>1</i><span>Turn the TV on. It must be on the same Wi-Fi as this phone.</span></div>
+      <div><i>2</i><span>Tap your TV. The first time, the TV shows a code: type it here. That’s it.</span></div>
+    </div>
+  </section>
+
+  <!-- 2. pairing -->
+  <section id="vPair" class="hidden pair">
+    <div class="bigtv rise" aria-hidden="true"><div class="scr"><span>A1B2C3</span></div><div class="leg"></div></div>
+    <h3>Type the code on your TV</h3>
+    <p id="pairP">A 6-character code is on the TV screen now.</p>
+    <div class="codes" id="codes"><input maxlength="1" autocapitalize="characters" /><input maxlength="1" autocapitalize="characters" /><input maxlength="1" autocapitalize="characters" /><input maxlength="1" autocapitalize="characters" /><input maxlength="1" autocapitalize="characters" /><input maxlength="1" autocapitalize="characters" /></div>
+    <div class="err" id="pairErr"></div>
+    <button class="btn primary" id="pairGo" style="margin-top:8px" disabled>Pair</button>
+  </section>
+
+  <!-- 3. remote -->
+  <section id="vRemote" class="hidden">
+    <div class="state" id="state"><span class="dot"></span><span id="stateT">Connected</span><span class="chipapp hidden" id="appChip"></span></div>
+    <div class="row">
+      <button class="rb power" data-key="26" aria-label="Power"><svg class="i" viewBox="0 0 24 24"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>Power</button>
+      <button class="rb mic" id="micBtn" aria-label="Voice"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>Voice</button>
+      <button class="rb" id="kbBtn" aria-label="Keyboard"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>Type</button>
+      <button class="rb" id="setBtn" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+    </div>
+
+    <div class="modes"><button data-m="dpad" class="on">Buttons</button><button data-m="pad">Swipe</button></div>
+    <div class="dpad" id="dpad">
+      <button class="dir u" data-key="19" aria-label="Up"><svg class="i" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button class="dir d" data-key="20" aria-label="Down"><svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button class="dir l" data-key="21" aria-label="Left"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="dir r" data-key="22" aria-label="Right"><svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="ok" data-key="23">OK</button>
+    </div>
+    <div class="pad hidden" id="pad">Swipe to move · tap for OK</div>
+
+    <div class="row" style="margin-top:16px">
+      <button class="rb" data-key="4" aria-label="Back"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Back</button>
+      <button class="rb" data-key="3" aria-label="Home"><svg class="i" viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+      <button class="rb" data-key="85" aria-label="Play or pause"><svg class="i" viewBox="0 0 24 24"><path d="M6 4l9 8-9 8zM17 5v14M21 5v14"/></svg>Play</button>
+      <button class="rb" id="moreBtn" aria-label="More buttons"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="vol"><button data-key="24" aria-label="Volume up"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span>VOL</span><button data-key="25" aria-label="Volume down"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+        <button class="rb" data-key="164" aria-label="Mute" style="height:auto;flex:1"><svg class="i" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4zM23 9l-6 6M17 9l6 6"/></svg>Mute</button>
+        <div class="row" style="flex:1"><button class="rb" data-key="88" aria-label="Previous" style="height:auto"><svg class="i" viewBox="0 0 24 24"><path d="M19 20L9 12l10-8zM5 19V5"/></svg></button><button class="rb" data-key="87" aria-label="Next" style="height:auto"><svg class="i" viewBox="0 0 24 24"><path d="M5 4l10 8-10 8zM19 5v14"/></svg></button></div>
+      </div>
+      <div class="vol"><button data-key="166" aria-label="Channel up"><svg class="i" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><span>CH</span><button data-key="167" aria-label="Channel down"><svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>
+    </div>
+    <div class="vbar" id="vbar"><i></i></div>
+
+    <h2>Open on TV</h2>
+    <div class="apps" id="apps"></div>
+  </section>
+</div>
+
+<div class="sheet" id="voiceSheet"><div class="body voice"><div class="grab"></div>
+  <div style="font-weight:780;font-size:18px">Speak to your TV</div>
+  <div class="orbmic" id="orb"><span class="halo" id="halo"></span><span class="ring"></span><span class="ring"></span><button id="orbBtn" aria-label="Listen"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button></div>
+  <div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="heard dim" id="heard">Say what to search, like “Kapil Sharma show”. If a search box is open on the TV, it goes there; otherwise YouTube searches it.</div>
+  <div class="langs" id="langs"><button data-l="en-IN">English</button><button data-l="hi-IN">हिंदी</button><button data-l="mr-IN">मराठी</button><button data-l="ta-IN">தமிழ்</button></div>
+  <div class="row" style="margin-top:14px"><button class="btn soft" id="vType" style="height:48px;font-size:14px">Put in TV search box</button><button class="btn primary" id="vSearch" style="height:48px;font-size:14px">Search YouTube</button></div>
+</div></div>
+
+<div class="sheet" id="tvsSheet"><div class="body tall"><div class="grab"></div>
+  <div style="font-weight:780;font-size:18px;margin-bottom:12px">Your TVs</div>
+  <div class="list" id="tvsList"></div>
+  <button class="btn soft" id="addTv" style="margin-top:12px;height:50px;font-size:15px"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add another TV</button>
+</div></div>
+
+<div class="sheet" id="moreSheet"><div class="body tall more"><div class="grab"></div>
+  <div style="font-weight:780;font-size:18px">All buttons</div>
+  <h4>Numbers</h4>
+  <div class="grid3"><button class="k num" data-key="8">1</button><button class="k num" data-key="9">2</button><button class="k num" data-key="10">3</button><button class="k num" data-key="11">4</button><button class="k num" data-key="12">5</button><button class="k num" data-key="13">6</button><button class="k num" data-key="14">7</button><button class="k num" data-key="15">8</button><button class="k num" data-key="16">9</button><button class="k" data-key="229">Last ch</button><button class="k num" data-key="7">0</button><button class="k" data-key="67">Delete</button></div>
+  <h4>Colour buttons</h4>
+  <div class="grid4"><button class="k" data-key="183" aria-label="Red"><i style="background:#ef4444"></i></button><button class="k" data-key="184" aria-label="Green"><i style="background:#22c55e"></i></button><button class="k" data-key="185" aria-label="Yellow"><i style="background:#eab308"></i></button><button class="k" data-key="186" aria-label="Blue"><i style="background:#3b82f6"></i></button></div>
+  <h4>Playback</h4>
+  <div class="grid4">
+    <button class="k" data-key="89" aria-label="Rewind"><svg class="i" viewBox="0 0 24 24"><path d="M11 19L2 12l9-7zM22 19l-9-7 9-7z"/></svg></button>
+    <button class="k" data-key="86" aria-label="Stop"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
+    <button class="k" data-key="90" aria-label="Fast forward"><svg class="i" viewBox="0 0 24 24"><path d="M13 19l9-7-9-7zM2 19l9-7-9-7z"/></svg></button>
+    <button class="k" data-key="130" aria-label="Record"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#ef4444" stroke="none"/></svg></button>
+    <button class="k" data-key="126">Play</button><button class="k" data-key="127">Pause</button><button class="k" data-key="175">Subtitles</button><button class="k" data-key="222">Audio</button>
+  </div>
+  <h4>TV</h4>
+  <div class="grid3"><button class="k" data-key="178">Input</button><button class="k" data-key="172">Guide</button><button class="k" data-key="165">Info</button><button class="k" data-key="170">Live TV</button><button class="k" data-key="82">Menu</button><button class="k" data-key="255">Zoom</button></div>
+  <h4>System</h4>
+  <div class="grid3"><button class="k" data-key="284">All apps</button><button class="k" data-key="219">Assistant</button><button class="k" data-key="84">Search</button><button class="k" data-key="223">Sleep</button><button class="k" data-key="224">Wake up</button><button class="k" id="moreSet">Settings</button></div>
+</div></div>
+
+<div class="sheet" id="kbSheet"><div class="body"><div class="grab"></div>
+  <div style="font-weight:760;font-size:17px;margin-bottom:4px">Type on the TV</div>
+  <div style="font-size:12.5px;color:var(--faint);margin-bottom:12px">Open a search box on the TV first (YouTube, Netflix…). What you type here appears there.</div>
+  <div class="kb"><input id="kbIn" placeholder="Search or type…" autocomplete="off" /><button class="btn primary" id="kbGo"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+  <div class="row" style="margin-top:10px"><button class="rb" data-key="67" style="height:48px">Delete</button><button class="rb" data-key="66" style="height:48px">Enter</button><button class="rb" data-key="84" style="height:48px">Search</button></div>
+</div></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const DW = window.Capacitor?.Plugins?.DropWave;
+  const AppP = window.Capacitor?.Plugins?.App;
+  const buzz = (ms = 10) => { try { navigator.vibrate?.(ms); } catch {} };
+  const toast = (t) => { $$('.toast').forEach((x) => x.remove()); const e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3000); };
+  const TV = '<svg class="i" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/></svg>';
+
+  let view = 'list', tv = null, saved = [];
+  const found = new Map();
+  function show(v) {
+    view = v;
+    ['vList', 'vPair', 'vRemote'].forEach((id) => $('#' + id).classList.add('hidden'));
+    $({ list: '#vList', pair: '#vPair', remote: '#vRemote' }[v]).classList.remove('hidden');
+    $('#title').textContent = v === 'remote' && tv ? tv.name : v === 'pair' ? 'Pair your TV' : 'TV remote';
+    $('#switchBtn').classList.toggle('hidden', v !== 'remote');
+    DW.tvFind({ on: v === 'list' }).then((r) => { saved = r.saved || []; renderSaved(); }).catch(() => {});
+    window.scrollTo({ top: 0 });
+  }
+  const back = async () => {
+    if ($('.sheet.open')) { $$('.sheet.open').forEach((x) => x.classList.remove('open')); DW.tvStopListen().catch(() => {}); return; }
+    if (view !== 'list') { await DW.tvClose().catch(() => {}); return show('list'); }
+    await DW.tvFind({ on: false }).catch(() => {});
+    if (history.length > 1) history.back(); else location.href = 'index.html?pick=1';
+  };
+  $('#back').onclick = back;
+  AppP?.addListener('backButton', back);
+
+  function renderSaved() {
+    $('#savedWrap').classList.toggle('hidden', !saved.length);
+    $('#saved').innerHTML = saved.map((t) => `<div class="it" data-host="${esc(t.host)}"><span class="tvic">${TV}</span><span class="n"><b>${esc(t.name)}</b><span>${found.has(t.host) ? 'On · tap to control' : 'Paired · ' + esc(t.host)}</span></span><button class="act" data-go>Remote</button><button class="x" data-forget aria-label="Forget"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>`).join('');
+    $$('#saved [data-host]').forEach((r) => {
+      const t = saved.find((x) => x.host === r.dataset.host);
+      r.querySelector('[data-go]').onclick = () => openTv(t);
+      r.querySelector('[data-forget]').onclick = async () => { saved = (await DW.tvForget({ host: t.host })).saved || []; renderSaved(); renderFound(); };
+    });
+  }
+  function renderFound() {
+    const list = [...found.values()].filter((t) => !saved.some((s) => s.host === t.host));
+    $('#foundEmpty').classList.toggle('hidden', list.length > 0);
+    $$('#found .it').forEach((e) => e.remove());
+    for (const t of list) {
+      const b = document.createElement('button'); b.className = 'it';
+      b.innerHTML = `<span class="tvic">${TV}</span><span class="n"><b>${esc(t.name)}</b><span>Tap to pair</span></span><span class="act">Pair</span>`;
+      b.onclick = () => openTv(t);
+      $('#found').appendChild(b);
+    }
+    renderSaved();
+  }
+
+  async function openTv(t) {
+    buzz(15); tv = t;
+    try { await DW.tvOpen({ host: t.host }); show('remote'); setState(true); }
+    catch (e) { if ((e.code || e.message) === 'pair' || !saved.some((s) => s.host === t.host)) startPair(t); else toast(e.message || 'Couldn’t reach the TV. Is it on?'); }
+  }
+  async function startPair(t) {
+    tv = t;
+    show('pair');
+    $('#pairErr').textContent = ''; $$('#codes input').forEach((x) => (x.value = '')); $('#pairGo').disabled = true;
+    $('#pairP').textContent = `Asking ${t.name} for a code…`;
+    try { await DW.tvPair({ host: t.host, name: t.name }); $('#pairP').textContent = 'A 6-character code is on the TV screen now.'; setTimeout(() => $('#codes input').focus(), 100); buzz(20); }
+    catch (e) { $('#pairErr').textContent = e.message || 'Couldn’t reach the TV'; }
+  }
+  $$('#codes input').forEach((inp, k, all) => {
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.toUpperCase().replace(/[^0-9A-F]/g, '').slice(-1);
+      if (inp.value && all[k + 1]) all[k + 1].focus();
+      $('#pairGo').disabled = all.map((x) => x.value).join('').length !== 6;
+      if (!$('#pairGo').disabled && k === 5) $('#pairGo').click();
+    });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !inp.value && all[k - 1]) all[k - 1].focus(); });
+  });
+  $('#pairGo').onclick = async () => {
+    const code = $$('#codes input').map((x) => x.value).join('');
+    const b = $('#pairGo'); b.disabled = true; b.innerHTML = '<span class="spin"></span>Pairing…';
+    try {
+      await DW.tvCode({ code });
+      buzz([20, 50, 20]); toast(`Paired with ${tv.name}`);
+      await DW.tvOpen({ host: tv.host }); show('remote'); setState(true);
+    } catch (e) {
+      $('#pairErr').textContent = e.message || 'Wrong code';
+      $('#codes').classList.remove('shake'); void $('#codes').offsetWidth; $('#codes').classList.add('shake');
+      if (/start pairing again|refused|said no|closed/i.test(e.message || '')) setTimeout(() => startPair(tv), 1200);
+    } finally { b.innerHTML = 'Pair'; b.disabled = false; }
+  };
+
+  // ---------- remote ----------
+  function setState(on, txt) { $('#state').classList.toggle('off', !on); $('#stateT').textContent = txt || (on ? 'Connected' : 'Not connected'); }
+  const send = (code, dir) => DW.tvKey({ code, dir }).catch(() => { setState(false, 'Reconnecting…'); reconnect(); });
+  let reconnecting = false;
+  async function reconnect() { if (reconnecting || !tv) return; reconnecting = true; try { await DW.tvOpen({ host: tv.host }); setState(true); } catch {} finally { reconnecting = false; } }
+
+  // Press = short key; hold = repeat (arrows, volume), with a ripple where the finger is.
+  function bindKey(el) {
+    const code = +el.dataset.key;
+    // In the scrolling "All buttons" sheet a plain tap, so the sheet can still be scrolled.
+    if (el.closest('.more, #kbSheet')) { el.addEventListener('click', () => { buzz(8); send(code); }); return; }
+    const repeat = [19, 20, 21, 22, 24, 25, 166, 167].includes(code);
+    let t1 = null, t2 = null;
+    const start = (e) => {
+      e.preventDefault(); el.classList.add('down'); buzz(code === 26 ? 25 : 8); send(code);
+      if (el.closest('#dpad')) { const r = $('#dpad').getBoundingClientRect(); const p = e.touches?.[0] || e; const d = document.createElement('span'); d.className = 'tap'; d.style.left = `${p.clientX - r.left}px`; d.style.top = `${p.clientY - r.top}px`; $('#dpad').appendChild(d); setTimeout(() => d.remove(), 500); }
+      if (repeat) t1 = setTimeout(() => { t2 = setInterval(() => { send(code); buzz(4); }, 110); }, 380);
+    };
+    const end = () => { el.classList.remove('down'); clearTimeout(t1); clearInterval(t2); };
+    el.addEventListener('touchstart', start, { passive: false }); el.addEventListener('mousedown', start);
+    ['touchend', 'touchcancel', 'mouseup', 'mouseleave'].forEach((n) => el.addEventListener(n, end));
+  }
+  $$('[data-key]').forEach(bindKey);
+
+  // Buttons / Swipe pad
+  $$('.modes button').forEach((b) => (b.onclick = () => { buzz(); $$('.modes button').forEach((x) => x.classList.toggle('on', x === b)); $('#dpad').classList.toggle('hidden', b.dataset.m !== 'dpad'); $('#pad').classList.toggle('hidden', b.dataset.m !== 'pad'); try { localStorage.setItem('dw_tv_mode', b.dataset.m); } catch {} }));
+  try { if (localStorage.getItem('dw_tv_mode') === 'pad') $('.modes [data-m="pad"]').click(); } catch {}
+  (() => {
+    const pad = $('#pad'); let sx = 0, sy = 0, moved = false, trail = null;
+    pad.addEventListener('touchstart', (e) => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; moved = false; trail = document.createElement('span'); trail.className = 'trail'; pad.appendChild(trail); const r = pad.getBoundingClientRect(); trail.style.left = `${sx - r.left}px`; trail.style.top = `${sy - r.top}px`; }, { passive: true });
+    pad.addEventListener('touchmove', (e) => {
+      const p = e.touches[0]; const dx = p.clientX - sx, dy = p.clientY - sy; const r = pad.getBoundingClientRect();
+      if (trail) { trail.style.left = `${p.clientX - r.left}px`; trail.style.top = `${p.clientY - r.top}px`; }
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > 44) { moved = true; send(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 22 : 21) : (dy > 0 ? 20 : 19)); buzz(6); sx = p.clientX; sy = p.clientY; }
+    }, { passive: true });
+    pad.addEventListener('touchend', () => { if (!moved) { send(23); buzz(12); } trail?.remove(); trail = null; });
+  })();
+
+  // keyboard
+  $('#kbBtn').addEventListener('click', () => { $('#kbSheet').classList.add('open'); setTimeout(() => $('#kbIn').focus(), 250); });
+  $('#kbSheet').addEventListener('click', (e) => { if (e.target.id === 'kbSheet') $('#kbSheet').classList.remove('open'); });
+  let kbTimer = null;
+  // Only what changed goes to the TV: new letters are typed, removed ones are deleted.
+  let kbSent = '';
+  $('#kbIn').addEventListener('input', () => { clearTimeout(kbTimer); kbTimer = setTimeout(() => {
+    const now = $('#kbIn').value; let k = 0; while (k < now.length && k < kbSent.length && now[k] === kbSent[k]) k++;
+    for (let d = kbSent.length - k; d > 0; d--) DW.tvKey({ code: 67 }).catch(() => {});
+    const add = now.slice(k); if (add) DW.tvText({ text: add }).catch(() => {});
+    kbSent = now;
+  }, 90); });
+  $('#kbBtn').addEventListener('click', () => { kbSent = ''; $('#kbIn').value = ''; });
+  $('#kbGo').onclick = () => { send(66); buzz(15); kbSent = ''; $('#kbIn').value = ''; };
+
+  // apps (by their links; the TV opens the app, or its store page)
+  const L = (pkg) => `market://launch?id=${pkg}`;
+  const APPS = [['YouTube', 'https://www.youtube.com', '#ff0033', 'Y'], ['Netflix', 'https://www.netflix.com/title', '#e50914', 'N'], ['Prime Video', 'https://app.primevideo.com', '#1a98ff', 'P'],
+    ['JioHotstar', 'https://www.hotstar.com', '#1f3bd6', 'J'], ['Spotify', 'https://open.spotify.com', '#1db954', 'S'], ['YT Music', 'https://music.youtube.com', '#ff4e45', 'M'],
+    ['JioCinema', 'https://www.jiocinema.com', '#d6007e', 'C'], ['Zee5', 'https://www.zee5.com', '#8230c6', 'Z'], ['SonyLIV', 'https://www.sonyliv.com', '#111827', 'S']];
+  // Settings: the Settings app (the settings key is ignored by many TVs)
+  // Many TVs (Mi TV Stick too) don’t let a remote open Settings directly: the Settings key works on some.
+  const openSettings = () => { buzz(15); send(176); toast('Sent Settings. If nothing opens: Home, then the ⚙️ at the top.'); };
+  $('#setBtn').onclick = openSettings;
+  $('#apps').innerHTML = APPS.map(([n, , c, l], k) => `<button class="app" data-app="${k}" style="animation:pop .4s ${k * 40}ms var(--spring) both"><i style="background:${c}">${l}</i><span>${esc(n)}</span></button>`).join('');
+  $$('[data-app]').forEach((b) => (b.onclick = () => { buzz(15); const a = APPS[+b.dataset.app]; DW.tvLaunch({ link: a[1] }).then(() => toast(`Opening ${a[0]} on the TV`)).catch(() => toast('Not connected')); }));
+
+  // ---------- many TVs: switch, rename, forget ----------
+  function renderTvs() {
+    $('#tvsList').innerHTML = saved.length ? saved.map((t) => `<div class="it" data-h="${esc(t.host)}" style="animation:none"><span class="tvic">${TV}</span><span class="n"><b>${esc(t.name)}</b><span>${tv && tv.host === t.host ? 'Controlling now' : found.has(t.host) ? 'On' : esc(t.host)}</span></span>${tv && tv.host === t.host ? '' : '<button class="act" data-use>Use</button>'}<button class="x" data-ren aria-label="Rename"><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button class="x" data-del aria-label="Forget"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button></div>`).join('') : '<div class="empty">No TVs yet.</div>';
+    $$('#tvsList [data-h]').forEach((r) => {
+      const t = saved.find((x) => x.host === r.dataset.h);
+      r.querySelector('[data-use]')?.addEventListener('click', async () => { $('#tvsSheet').classList.remove('open'); await DW.tvClose().catch(() => {}); openTv(t); });
+      r.querySelector('[data-ren]').onclick = async () => { const n = prompt('Name this TV', t.name); if (!n || !n.trim()) return; saved = (await DW.tvRename({ host: t.host, name: n.trim() })).saved || []; if (tv?.host === t.host) { tv.name = n.trim(); $('#title').textContent = tv.name; } renderTvs(); renderSaved(); };
+      r.querySelector('[data-del]').onclick = async () => { if (!confirm(`Forget ${t.name}? You’ll need its code again to pair.`)) return; saved = (await DW.tvForget({ host: t.host })).saved || []; if (tv?.host === t.host) { await DW.tvClose().catch(() => {}); $('#tvsSheet').classList.remove('open'); show('list'); } renderTvs(); renderSaved(); };
+    });
+  }
+  $('#switchBtn').onclick = () => { buzz(); renderTvs(); $('#tvsSheet').classList.add('open'); };
+  $('#title').onclick = () => { if (view === 'remote') $('#switchBtn').click(); };
+  $('#addTv').onclick = async () => { $('#tvsSheet').classList.remove('open'); await DW.tvClose().catch(() => {}); show('list'); };
+
+  // ---------- voice: the phone listens, the TV searches ----------
+  const openSheet = (id) => { $('#' + id).classList.add('open'); };
+  const closeSheets = () => $$('.sheet.open').forEach((x) => x.classList.remove('open'));
+  $$('.sheet').forEach((sh) => sh.addEventListener('click', (e) => { if (e.target === sh) { sh.classList.remove('open'); if (sh.id === 'voiceSheet') DW.tvStopListen().catch(() => {}); } }));
+  $('#moreBtn').onclick = () => { buzz(); openSheet('moreSheet'); };
+  $('#moreSet').onclick = openSettings;
+  let lang = 'en-IN'; try { lang = localStorage.getItem('dw_tv_lang') || 'en-IN'; } catch {}
+  const paintLang = () => $$('#langs button').forEach((b) => b.classList.toggle('on', b.dataset.l === lang));
+  $$('#langs button').forEach((b) => (b.onclick = () => { lang = b.dataset.l; try { localStorage.setItem('dw_tv_lang', lang); } catch {} paintLang(); buzz(); listen(); }));
+  paintLang();
+  let heard = '', imeAt = 0, listening = false;
+  const bars = $$('#bars i');
+  function level(v) { // speech level 0..10 → bars and halo
+    const x = Math.max(0, Math.min(1, (v + 2) / 12));
+    bars.forEach((b, k) => { const c = Math.abs(k - 7) / 7; b.style.height = `${6 + x * 28 * (1 - c * 0.7) * (0.75 + Math.random() * 0.5)}px`; });
+    $('#halo').style.transform = `scale(${1 + x * 0.6})`;
+  }
+  async function listen() {
+    if (listening) { DW.tvStopListen().catch(() => {}); return; }
+    listening = true; heard = '';
+    $('#orb').classList.add('on'); $('#heard').className = 'heard dim'; $('#heard').textContent = 'Listening…';
+    buzz(20);
+    try {
+      const r = await DW.tvListen({ lang });
+      heard = r.text; $('#heard').className = 'heard'; $('#heard').textContent = `“${heard}”`;
+      buzz([15, 40, 15]);
+      // A search box already open on the TV? Type into it. Otherwise open the TV's search.
+      if (Date.now() - imeAt < 20000) typeIt(); else searchIt();
+    } catch (e) {
+      $('#heard').className = 'heard dim';
+      $('#heard').textContent = (e.code || e.message) === 'mic' ? 'Allow the microphone, then tap the mic again.' : (e.message || 'Didn’t catch that.');
+    } finally { listening = false; $('#orb').classList.remove('on'); level(-2); }
+  }
+  // The TV adds what we type at its cursor, so a box is emptied first (end, then Delete × 60).
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function clearBox() { await DW.tvKey({ code: 123 }).catch(() => {}); for (let k = 0; k < 60; k++) DW.tvKey({ code: 67 }).catch(() => {}); await wait(450); }
+  async function typeIt() {
+    if (!heard) return;
+    await clearBox();
+    await DW.tvText({ text: heard }).catch(() => {});
+    await wait(350); send(66);
+    toast(`Searched “${heard}” on the TV`); setTimeout(closeSheets, 700);
+  }
+  // No box open: YouTube opens straight on the results (the TV's search key starts its own Assistant instead).
+  async function searchIt() {
+    if (!heard) return;
+    DW.tvLaunch({ link: `https://www.youtube.com/results?search_query=${encodeURIComponent(heard)}` }).catch(() => {});
+    toast(`Searching YouTube for “${heard}”`); setTimeout(closeSheets, 700);
+  }
+  $('#micBtn').onclick = () => { openSheet('voiceSheet'); setTimeout(listen, 250); };
+  $('#orbBtn').onclick = listen;
+  $('#vType').onclick = () => (heard ? typeIt() : listen());
+  $('#vSearch').onclick = () => (heard ? searchIt() : listen());
+
+  // events from the TV
+  const PKG = { 'com.google.android.youtube.tv': 'YouTube', 'com.netflix.ninja': 'Netflix', 'com.amazon.amazonvideo.livingroom': 'Prime Video', 'in.startv.hotstar': 'JioHotstar', 'com.spotify.tv.android': 'Spotify', 'com.google.android.tvlauncher': 'Home', 'com.google.android.apps.tv.launcherx': 'Home' };
+  DW?.addListener('tv', (e) => {
+    if (e.type === 'found') { found.set(e.host, e); renderFound(); }
+    if (e.type === 'lost') { for (const [h, t] of found) if (t.name === e.name) found.delete(h); renderFound(); }
+    if (e.type === 'connected') setState(true);
+    if (e.type === 'disconnected' && view === 'remote') { setState(false, 'Reconnecting…'); setTimeout(reconnect, 700); }
+    if (e.type === 'power') setState(true, e.on ? 'TV is on' : 'TV is off');
+    if (e.type === 'app') { const n = PKG[e.pkg] || e.pkg.split('.').slice(-1)[0]; $('#appChip').textContent = n; $('#appChip').classList.remove('hidden'); }
+    if (e.type === 'rms') level(e.v);
+    if (e.type === 'partial') { $('#heard').className = 'heard'; $('#heard').textContent = e.text; }
+    if (e.type === 'ime' && e.on) imeAt = Date.now();
+    if (e.type === 'volume') $('#vbar i').style.width = `${e.max ? (e.level / e.max) * 100 : 0}%`;
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && view === 'remote') reconnect(); if (view === 'list') DW.tvFind({ on: document.visibilityState === 'visible' }).catch(() => {}); });
+
+  // start: straight to the last TV when there is one
+  (async () => {
+    const r = await DW.tvSaved().catch(() => ({ saved: [] }));
+    saved = r.saved || [];
+    show('list');
+    const last = [...saved].sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+    if (last && new URLSearchParams(location.search).get('auto') !== '0') { tv = last; DW.tvOpen({ host: last.host }).then(() => { show('remote'); setState(true); }).catch(() => {}); }
+  })();
+})();
+</script>
+</body>
+</html>

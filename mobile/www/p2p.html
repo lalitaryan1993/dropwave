@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d14" />
+<title>Phone to phone · DropWave</title>
+<script src="look.js"></script>
+<style>
+  :root { --bg:#f4f5fa; --panel:#ffffffdb; --raised:#fff; --sunk:rgba(20,24,40,.04); --line:rgba(20,24,40,.08); --line2:rgba(20,24,40,.15); --fg:#141726; --muted:#5d6278; --faint:#8a8fa3;
+    --accent:#6d5dfc; --accent2:#19b5d8; --good:#12a36b; --bad:#e5484d; --warn:#d98a00; --glow:rgba(109,93,252,.30); --a1:rgba(109,93,252,.14); --a2:rgba(25,181,216,.12);
+    --grad:linear-gradient(120deg,var(--accent),var(--accent2)); --ease:cubic-bezier(.2,.8,.2,1); --spring:cubic-bezier(.34,1.56,.64,1); --shadow:0 18px 40px -24px rgba(20,24,60,.35); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0c13; --panel:#151927d9; --raised:#1a1f30; --sunk:rgba(255,255,255,.03); --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13); --fg:#e9ebf4; --muted:#a1a7be; --faint:#6d7490;
+    --accent:#8b7dff; --accent2:#2cc8ea; --good:#3ddc97; --bad:#ff6369; --warn:#ffb648; --glow:rgba(139,125,255,.38); --a1:rgba(139,125,255,.16); --a2:rgba(44,200,234,.10); --shadow:0 20px 44px -22px rgba(0,0,0,.75); } }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; min-height:100%; }
+  body { font-family:system-ui,-apple-system,Roboto,"Segoe UI",sans-serif; color:var(--fg); font-size:15px; -webkit-font-smoothing:antialiased;
+    background:radial-gradient(700px 460px at 105% -10%,var(--a1),transparent 60%),radial-gradient(640px 460px at -15% 110%,var(--a2),transparent 60%),var(--bg); background-attachment:fixed; }
+  button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; }
+  .wrap { max-width:560px; margin:0 auto; padding:max(12px, env(safe-area-inset-top)) 18px calc(124px + env(safe-area-inset-bottom)); }
+  .i { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .hidden { display:none !important; }
+  .press { transition:transform .18s var(--ease); } .press:active { transform:scale(.96); }
+  .rise { animation:rise .42s var(--ease) both; }
+  @keyframes rise { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+  @keyframes pop { 0% { transform:scale(.6); opacity:0 } 70% { transform:scale(1.08) } 100% { transform:scale(1); opacity:1 } }
+  @keyframes spin { to { transform:rotate(360deg) } }
+
+  /* header */
+  .top { display:flex; align-items:center; gap:4px; margin:2px -8px 12px; }
+  .top b { flex:1; font-size:18px; font-weight:760; letter-spacing:-.015em; }
+  .iconbtn { width:44px; height:44px; display:grid; place-items:center; border-radius:14px; transition:background .2s; }
+  .iconbtn:active { background:var(--line); }
+
+  /* Send | Receive */
+  .seg { position:relative; display:grid; grid-template-columns:1fr 1fr; padding:5px; border-radius:18px; background:var(--sunk); border:1px solid var(--line); margin-bottom:16px; }
+  .seg .pill { position:absolute; top:5px; bottom:5px; left:5px; width:calc(50% - 5px); border-radius:14px; background:var(--raised); box-shadow:0 6px 18px -10px rgba(0,0,0,.45); transition:transform .38s var(--spring); }
+  .seg[data-v="recv"] .pill { transform:translateX(100%); }
+  .seg button { position:relative; z-index:1; height:44px; display:flex; align-items:center; justify-content:center; gap:8px; font-weight:680; font-size:14.5px; color:var(--muted); transition:color .25s; }
+  .seg button.on { color:var(--fg); }
+
+  /* hero with ripples */
+  .hero { position:relative; overflow:hidden; border-radius:28px; padding:20px; color:#fff; min-height:168px;
+    background:radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--accent2) 72%, transparent), transparent 55%), linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 52%, #0b0d14));
+    box-shadow:0 26px 52px -28px var(--glow); }
+  .hero h1 { margin:0; font-size:24px; line-height:1.15; letter-spacing:-.025em; font-weight:820; max-width:calc(100% - 118px); position:relative; z-index:1; }
+  .hero p { margin:10px 0 0; font-size:13.5px; color:#ffffffd9; line-height:1.45; position:relative; z-index:1; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; position:relative; z-index:1; }
+  .chips span { font-size:11.5px; font-weight:680; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.16); backdrop-filter:blur(6px); }
+  .orb { position:absolute; right:14px; top:16px; width:96px; height:96px; }
+  .orb .core { position:absolute; inset:30px; border-radius:12px; background:rgba(255,255,255,.95); display:grid; place-items:center; color:var(--accent); box-shadow:0 10px 26px -8px rgba(0,0,0,.4); z-index:2; }
+  .orb .ring { position:absolute; inset:30px; border-radius:50%; border:2px solid rgba(255,255,255,.7); animation:ripple 2.8s var(--ease) infinite; }
+  .orb .ring:nth-child(2) { animation-delay:.93s } .orb .ring:nth-child(3) { animation-delay:1.86s }
+  @keyframes ripple { from { transform:scale(.7); opacity:.9 } to { transform:scale(2.3); opacity:0 } }
+  .orb .sat { position:absolute; left:50%; top:50%; width:18px; height:18px; margin:-9px; border-radius:6px; background:#fff; opacity:.9; animation:orbit 7s linear infinite; z-index:1; }
+  .orb .sat.b { width:14px; height:14px; margin:-7px; border-radius:50%; animation-duration:9s; animation-direction:reverse; background:#ffd36e; }
+  @keyframes orbit { from { transform:rotate(0) translateX(44px) rotate(0) } to { transform:rotate(360deg) translateX(44px) rotate(-360deg) } }
+
+  h2 { display:flex; align-items:baseline; justify-content:space-between; font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); margin:24px 4px 10px; font-weight:720; }
+  h2 button { text-transform:none; letter-spacing:0; font-size:13px; font-weight:650; color:var(--accent); }
+
+  /* move to a new phone */
+  .move { display:flex; align-items:center; gap:14px; width:100%; text-align:left; margin-top:14px; padding:14px; border-radius:22px; background:var(--panel); border:1px solid transparent;
+    background-image:linear-gradient(var(--panel),var(--panel)),var(--grad); background-origin:border-box; background-clip:padding-box,border-box; backdrop-filter:blur(16px); }
+  .move .em { width:46px; height:46px; border-radius:15px; display:grid; place-items:center; font-size:23px; background:var(--a1); flex:none; }
+  .move b { display:block; font-size:15px; } .move span { display:block; font-size:12.5px; color:var(--muted); margin-top:2px; line-height:1.4; }
+
+  /* add grid */
+  .tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .tile { position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:13px 12px 12px; border-radius:20px; background:var(--panel); border:1px solid var(--line);
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); text-align:left; min-height:100px; transition:transform .18s var(--ease), border-color .25s, box-shadow .25s; }
+  .tile:active { transform:scale(.95); }
+  .tile .ic { width:40px; height:40px; border-radius:13px; display:grid; place-items:center; color:#fff; box-shadow:0 8px 18px -10px rgba(0,0,0,.5); }
+  .tile b { font-size:13.5px; font-weight:670; line-height:1.2; }
+  .tile small { display:block; font-size:11.5px; color:var(--faint); font-weight:500; margin-top:2px; }
+  .tile .cnt { position:absolute; top:8px; right:8px; min-width:22px; height:22px; padding:0 6px; border-radius:11px; background:var(--grad); color:#fff; font-size:11.5px; font-weight:800; display:grid; place-items:center; animation:pop .38s var(--spring); }
+  .tile.on { border-color:color-mix(in oklab, var(--accent) 50%, transparent); box-shadow:0 10px 26px -18px var(--glow); }
+
+  /* tray */
+  .tray { border-radius:22px; background:var(--panel); border:1px solid var(--line); padding:12px; backdrop-filter:blur(16px); }
+  .tray .strip { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+  .tray .strip::-webkit-scrollbar { display:none; }
+  .ch { position:relative; flex:none; width:64px; height:64px; border-radius:16px; overflow:hidden; background:var(--sunk); display:grid; place-items:center; animation:pop .32s var(--spring) both; }
+  .ch img { width:100%; height:100%; object-fit:cover; }
+  .ch .x { position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:10px; background:rgba(0,0,0,.55); color:#fff; display:grid; place-items:center; }
+  .ch .x svg { width:12px; height:12px; }
+  .ch .lab { position:absolute; left:0; right:0; bottom:0; font-size:9.5px; font-weight:700; padding:3px 4px; background:linear-gradient(transparent,rgba(0,0,0,.6)); color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ch .vid { position:absolute; left:4px; bottom:4px; font-size:9.5px; font-weight:800; color:#fff; background:rgba(0,0,0,.55); padding:1px 5px; border-radius:6px; }
+  .tray .sum { display:flex; align-items:center; justify-content:space-between; margin-top:10px; font-size:13px; color:var(--muted); }
+  .tray .sum b { color:var(--fg); }
+  .empty { padding:20px 14px; text-align:center; color:var(--faint); font-size:13.5px; line-height:1.55; }
+  .empty .em { width:52px; height:52px; margin:0 auto 10px; border-radius:16px; display:grid; place-items:center; background:var(--a1); color:var(--accent); }
+  .empty .em svg { width:24px; height:24px; }
+  .chips span svg { width:13px; height:13px; vertical-align:-2px; margin-right:4px; }
+  .move .em svg { width:24px; height:24px; color:var(--accent); }
+  .btn svg.i { width:20px; height:20px; }
+
+  /* options */
+  .opts { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .opt { display:flex; flex-direction:column; text-align:left; padding:13px 14px; border-radius:18px; background:var(--panel); border:1.5px solid var(--line); transition:border-color .25s, box-shadow .25s, transform .18s var(--ease); }
+  .opt:active { transform:scale(.97); }
+  .opt b { display:flex; align-items:center; gap:7px; font-size:14px; font-weight:680; }
+  .opt span { display:block; font-size:12px; color:var(--faint); margin-top:4px; line-height:1.4; }
+  .opt.on { border-color:var(--accent); box-shadow:0 0 0 4px var(--glow); }
+  .rec { font-size:10px; font-weight:800; color:var(--accent); background:var(--a1); padding:2px 7px; border-radius:999px; letter-spacing:.02em; }
+  .row { display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:18px; background:var(--panel); border:1px solid var(--line); margin-top:8px; }
+  .row .t { flex:1; } .row .t b { display:block; font-size:14px; font-weight:650; } .row .t span { font-size:12px; color:var(--faint); }
+  .sw { position:relative; width:48px; height:28px; border-radius:14px; background:var(--line2); transition:background .25s; flex:none; }
+  .sw::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.3); transition:transform .3s var(--spring); }
+  .sw.on { background:var(--grad); } .sw.on::after { transform:translateX(20px); }
+
+  .notice { border-radius:20px; padding:15px; background:var(--panel); border:1px solid color-mix(in oklab, var(--warn) 45%, transparent); margin-top:12px; }
+  .notice b { font-size:15px; } .notice p { margin:6px 0 12px; font-size:13.5px; color:var(--muted); line-height:1.5; }
+
+  /* dock */
+  .dock { position:fixed; left:0; right:0; bottom:0; padding:14px 18px calc(14px + env(safe-area-inset-bottom)); background:linear-gradient(transparent, var(--bg) 34%); z-index:6; }
+  .dock > div { max-width:560px; margin:0 auto; display:flex; gap:10px; }
+  .btn { position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; gap:10px; flex:1; height:56px; border-radius:18px; font-weight:740; font-size:16px; transition:transform .18s var(--ease), opacity .2s; }
+  .btn:active { transform:scale(.97); }
+  .btn.primary { color:#fff; background:var(--grad); box-shadow:0 16px 32px -14px var(--glow); }
+  .btn.primary::after { content:""; position:absolute; inset:0; background:linear-gradient(110deg, transparent 30%, rgba(255,255,255,.28) 50%, transparent 70%); transform:translateX(-120%); animation:shine 3.2s ease-in-out infinite 1s; }
+  @keyframes shine { 0%, 60% { transform:translateX(-120%) } 100% { transform:translateX(120%) } }
+  .btn.soft { background:var(--raised); border:1px solid var(--line2); font-size:15px; }
+  .btn.small { flex:none; height:44px; padding:0 16px; font-size:14px; border-radius:14px; }
+  .btn[disabled] { opacity:.55; }
+  .btn small { font-weight:600; opacity:.85; font-size:13px; }
+  .btn .spin { width:18px; height:18px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
+
+  /* live: radar */
+  .radar { position:relative; height:220px; margin:2px 0 8px; display:grid; place-items:center; }
+  .radar .r { position:absolute; width:110px; height:110px; border-radius:50%; border:1.5px solid color-mix(in oklab, var(--accent) 55%, transparent); animation:ripple 3.2s var(--ease) infinite; }
+  .radar .r:nth-child(2) { animation-delay:1.06s } .radar .r:nth-child(3) { animation-delay:2.13s }
+  .radar .guide { position:absolute; width:190px; height:190px; border-radius:50%; border:1px dashed var(--line2); }
+  .radar .me { position:relative; z-index:2; width:78px; height:78px; border-radius:26px; background:var(--grad); display:grid; place-items:center; color:#fff; box-shadow:0 18px 40px -14px var(--glow); }
+  .radar .me svg { width:34px; height:34px; }
+  .guest { position:absolute; z-index:3; display:flex; flex-direction:column; align-items:center; gap:4px; animation:pop .5s var(--spring) both; }
+  .guest .av { width:46px; height:46px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:800; font-size:15px; border:3px solid var(--bg); box-shadow:0 10px 24px -10px rgba(0,0,0,.5); }
+  .guest small { font-size:11px; font-weight:700; max-width:84px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:2px 7px; border-radius:8px; background:var(--panel); border:1px solid var(--line); }
+  .status { text-align:center; font-size:15px; font-weight:700; }
+  .status span { display:block; font-size:12.5px; font-weight:500; color:var(--faint); margin-top:3px; }
+
+  /* steps + flip card */
+  .steps { position:relative; display:grid; grid-template-columns:1fr 1fr; padding:5px; border-radius:16px; background:var(--sunk); border:1px solid var(--line); margin:16px 0 12px; }
+  .steps .pill { position:absolute; top:5px; bottom:5px; left:5px; width:calc(50% - 5px); border-radius:12px; background:var(--raised); box-shadow:0 6px 16px -10px rgba(0,0,0,.45); transition:transform .38s var(--spring); }
+  .steps[data-s="2"] .pill { transform:translateX(100%); }
+  .steps button { position:relative; z-index:1; height:42px; font-size:13.5px; font-weight:680; color:var(--muted); display:flex; align-items:center; justify-content:center; gap:8px; transition:color .25s; }
+  .steps button i { font-style:normal; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:12px; background:var(--line2); transition:background .3s; }
+  .steps button.on { color:var(--fg); } .steps button.on i { background:var(--grad); color:#fff; }
+  .flip { perspective:1200px; }
+  .card3d { position:relative; display:grid; transition:transform .6s var(--ease); transform-style:preserve-3d; }
+  .card3d.turn { transform:rotateY(180deg); }
+  .face { grid-area:1/1; border-radius:26px; background:var(--panel); border:1px solid var(--line); padding:18px; text-align:center; backface-visibility:hidden; -webkit-backface-visibility:hidden; backdrop-filter:blur(16px); }
+  .face.back { transform:rotateY(180deg); }
+  .card3d.single { transform:none !important; transition:none; } .card3d.single .front { display:none; } .card3d.single .back { transform:none; }
+  .qr { position:relative; display:inline-block; background:#fff; padding:12px; border-radius:22px; box-shadow:0 20px 44px -26px rgba(0,0,0,.6); }
+  .qr img { display:block; width:min(58vw, 236px); height:auto; image-rendering:pixelated; border-radius:6px; }
+  .qr::before { content:""; position:absolute; inset:-3px; border-radius:24px; padding:3px; background:var(--grad); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; opacity:.9; }
+  .face h3 { margin:14px 0 4px; font-size:17px; letter-spacing:-.01em; }
+  .face p { margin:0; color:var(--muted); font-size:13.2px; line-height:1.5; }
+  .creds { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; text-align:left; }
+  .cred { padding:9px 12px; border-radius:14px; background:var(--sunk); border:1px solid var(--line); min-width:0; }
+  .cred small { display:block; font-size:10.5px; color:var(--faint); font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  .cred b { display:block; font-size:14px; font-family:ui-monospace,Menlo,Consolas,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+  .link { margin-top:10px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--accent); word-break:break-all; }
+  .next { margin-top:12px; font-size:13.5px; font-weight:700; color:var(--accent); padding:6px 10px; }
+  .pinbig { margin-top:12px; display:inline-flex; gap:6px; }
+  .pinbig span { width:38px; height:46px; border-radius:12px; display:grid; place-items:center; font-size:22px; font-weight:800; background:var(--sunk); border:1px solid var(--line2); font-family:ui-monospace,Menlo,Consolas,monospace; }
+
+  /* transfer list with rings */
+  .list { border-radius:22px; background:var(--panel); border:1px solid var(--line); overflow:hidden; backdrop-filter:blur(16px); }
+  .it { display:flex; align-items:center; gap:12px; padding:10px 10px 10px 12px; animation:rise .35s var(--ease) both; }
+  .it + .it { border-top:1px solid var(--line); }
+  .badge { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; flex:none; font-size:10.5px; font-weight:820; letter-spacing:.02em; overflow:hidden; }
+  .badge img { width:100%; height:100%; object-fit:cover; }
+  .it .n { flex:1; min-width:0; }
+  .it .n b { display:block; font-size:14px; font-weight:620; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .it .n span { font-size:12px; color:var(--faint); }
+  .it .n span.ok { color:var(--good); font-weight:650; } .it .n span.err { color:var(--bad); }
+  .ring { width:34px; height:34px; flex:none; }
+  .ring circle { fill:none; stroke-width:3.5; }
+  .ring .bg { stroke:var(--line2); } .ring .fg { stroke:url(#g); stroke-linecap:round; transition:stroke-dashoffset .35s var(--ease); transform:rotate(-90deg); transform-origin:center; }
+  .tick { width:30px; height:30px; flex:none; border-radius:50%; background:color-mix(in oklab, var(--good) 18%, transparent); color:var(--good); display:grid; place-items:center; animation:pop .4s var(--spring); }
+  .tick svg { width:16px; height:16px; }
+  .act { font-size:13px; font-weight:700; color:var(--accent); padding:8px 10px; border-radius:10px; background:var(--a1); }
+  .rm { color:var(--faint); width:38px; height:38px; display:grid; place-items:center; border-radius:12px; }
+  .stat { display:flex; gap:8px; margin-top:12px; }
+  .stat div { flex:1; padding:10px 12px; border-radius:16px; background:var(--panel); border:1px solid var(--line); }
+  .stat small { display:block; font-size:10.5px; color:var(--faint); font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  .stat b { display:block; font-size:17px; margin-top:2px; font-variant-numeric:tabular-nums; }
+
+  /* receive */
+  .scanart { position:relative; width:200px; height:200px; margin:6px auto 4px; }
+  .scanart .frame { position:absolute; inset:0; border-radius:34px; }
+  .scanart .frame i { position:absolute; width:46px; height:46px; border:5px solid var(--accent); }
+  .scanart .frame i:nth-child(1) { top:0; left:0; border-right:0; border-bottom:0; border-radius:30px 0 0 0; }
+  .scanart .frame i:nth-child(2) { top:0; right:0; border-left:0; border-bottom:0; border-radius:0 30px 0 0; border-color:var(--accent2); }
+  .scanart .frame i:nth-child(3) { bottom:0; left:0; border-right:0; border-top:0; border-radius:0 0 0 30px; border-color:var(--accent2); }
+  .scanart .frame i:nth-child(4) { bottom:0; right:0; border-left:0; border-top:0; border-radius:0 0 30px 0; }
+  .scanart .code { position:absolute; inset:36px; opacity:.9; }
+  .scanart .code svg { width:100%; height:100%; display:block; }
+  .scanart .beam { position:absolute; left:22px; right:22px; height:3px; border-radius:3px; background:var(--grad); box-shadow:0 0 18px 4px var(--glow); animation:beam 2.2s ease-in-out infinite; }
+  @keyframes beam { 0%, 100% { top:26px } 50% { top:170px } }
+  .center { text-align:center; }
+  .looking { display:inline-flex; gap:4px; } .looking i { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:blink 1.2s infinite; }
+  .looking i:nth-child(2) { animation-delay:.2s } .looking i:nth-child(3) { animation-delay:.4s }
+  @keyframes blink { 0%, 100% { opacity:.25; transform:scale(.8) } 50% { opacity:1; transform:none } }
+  .near { width:100%; text-align:left; animation:pop .45s var(--spring) both; }
+  .near .av { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:800; flex:none; position:relative; }
+  .near .av::after { content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid var(--good); animation:ripple 2.4s var(--ease) infinite; }
+  .center h3 { margin:10px 0 4px; font-size:20px; letter-spacing:-.02em; }
+  .center p { margin:0 auto; max-width:34ch; color:var(--muted); font-size:13.5px; line-height:1.5; }
+  .how { margin-top:18px; display:grid; gap:8px; }
+  .how div { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:16px; background:var(--panel); border:1px solid var(--line); font-size:13.2px; color:var(--muted); line-height:1.45; text-align:left; }
+  .how i { font-style:normal; width:22px; height:22px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:11.5px; font-weight:800; color:#fff; background:var(--grad); }
+  .phase { display:flex; flex-direction:column; gap:10px; margin:18px auto 0; max-width:300px; }
+  .phase div { display:flex; align-items:center; gap:12px; font-size:14px; font-weight:600; color:var(--faint); transition:color .3s; }
+  .phase div.now { color:var(--fg); } .phase div.done { color:var(--good); }
+  .phase .dot { width:22px; height:22px; border-radius:50%; border:2px solid var(--line2); display:grid; place-items:center; flex:none; }
+  .phase .now .dot { border-color:var(--accent); border-top-color:transparent; animation:spin .9s linear infinite; }
+  .phase .done .dot { border-color:var(--good); background:var(--good); color:#fff; }
+  .pins { display:flex; justify-content:center; gap:10px; margin-top:16px; }
+  .pins input { width:54px; height:62px; text-align:center; font-size:26px; font-weight:800; border-radius:16px; border:1.5px solid var(--line2); background:var(--raised); color:var(--fg); outline:none; transition:border-color .2s, box-shadow .2s; }
+  .pins input:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--glow); }
+  .from { display:flex; align-items:center; gap:12px; padding:14px; border-radius:22px; color:#fff; background:linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--accent) 52%, #0b0d14)); box-shadow:0 22px 46px -26px var(--glow); }
+  .from .av { width:48px; height:48px; border-radius:16px; background:rgba(255,255,255,.18); display:grid; place-items:center; }
+  .from small { font-size:12px; color:#ffffffc8; font-weight:600; } .from b { display:block; font-size:18px; letter-spacing:-.01em; }
+  .chk { width:24px; height:24px; flex:none; border-radius:8px; border:2px solid var(--line2); display:grid; place-items:center; transition:background .2s, border-color .2s; }
+  .chk.on { background:var(--grad); border-color:transparent; color:#fff; }
+  .chk svg { width:14px; height:14px; opacity:0; transform:scale(.5); transition:all .25s var(--spring); } .chk.on svg { opacity:1; transform:none; }
+  .big { position:relative; width:188px; height:188px; margin:8px auto 0; }
+  .big svg { width:100%; height:100%; transform:rotate(-90deg); }
+  .big circle { fill:none; stroke-width:12; }
+  .big .bg { stroke:var(--line); } .big .fg { stroke:url(#g2); stroke-linecap:round; transition:stroke-dashoffset .4s var(--ease); }
+  .big .mid { position:absolute; inset:0; display:grid; place-items:center; text-align:center; }
+  .big .mid b { display:block; font-size:38px; font-weight:820; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .big .mid span { display:block; font-size:12.5px; color:var(--faint); font-weight:600; margin-top:2px; }
+  .done-art { width:110px; height:110px; margin:10px auto 0; border-radius:50%; display:grid; place-items:center; background:color-mix(in oklab, var(--good) 15%, transparent); animation:pop .6s var(--spring); }
+  .done-art svg { width:58px; height:58px; stroke:var(--good); stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .done-art path { stroke-dasharray:60; stroke-dashoffset:60; animation:draw .6s .25s var(--ease) forwards; }
+  @keyframes draw { to { stroke-dashoffset:0 } }
+  .confetti { position:fixed; inset:0; pointer-events:none; z-index:40; overflow:hidden; }
+  .confetti i { position:absolute; top:-12px; width:8px; height:14px; border-radius:2px; animation:fall 1.6s var(--ease) forwards; }
+  @keyframes fall { to { transform:translateY(105vh) rotate(540deg); opacity:.2 } }
+  .actions { display:grid; gap:8px; margin-top:16px; }
+
+  /* picker sheet */
+  .sheet { position:fixed; inset:0; z-index:20; display:flex; align-items:flex-end; background:rgba(4,6,12,.5); opacity:0; pointer-events:none; transition:opacity .3s; }
+  .sheet.open { opacity:1; pointer-events:auto; }
+  .sheet .body { width:100%; height:calc(100% - max(30px, env(safe-area-inset-top))); background:var(--bg); border-radius:28px 28px 0 0; display:flex; flex-direction:column; transform:translateY(100%); transition:transform .45s var(--ease); box-shadow:0 -20px 60px -20px rgba(0,0,0,.5); }
+  .sheet.open .body { transform:none; }
+  .grab { width:42px; height:5px; border-radius:3px; background:var(--line2); margin:10px auto 4px; }
+  .sh-top { display:flex; align-items:center; gap:8px; padding:4px 14px 8px 18px; }
+  .sh-top b { flex:1; font-size:17px; font-weight:760; }
+  .tabs { position:relative; display:flex; gap:4px; margin:0 14px 10px; padding:4px; border-radius:16px; background:var(--sunk); border:1px solid var(--line); }
+  .tabs button { flex:1; position:relative; z-index:1; height:38px; font-size:13.5px; font-weight:680; color:var(--muted); transition:color .25s; }
+  .tabs button.on { color:var(--fg); }
+  .tabs .pill { position:absolute; top:4px; bottom:4px; left:4px; border-radius:12px; background:var(--raised); box-shadow:0 6px 16px -10px rgba(0,0,0,.45); transition:transform .38s var(--spring), width .38s var(--spring); }
+  .scroll { flex:1; overflow-y:auto; padding:0 14px 120px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+  .cell { position:relative; aspect-ratio:1; border-radius:12px; overflow:hidden; background:var(--sunk); transition:transform .2s var(--ease); }
+  .cell img { width:100%; height:100%; object-fit:cover; transition:transform .25s var(--ease); display:block; }
+  .cell.on img { transform:scale(.86); border-radius:10px; }
+  .cell .c { position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%; border:2px solid #fff; background:rgba(0,0,0,.25); display:grid; place-items:center; transition:background .2s; }
+  .cell.on .c { background:var(--grad); border-color:#fff; animation:pop .3s var(--spring); }
+  .cell .c svg { width:13px; height:13px; color:#fff; opacity:0; } .cell.on .c svg { opacity:1; }
+  .cell .d { position:absolute; left:6px; bottom:6px; font-size:10.5px; font-weight:800; color:#fff; background:rgba(0,0,0,.55); padding:2px 6px; border-radius:7px; }
+  .app-row { display:flex; align-items:center; gap:12px; padding:10px 6px; border-radius:16px; width:100%; text-align:left; }
+  .app-row + .app-row { border-top:1px solid var(--line); border-radius:0; }
+  .app-row img, .app-row .ph { width:44px; height:44px; border-radius:12px; flex:none; background:var(--sunk); }
+  .app-row .n { flex:1; min-width:0; } .app-row .n b { display:block; font-size:14.5px; font-weight:620; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .app-row .n span { font-size:12px; color:var(--faint); }
+  .app-row[disabled] { opacity:.45; }
+  .search { margin:0 14px 10px; display:flex; align-items:center; gap:8px; height:44px; padding:0 14px; border-radius:14px; background:var(--sunk); border:1px solid var(--line); color:var(--faint); }
+  .search input { flex:1; border:0; outline:0; background:transparent; color:var(--fg); font:inherit; }
+  .sh-dock { position:absolute; left:0; right:0; bottom:0; padding:14px 18px calc(14px + env(safe-area-inset-bottom)); background:linear-gradient(transparent, var(--bg) 34%); }
+
+  .toast { position:fixed; left:50%; bottom:calc(98px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:50; max-width:90vw; animation:rise .3s var(--ease); }
+  .hist-day { font-size:12px; font-weight:720; color:var(--faint); text-transform:uppercase; letter-spacing:.08em; margin:18px 4px 8px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent2)"/></linearGradient>
+  <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent2)"/></linearGradient>
+</defs></svg>
+
+<div class="wrap">
+  <div class="top">
+    <button class="iconbtn" id="back" aria-label="Back"><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <b id="title">Phone to phone</b>
+    <button class="iconbtn" onclick="DWLook.open()" aria-label="Appearance"><svg class="i" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-.5a2 2 0 0 1 2-2h1.5A4.5 4.5 0 0 0 22 13 10 10 0 0 0 12 2z"/></svg></button>
+    <button class="iconbtn" id="histBtn" aria-label="History"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+  </div>
+
+  <div class="seg" id="seg" data-v="send">
+    <span class="pill"></span>
+    <button data-v="send" class="on"><svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Send</button>
+    <button data-v="recv"><svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>Receive</button>
+  </div>
+
+  <!-- ================= SEND: choose ================= -->
+  <section id="vCompose">
+    <div class="hero rise">
+      <div class="orb" aria-hidden="true"><span class="ring"></span><span class="ring"></span><span class="ring"></span><span class="sat"></span><span class="sat b"></span>
+        <span class="core"><svg class="i" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span></div>
+      <h1>Share with any phone nearby</h1>
+      <p>No internet, no cable. They just scan a QR, even an iPhone without DropWave.</p>
+      <div class="chips"><span><svg class="i" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>Wi-Fi speed</span><span><svg class="i" viewBox="0 0 24 24"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.1-1.6M12 20h.01"/></svg>0 MB data</span><span><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Private</span></div>
+    </div>
+
+    <button class="move press rise" id="moveBtn" style="animation-delay:.05s">
+      <span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/></svg></span>
+      <span style="flex:1"><b>Moving to a new phone?</b><span>All photos, videos and contacts in one go.</span></span>
+      <svg class="i" viewBox="0 0 24 24" style="color:var(--faint)"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+
+    <h2>Add</h2>
+    <div class="tiles">
+      <button class="tile rise" data-add="photos" style="animation-delay:.04s"><span class="ic" style="background:linear-gradient(140deg,#ff8a5b,#ff3d77)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span><span><b>Photos</b><small>Gallery</small></span></button>
+      <button class="tile rise" data-add="videos" style="animation-delay:.08s"><span class="ic" style="background:linear-gradient(140deg,#f59e0b,#ef4444)"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="5" width="14" height="14" rx="3"/><path d="M16 10l6-3v10l-6-3"/></svg></span><span><b>Videos</b><small>Any size</small></span></button>
+      <button class="tile rise" data-add="apps" style="animation-delay:.12s"><span class="ic" style="background:linear-gradient(140deg,#22c55e,#0ea5a4)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></span><span><b>Apps</b><small>Installed</small></span></button>
+      <button class="tile rise" data-add="files" style="animation-delay:.16s"><span class="ic" style="background:linear-gradient(140deg,#3b82f6,#06b6d4)"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span><b>Files</b><small>PDF, music…</small></span></button>
+      <button class="tile rise" data-add="contacts" style="animation-delay:.2s"><span class="ic" style="background:linear-gradient(140deg,#a855f7,#ec4899)"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span><b>Contacts</b><small>All, as .vcf</small></span></button>
+      <button class="tile rise" data-add="dropwave" style="animation-delay:.24s"><span class="ic" style="background:var(--grad)"><svg class="i" viewBox="0 0 24 24"><path d="M2 12c3-5 6-5 9 0s6 5 9 0"/><path d="M2 17c3-5 6-5 9 0s6 5 9 0" opacity=".55"/></svg></span><span><b>DropWave</b><small>Give the app</small></span></button>
+    </div>
+
+    <h2><span id="trayH">Selected</span><button id="clearAll" class="hidden">Clear</button></h2>
+    <div class="tray" id="tray"></div>
+
+    <h2>Connect with</h2>
+    <div class="opts">
+      <button class="opt on" data-mode="hotspot"><b>DropWave Wi-Fi <span class="rec">BEST</span></b><span>Makes its own Wi-Fi. Works anywhere.</span></button>
+      <button class="opt" data-mode="wifi"><b>Same Wi-Fi</b><span>Both on one Wi-Fi. DropWave phones find you without a QR.</span></button>
+    </div>
+    <button class="row press" id="pinRow" style="width:100%;text-align:left">
+      <span class="t"><b>Ask for a PIN</b><span>Extra lock for busy places</span></span>
+      <span class="sw" id="pinSw"></span>
+    </button>
+    <div class="notice hidden" id="perm">
+      <b id="permT">One permission first</b>
+      <p id="permP"></p>
+      <button class="btn soft small" id="permBtn" style="width:100%">Allow</button>
+    </div>
+  </section>
+
+  <!-- ================= SEND: live ================= -->
+  <section id="vLive" class="hidden">
+    <div class="radar" id="radar"><span class="r"></span><span class="r"></span><span class="r"></span><span class="guide"></span>
+      <span class="me"><svg class="i" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span></div>
+    <div class="status" id="statusT">Waiting for the other phone…<span id="statusS"></span></div>
+
+    <div class="steps" id="stepTabs" data-s="1"><span class="pill"></span>
+      <button data-step="1" class="on"><i>1</i> Join Wi-Fi</button>
+      <button data-step="2"><i>2</i> Open page</button>
+    </div>
+    <div class="flip"><div class="card3d" id="card3d">
+      <div class="face front">
+        <div class="qr"><img id="qrWifi" alt="Wi-Fi QR code" /></div>
+        <h3>Scan to join this phone’s Wi-Fi</h3>
+        <p>Use the other phone’s camera, or DropWave › Receive. iPhone works too.</p>
+        <div class="creds"><div class="cred"><small>Wi-Fi</small><b id="ssid"></b></div><div class="cred"><small>Password</small><b id="pass"></b></div></div>
+        <button class="next" id="nextBtn">Joined? Show step 2 →</button>
+      </div>
+      <div class="face back">
+        <div class="qr"><img id="qrLink" alt="Link QR code" /></div>
+        <h3 id="linkT">Now scan to open the page</h3>
+        <p>Opens in the browser to download or send back. No app needed.</p>
+        <div class="pinbig hidden" id="pinBig"></div>
+        <div class="link" id="link"></div>
+      </div>
+    </div></div>
+
+    <div class="stat"><div><small>Sent</small><b id="statSent">0 B</b></div><div><small>Speed</small><b id="statSpeed">–</b></div><div><small>Phones</small><b id="statGuests">0</b></div></div>
+
+    <h2>Sharing</h2>
+    <div class="list" id="liveList"></div>
+    <div id="gotWrap" class="hidden"><h2>Received</h2><div class="list" id="gotList"></div></div>
+  </section>
+
+  <!-- ================= RECEIVE ================= -->
+  <section id="vRecv" class="hidden">
+    <div id="rIdle" class="center">
+      <div id="nearWrap" style="text-align:left">
+        <h2 style="margin-top:4px"><span>Sharing on this Wi-Fi</span><span class="looking"><i></i><i></i><i></i></span></h2>
+        <div class="list" id="nearList"><div class="empty" id="nearEmpty" style="padding:16px">Looking for phones that are sharing… Or scan their QR below.</div></div>
+      </div>
+      <div class="scanart rise" aria-hidden="true" style="margin-top:18px"><div class="frame"><i></i><i></i><i></i><i></i></div><div class="code"><svg viewBox="0 0 21 21" shape-rendering="crispEdges" fill="var(--fg)" opacity=".85"><path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM14 0h7v7h-7zM15 1v5h5V1zM16 2h3v3h-3zM0 14h7v7H0zM1 15v5h5v-5zM2 16h3v3H2z" fill-rule="evenodd"/><path d="M8 0h1v2H8zM10 1h2v1h-2zM9 3h3v1H9zM8 5h2v2H8zM11 5h1v3h-1zM0 8h2v1H0zM3 8h3v1H3zM8 8h2v2H8zM12 9h3v1h-3zM16 8h2v2h-2zM19 9h2v1h-2zM1 10h1v2H1zM4 10h2v2H4zM9 11h2v1H9zM13 11h1v3h-1zM15 11h2v1h-2zM18 11h2v2h-2zM8 13h3v1H8zM15 13h1v2h-1zM8 15h1v3H8zM10 15h2v1h-2zM17 15h4v1h-4zM11 17h3v1h-3zM15 17h1v4h-1zM18 18h2v2h-2zM9 19h3v2H9zM13 19h1v1h-1z"/></svg></div><div class="beam"></div></div>
+      <h3>Scan the other phone’s QR</h3>
+      <p>Joins its Wi-Fi by itself and shows what it’s sharing. Photos go straight to your Gallery.</p>
+      <div class="how">
+        <div><i>1</i><span>On the other phone: DropWave › Phone to phone › add files › <b>Start sharing</b>.</span></div>
+        <div><i>2</i><span>Tap <b>Scan QR code</b> below and point at step 1 on that phone.</span></div>
+      </div>
+    </div>
+
+    <div id="rConn" class="center hidden">
+      <div class="radar" style="height:180px"><span class="r"></span><span class="r"></span><span class="r"></span>
+        <span class="me"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></span></div>
+      <h3>Connecting…</h3>
+      <div class="phase" id="phase"><div data-p="join"><span class="dot"></span>Joining DropWave Wi-Fi</div><div data-p="find"><span class="dot"></span>Finding the files</div></div>
+    </div>
+
+    <div id="rPin" class="center hidden">
+      <div class="empty" style="padding:24px 0 0"><span class="em"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+      <h3>Enter the PIN</h3>
+      <p>It’s shown on the other phone, under its QR code.</p>
+      <div class="pins" id="pins"><input inputmode="numeric" maxlength="1"/><input inputmode="numeric" maxlength="1"/><input inputmode="numeric" maxlength="1"/><input inputmode="numeric" maxlength="1"/></div>
+      <div id="pinErr" style="color:var(--bad);font-size:13.5px;min-height:20px;margin-top:10px"></div>
+    </div>
+
+    <div id="rList" class="hidden">
+      <div class="from rise"><span class="av"><svg class="i" viewBox="0 0 24 24" style="width:24px;height:24px"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span><div><small>Sharing with you</small><b id="rFrom">Phone</b></div></div>
+      <h2><span id="rH">Files</span><button id="rToggle">Select none</button></h2>
+      <div class="list" id="rItems"></div>
+    </div>
+
+    <div id="rRun" class="center hidden">
+      <div class="big"><svg viewBox="0 0 200 200"><circle class="bg" cx="100" cy="100" r="88"/><circle class="fg" id="bigFg" cx="100" cy="100" r="88" stroke-dasharray="553" stroke-dashoffset="553"/></svg>
+        <div class="mid"><div><b id="bigPct">0%</b><span id="bigSub">Starting…</span></div></div></div>
+      <div class="stat"><div><small>Speed</small><b id="rSpeed">–</b></div><div><small>Done</small><b id="rDone">0</b></div><div><small>Left</small><b id="rLeft">–</b></div></div>
+      <h2 style="text-align:left">Files</h2>
+      <div class="list" id="rRunList" style="text-align:left"></div>
+    </div>
+
+    <div id="rDoneV" class="center hidden">
+      <div class="done-art"><svg viewBox="0 0 60 60"><path d="M16 31l9 9 19-20"/></svg></div>
+      <h3 id="doneT">All received</h3>
+      <p id="doneP"></p>
+      <div class="actions" id="doneActions"></div>
+      <h2 style="text-align:left">Received</h2>
+      <div class="list" id="doneList" style="text-align:left"></div>
+    </div>
+  </section>
+
+  <!-- ================= HISTORY ================= -->
+  <section id="vHist" class="hidden"><div id="histBox"></div></section>
+</div>
+
+<div class="dock"><div id="dock"></div></div>
+
+<!-- picker -->
+<div class="sheet" id="sheet">
+  <div class="body">
+    <div class="grab"></div>
+    <div class="sh-top"><b id="shTitle">Choose</b><button class="iconbtn" id="shClose" aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+    <div class="tabs" id="shTabs"><span class="pill"></span><button data-k="photos" class="on">Photos</button><button data-k="videos">Videos</button><button data-k="apps">Apps</button><button data-k="contacts">Contacts</button></div>
+    <label class="search hidden" id="appSearch"><svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="appQ" placeholder="Search" /></label>
+    <div class="scroll" id="shScroll"><div id="shBody"></div></div>
+    <div class="sh-dock"><div style="display:flex;gap:10px"><button class="btn soft small" id="shAll">Select all</button><button class="btn primary" id="shAdd" disabled>Add</button></div></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const DW = window.Capacitor?.Plugins?.DropWave;
+  const AppP = window.Capacitor?.Plugins?.App;
+  const fmt = (n) => (n == null || n < 0 ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(2)} GB`);
+  const dur = (s) => (!isFinite(s) || s < 0 ? '–' : s < 60 ? `${Math.max(1, Math.round(s))} s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`);
+  const toast = (t) => { $$('.toast').forEach((x) => x.remove()); const e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3200); };
+  const buzz = (ms = 12) => { try { navigator.vibrate?.(ms); } catch {} };
+  const ICON = {
+    check: '<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    x: '<svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  };
+  const KINDS = [
+    [/\.apk$/i, 'APP', '#22c55e'], [/\.vcf$/i, 'VCF', '#a855f7'], [/\.(jpe?g|png|gif|webp|heic|bmp)$/i, 'IMG', '#ff5a6e'], [/\.(mp4|mkv|mov|3gp|webm|avi)$/i, 'VID', '#f97316'],
+    [/\.(mp3|m4a|aac|wav|ogg|flac|opus)$/i, 'AUD', '#10b981'], [/\.pdf$/i, 'PDF', '#ef4444'], [/\.(docx?|odt|rtf|txt)$/i, 'DOC', '#3b82f6'],
+    [/\.(xlsx?|csv|ods)$/i, 'XLS', '#16a34a'], [/\.(pptx?|odp)$/i, 'PPT', '#ea580c'], [/\.(zip|rar|7z|tar|gz)$/i, 'ZIP', '#a16207'],
+  ];
+  const kindOf = (name) => KINDS.find(([re]) => re.test(name)) || [null, 'FILE', '#64748b'];
+  const thumbs = new Map(); // ref -> data url (photos/videos picked here), "app:pkg" -> icon
+  const badge = (x) => {
+    const t = x.ref && thumbs.get(x.ref);
+    if (t) return `<span class="badge"><img src="${t}" alt=""/></span>`;
+    const k = kindOf(x.name);
+    return `<span class="badge" style="color:${k[2]};background:color-mix(in oklab, ${k[2]} 15%, transparent)">${k[1]}</span>`;
+  };
+  const ring = (f) => `<svg class="ring" viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/><circle class="fg" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="${94.2 * (1 - Math.min(1, Math.max(0, f)))}"/></svg>`;
+  const hue = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+  const label = (x) => (x.name === 'DropWave.apk' ? 'DropWave app' : x.name);
+
+  // ---------- history (this phone only) ----------
+  const HKEY = 'dw_p2p_hist';
+  const hist = { get() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch { return []; } },
+    add(e) { try { const h = [e, ...this.get()].slice(0, 200); localStorage.setItem(HKEY, JSON.stringify(h)); } catch {} },
+    // One line per session and phone, updated as each file goes or arrives (nothing waits for "Stop").
+    log(sid, dir, peer, name, size) {
+      try {
+        const h = this.get(); const key = `${sid}|${dir}|${peer}`;
+        let e = h.find((x) => x.key === key);
+        if (!e) { e = { key, dir, peer, at: Date.now(), count: 0, bytes: 0, names: [] }; h.unshift(e); }
+        e.count++; e.bytes += Math.max(0, size || 0); e.at = Date.now();
+        if (e.names.length < 8 && !e.names.includes(name)) e.names.push(name);
+        h.sort((a, b) => b.at - a.at);
+        localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 200)));
+      } catch {}
+      if (view === 'hist') renderHist();
+    } };
+
+  // ---------- view switching ----------
+  let view = 'send'; // send | recv | hist
+  let state = { items: [], running: false, guests: [] };
+  function setView(v) {
+    view = v;
+    setTimeout(() => typeof syncNearby === 'function' && syncNearby());
+    $('#seg').dataset.v = v === 'recv' ? 'recv' : 'send';
+    $$('#seg button').forEach((b) => b.classList.toggle('on', b.dataset.v === (v === 'recv' ? 'recv' : 'send')));
+    $('#seg').classList.toggle('hidden', v === 'hist');
+    $('#title').textContent = v === 'hist' ? 'History' : 'Phone to phone';
+    $('#vHist').classList.toggle('hidden', v !== 'hist');
+    $('#vRecv').classList.toggle('hidden', v !== 'recv');
+    const live = v === 'send' && state.running && state.url;
+    $('#vCompose').classList.toggle('hidden', v !== 'send' || live);
+    $('#vLive').classList.toggle('hidden', !live);
+    if (v === 'hist') renderHist();
+    renderDock();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $$('#seg button').forEach((b) => (b.onclick = () => { if (b.dataset.v === 'send' && rstate !== 'idle' && rstate !== 'done') return toast('Finish or cancel receiving first'); buzz(); setView(b.dataset.v); }));
+  $('#histBtn').onclick = () => setView(view === 'hist' ? 'send' : 'hist');
+  const goBack = async () => {
+    if ($('#sheet').classList.contains('open')) return closeSheet();
+    if (view === 'hist') return setView('send');
+    if (state.running) { await DW.p2pStop({ clear: false }); }
+    if (rstate !== 'idle') await DW.p2pLeave().catch(() => {});
+    if (history.length > 1) history.back(); else location.href = 'index.html?pick=1';
+  };
+  $('#back').onclick = goBack;
+  AppP?.addListener('backButton', goBack);
+
+  // ---------- dock ----------
+  function renderDock() {
+    const d = $('#dock');
+    if (view === 'hist') { d.innerHTML = ''; return; }
+    if (view === 'recv') {
+      if (rstate === 'idle') d.innerHTML = `<button class="btn primary" id="scanBtn"><svg class="i" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Scan QR code</button>`;
+      else if (rstate === 'list') { const sel = rItems.filter((x) => rSel.has(x.i)); d.innerHTML = `<button class="btn soft small" id="rLeaveBtn">Cancel</button><button class="btn primary" id="rGetBtn" ${sel.length ? '' : 'disabled'}><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Receive ${sel.length ? `<small>· ${sel.length} · ${fmt(sel.reduce((a, x) => a + Math.max(0, x.size), 0))}</small>` : ''}</button>`; }
+      else if (rstate === 'run') d.innerHTML = `<button class="btn soft" id="rStopBtn">Stop</button>`;
+      else if (rstate === 'done') d.innerHTML = `<button class="btn soft small" id="rBackBtn">Send back</button><button class="btn primary" id="rFinBtn">Done</button>`;
+      else d.innerHTML = `<button class="btn soft" id="rLeaveBtn">Cancel</button>`;
+      $('#scanBtn') && ($('#scanBtn').onclick = scan);
+      $('#rLeaveBtn') && ($('#rLeaveBtn').onclick = leave);
+      $('#rGetBtn') && ($('#rGetBtn').onclick = receive);
+      $('#rStopBtn') && ($('#rStopBtn').onclick = () => DW.p2pRecvStop());
+      $('#rFinBtn') && ($('#rFinBtn').onclick = leave);
+      $('#rBackBtn') && ($('#rBackBtn').onclick = () => DW.p2pRecvSend().then((r) => r.count && toast(`Sending ${r.count} file${r.count > 1 ? 's' : ''}…`)));
+      return;
+    }
+    if (state.running && state.url) {
+      d.innerHTML = `<button class="btn soft small" id="moreBtn"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button><button class="btn soft" id="stopBtn">Stop sharing</button>`;
+      $('#moreBtn').onclick = () => openSheet('photos');
+      $('#stopBtn').onclick = stopShare;
+      return;
+    }
+    const items = state.items || [];
+    const total = items.reduce((a, x) => a + Math.max(0, x.size), 0);
+    d.innerHTML = `<button class="btn primary" id="goBtn"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>${items.length ? `Share <small>· ${items.length} · ${fmt(total)}</small>` : 'Start · receive only'}</button>`;
+    $('#goBtn').onclick = startShare;
+  }
+
+  // ---------- SEND: compose ----------
+  let mode = 'hotspot', withPin = false;
+  function apply(info) {
+    if (!info) return;
+    const was = state.running && state.url;
+    state = info;
+    const items = info.items || [];
+    // tile counters
+    const by = (f) => items.filter(f).length;
+    const counts = { photos: by((x) => x.kind === 'photo'), videos: by((x) => x.kind === 'video'), apps: by((x) => x.kind === 'app' && !x.app), files: by((x) => x.kind === 'file'), contacts: by((x) => x.kind === 'contacts'), dropwave: by((x) => x.app) };
+    $$('.tile').forEach((t) => {
+      const n = counts[t.dataset.add] || 0;
+      t.classList.toggle('on', n > 0);
+      const c = t.querySelector('.cnt');
+      if (n && (!c || c.textContent !== String(n))) { c?.remove(); t.insertAdjacentHTML('beforeend', `<span class="cnt">${t.dataset.add === 'dropwave' ? '✓' : n}</span>`); }
+      if (!n) c?.remove();
+    });
+    // tray
+    const total = items.reduce((a, x) => a + Math.max(0, x.size), 0);
+    $('#trayH').textContent = items.length ? `Selected · ${items.length}` : 'Selected';
+    $('#clearAll').classList.toggle('hidden', !items.length);
+    $('#tray').innerHTML = items.length
+      ? `<div class="strip">${items.slice(0, 60).map((x) => { const t = x.ref && thumbs.get(x.ref); const k = kindOf(x.name);
+          return `<div class="ch" style="${t ? '' : `background:color-mix(in oklab, ${k[2]} 14%, transparent);color:${k[2]}`}">${t ? `<img src="${t}" alt=""/>` : `<b style="font-size:12px">${k[1]}</b>`}${x.kind === 'video' ? '<span class="vid">▶</span>' : ''}${!t ? `<span class="lab">${esc(label(x))}</span>` : ''}<button class="x" data-rm="${x.i}" aria-label="Remove">${ICON.x}</button></div>`; }).join('')}${items.length > 60 ? `<div class="ch"><b>+${items.length - 60}</b></div>` : ''}</div>
+         <div class="sum"><span>Total <b>${fmt(total)}</b></span><span>${counts.photos ? `${counts.photos} photo${counts.photos > 1 ? 's' : ''} ` : ''}${counts.videos ? `· ${counts.videos} video${counts.videos > 1 ? 's' : ''} ` : ''}${counts.apps ? `· ${counts.apps} app${counts.apps > 1 ? 's' : ''}` : ''}</span></div>`
+      : `<div class="empty"><span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg></span>Pick photos, videos, apps or files above.<br/>Or just start: the other phone can send to you too.</div>`;
+    $$('#tray [data-rm]').forEach((b) => (b.onclick = async () => { buzz(); apply(await DW.p2pRemove({ i: +b.dataset.rm })); }));
+    if (!!(info.running && info.url) !== !!was && view === 'send') setView('send');
+    renderLive();
+    renderDock();
+  }
+  $('#clearAll').onclick = async () => apply(await DW.p2pRemove({ all: true }));
+
+  $$('.opt').forEach((b) => (b.onclick = () => { buzz(); mode = b.dataset.mode; $$('.opt').forEach((x) => x.classList.toggle('on', x === b)); checkPerm(); }));
+  $('#pinRow').onclick = () => { buzz(); withPin = !withPin; $('#pinSw').classList.toggle('on', withPin); };
+
+  let perms = {};
+  async function checkPerm() {
+    perms = await DW.p2pCheck().catch(() => ({}));
+    const miss = mode === 'hotspot' ? perms.missing : null;
+    $('#perm').classList.toggle('hidden', !miss);
+    if (miss === 'location') { $('#permT').textContent = 'Turn on Location'; $('#permP').textContent = 'On this Android version, making a Wi-Fi needs Location on. DropWave doesn’t use your location.'; $('#permBtn').textContent = 'Open Location settings'; }
+    else if (miss) { $('#permT').textContent = 'One permission first'; $('#permP').textContent = 'To make its own Wi-Fi, Android asks DropWave for “Nearby devices”. Nothing else is shared.'; $('#permBtn').textContent = 'Allow'; }
+    return miss;
+  }
+  $('#permBtn').onclick = () => DW.p2pAllow({});
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkPerm(); if (sheetKind === 'contacts') loadContacts(); else if (sheetKind && sheetKind !== 'apps') loadMedia(true); } });
+
+  $$('.tile').forEach((t) => (t.onclick = async () => {
+    buzz();
+    const k = t.dataset.add;
+    if (k === 'photos' || k === 'videos' || k === 'apps' || k === 'contacts') return openSheet(k);
+    if (k === 'files') return apply(await DW.p2pPick({ kind: 'files' }).catch(() => null));
+    if (k === 'dropwave') return apply(await DW.p2pAddApp());
+    if (k === 'contacts') return openSheet('contacts');
+  }));
+
+  // Moving to a new phone: everything in the gallery + contacts
+  $('#moveBtn').onclick = async () => {
+    buzz();
+    const c = await DW.p2pCheck().catch(() => ({}));
+    if (c.photos === 'none') { DW.p2pAllow({ what: 'photos' }); return toast('Allow Photos, then tap again'); }
+    const btn = $('#moveBtn'); btn.style.opacity = '.6'; btn.querySelector('b').textContent = 'Collecting your gallery…';
+    try {
+      const refs = [];
+      for (let off = 0; off !== null && refs.length < 20000;) {
+        const p = await DW.photoPage({ offset: off, limit: 300, kind: 'all', thumbs: false });
+        (p.items || []).forEach((x) => refs.push(x.id));
+        off = p.next ?? null;
+      }
+      if (refs.length) apply(await DW.p2pAddRefs({ refs }));
+      if (c.contacts) { try { apply(await DW.p2pAddContacts()); } catch {} } else DW.p2pAllow({ what: 'contacts' });
+      toast(`${refs.length} photos & videos added${c.contacts ? ' + contacts' : ''}`);
+    } catch (e) { toast(e.message || 'Couldn’t read the gallery'); }
+    finally { btn.style.opacity = ''; btn.querySelector('b').textContent = 'Moving to a new phone?'; }
+  };
+
+  // ---------- picker sheet ----------
+  let sheetKind = null, media = [], mediaNext = 0, mediaBusy = false, apps = [], pick = new Set();
+  function openSheet(k) {
+    pick = new Set();
+    $('#sheet').classList.add('open');
+    switchTab(k);
+  }
+  function closeSheet() { $('#sheet').classList.remove('open'); sheetKind = null; }
+  $('#shClose').onclick = closeSheet;
+  $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
+  $$('#shTabs button').forEach((b) => (b.onclick = () => { buzz(); switchTab(b.dataset.k); }));
+  function switchTab(k) {
+    sheetKind = k;
+    const bs = $$('#shTabs button'); const idx = bs.findIndex((b) => b.dataset.k === k);
+    bs.forEach((b) => b.classList.toggle('on', b.dataset.k === k));
+    const pill = $('#shTabs .pill'); const w = bs[0].offsetWidth; pill.style.width = `${w}px`; pill.style.transform = `translateX(${idx * (w + 4)}px)`;
+    $('#shTitle').textContent = { apps: 'Choose apps', videos: 'Choose videos', contacts: 'Choose contacts' }[k] || 'Choose photos';
+    $('#appSearch').classList.toggle('hidden', k !== 'apps' && k !== 'contacts');
+    $('#appQ').value = '';
+    $('#shScroll').scrollTop = 0;
+    if (k === 'apps') loadApps(); else if (k === 'contacts') loadContacts(); else loadMedia(true);
+    updatePickBtn();
+  }
+  function updatePickBtn() {
+    const n = pick.size;
+    $('#shAdd').disabled = !n;
+    const word = { apps: 'app', videos: 'video', contacts: 'contact' }[sheetKind] || 'photo';
+    $('#shAdd').innerHTML = n ? `Add ${n} ${word}${n > 1 ? 's' : ''}` : 'Add';
+  }
+  async function loadMedia(reset) {
+    if (reset) { media = []; mediaNext = 0; $('#shBody').innerHTML = '<div class="grid" id="grid"></div>'; }
+    if (mediaBusy || mediaNext === null) return;
+    mediaBusy = true;
+    const kind = sheetKind;
+    try {
+      const p = await DW.photoPage({ offset: mediaNext, limit: 60, kind });
+      if (kind !== sheetKind) return;
+      if (p.access === 'none') {
+        $('#shBody').innerHTML = `<div class="empty" style="margin-top:40px"><span class="em"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg></span>Allow DropWave to see your photos and videos to pick them here.<br/><br/><button class="btn primary small" id="allowPh" style="margin:0 auto">Allow photos</button><br/><button class="act" id="sysPick">Or use Android’s picker</button></div>`;
+        $('#allowPh').onclick = () => DW.p2pAllow({ what: 'photos' });
+        $('#sysPick').onclick = async () => { closeSheet(); apply(await DW.p2pPick({ kind: 'media' }).catch(() => null)); };
+        mediaNext = null; return;
+      }
+      const grid = $('#grid');
+      for (const x of p.items || []) {
+        if (x.thumb) thumbs.set(x.id, x.thumb);
+        media.push(x);
+        const c = document.createElement('button');
+        c.className = 'cell' + (pick.has(x.id) ? ' on' : '');
+        c.innerHTML = `${x.thumb ? `<img src="${x.thumb}" alt="" loading="lazy"/>` : ''}<span class="c">${ICON.check}</span>${x.video ? `<span class="d">${dur(x.dur || 0).replace(' s', 's')}</span>` : ''}`;
+        c.onclick = () => { buzz(8); pick.has(x.id) ? pick.delete(x.id) : pick.add(x.id); c.classList.toggle('on', pick.has(x.id)); updatePickBtn(); };
+        grid.appendChild(c);
+      }
+      mediaNext = p.next ?? null;
+      if (!media.length) $('#shBody').innerHTML = `<div class="empty" style="margin-top:40px"><span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7M9 7V4h6v3"/></svg></span>No ${kind} on this phone.</div>`;
+    } catch (e) { toast(e.message || 'Couldn’t load'); }
+    finally { mediaBusy = false; }
+  }
+  $('#shScroll').addEventListener('scroll', () => {
+    const s = $('#shScroll');
+    if (sheetKind !== 'apps' && sheetKind !== 'contacts' && s.scrollTop + s.clientHeight > s.scrollHeight - 600) loadMedia(false);
+  });
+  async function loadApps() {
+    if (!apps.length) {
+      $('#shBody').innerHTML = '<div class="empty" style="margin-top:40px">Loading apps…</div>';
+      const r = await DW.apps().catch(() => ({ list: [] }));
+      apps = (r.list || []).filter((a) => !a.system).sort((a, b) => a.name.localeCompare(b.name));
+    }
+    renderApps();
+  }
+  function renderApps() {
+    if (sheetKind !== 'apps') return;
+    const q = $('#appQ').value.trim().toLowerCase();
+    const list = apps.filter((a) => !q || a.name.toLowerCase().includes(q));
+    $('#shBody').innerHTML = list.length ? list.map((a) => `<button class="app-row" data-pkg="${esc(a.pkg)}" ${a.apk ? '' : 'disabled'}>${thumbs.get('app:' + a.pkg) ? `<img src="${thumbs.get('app:' + a.pkg)}" alt=""/>` : '<span class="ph"></span>'}<span class="n"><b>${esc(a.name)}</b><span>${a.apk ? fmt(a.size) : 'Can’t be shared (split app)'}</span></span>${a.apk ? `<span class="chk ${pick.has(a.pkg) ? 'on' : ''}">${ICON.check}</span>` : ''}</button>`).join('') : '<div class="empty">No apps found</div>';
+    $$('#shBody .app-row').forEach((r) => {
+      const pkg = r.dataset.pkg;
+      if (!thumbs.has('app:' + pkg)) DW.appIcon({ pkg }).then((x) => { if (!x?.data) return; thumbs.set('app:' + pkg, x.data); const ph = r.querySelector('.ph'); if (ph) ph.outerHTML = `<img src="${x.data}" alt=""/>`; }).catch(() => {});
+      r.onclick = () => { buzz(8); pick.has(pkg) ? pick.delete(pkg) : pick.add(pkg); r.querySelector('.chk')?.classList.toggle('on', pick.has(pkg)); updatePickBtn(); };
+    });
+  }
+  $('#appQ').addEventListener('input', () => (sheetKind === 'contacts' ? renderContacts() : renderApps()));
+  let contacts = null;
+  async function loadContacts() {
+    const c = await DW.p2pCheck().catch(() => ({}));
+    if (!c.contacts) {
+      $('#shBody').innerHTML = `<div class="empty" style="margin-top:40px">${'<span class="em"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>'}Allow DropWave to read your contacts to pick them here. They’re only sent to the phone you choose.<br/><br/><button class="btn primary small" id="allowCt" style="margin:0 auto">Allow contacts</button></div>`;
+      $('#allowCt').onclick = () => DW.p2pAllow({ what: 'contacts' });
+      return;
+    }
+    if (!contacts) { $('#shBody').innerHTML = '<div class="empty" style="margin-top:40px">Loading contacts…</div>'; contacts = ((await DW.p2pContacts().catch(() => ({}))).list) || []; }
+    renderContacts();
+  }
+  function renderContacts() {
+    if (sheetKind !== 'contacts' || !contacts) return;
+    const q = $('#appQ').value.trim().toLowerCase();
+    const list = contacts.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.numbers || []).some((x) => x.n.replace(/\D/g, '').includes(q.replace(/\D/g, '') || '~')));
+    $('#shBody').innerHTML = list.length ? list.slice(0, 600).map((c) => { const h = hue(c.name); return `<button class="app-row" data-cid="${c.id}"><span class="ph" style="display:grid;place-items:center;border-radius:50%;color:#fff;font-weight:800;background:linear-gradient(140deg,hsl(${h} 70% 58%),hsl(${(h + 50) % 360} 75% 48%))">${esc((c.name.trim()[0] || '#').toUpperCase())}</span><span class="n"><b>${esc(c.name)}</b><span>${esc(c.numbers?.[0]?.n || '')}</span></span><span class="chk ${pick.has(String(c.id)) ? 'on' : ''}">${ICON.check}</span></button>`; }).join('') : '<div class="empty">No contacts found</div>';
+    $$('#shBody [data-cid]').forEach((r) => (r.onclick = () => { buzz(8); const id = r.dataset.cid; pick.has(id) ? pick.delete(id) : pick.add(id); r.querySelector('.chk').classList.toggle('on', pick.has(id)); updatePickBtn(); }));
+  }
+  $('#shAll').onclick = () => {
+    buzz();
+    if (sheetKind === 'apps') { apps.filter((a) => a.apk).forEach((a) => pick.add(a.pkg)); renderApps(); }
+    else if (sheetKind === 'contacts') { (contacts || []).forEach((c) => pick.add(String(c.id))); renderContacts(); }
+    else { media.forEach((x) => pick.add(x.id)); $$('#grid .cell').forEach((c) => c.classList.add('on')); }
+    updatePickBtn();
+  };
+  $('#shAdd').onclick = async () => {
+    const ids = [...pick]; const k = sheetKind;
+    closeSheet();
+    if (!ids.length) return;
+    if (k === 'contacts') { try { const r = await DW.p2pAddContacts({ ids: ids.map(Number) }); apply(r); toast(`${r.contacts} contact${r.contacts > 1 ? 's' : ''} added`); } catch (e) { toast(e.message); } return; }
+    if (k === 'apps') { ids.forEach((p) => { /* keep icon for the tray */ const t = thumbs.get('app:' + p); if (t) thumbs.set('app:' + p, t); }); const r = await DW.p2pAddApps({ pkgs: ids }); apply(r); if (r.skipped) toast(`${r.skipped} app${r.skipped > 1 ? 's' : ''} can’t be shared`); }
+    else apply(await DW.p2pAddRefs({ refs: ids }));
+  };
+
+  // ---------- SEND: live ----------
+  let step = 1;
+  const prog = new Map(); // i -> { done, total }
+  const sentNames = new Set();
+  let speed = 0, lastBytes = 0, lastT = 0, histLogged = false;
+  async function startShare() {
+    if (mode === 'hotspot' && (await checkPerm())) { DW.p2pAllow({}); return; }
+    const b = $('#goBtn'); b.disabled = true; b.innerHTML = `<span class="spin"></span>${mode === 'hotspot' ? 'Starting DropWave Wi-Fi…' : 'Starting…'}`;
+    try { step = mode === 'hotspot' ? 1 : 2; prog.clear(); sentNames.clear(); histLogged = false; shareSid = Date.now(); apply(await DW.p2pStart({ hotspot: mode === 'hotspot', pin: withPin })); buzz(25); }
+    catch (e) { toast(e.message || 'Couldn’t start'); apply(await DW.p2pInfo()); }
+  }
+  let shareSid = Date.now(), rSid = Date.now();
+  async function stopShare() {
+    apply(await DW.p2pStop({ clear: false }));
+  }
+  function setStep(s) {
+    step = s;
+    $('#stepTabs').dataset.s = s;
+    $$('#stepTabs button').forEach((b) => b.classList.toggle('on', +b.dataset.step === s));
+    $('#card3d').classList.toggle('turn', s === 2);
+  }
+  $$('#stepTabs button').forEach((b) => (b.onclick = () => { buzz(); setStep(+b.dataset.step); }));
+  $('#nextBtn').onclick = () => { buzz(); setStep(2); };
+
+  function renderLive() {
+    if (!(state.running && state.url)) return;
+    const hot = state.mode === 'hotspot';
+    $('#stepTabs').classList.toggle('hidden', !hot);
+    $('#card3d').classList.toggle('single', !hot);
+    if (hot) { $('#qrWifi').src = state.qrWifi; $('#ssid').textContent = state.ssid; $('#pass').textContent = state.pass; }
+    $('#qrLink').src = state.qrLink; $('#link').textContent = state.url;
+    $('#linkT').textContent = hot ? 'Now scan to open the page' : 'Scan with the other phone';
+    $('#pinBig').classList.toggle('hidden', !state.pin);
+    $('#pinBig').innerHTML = (state.pin || '').split('').map((d) => `<span>${d}</span>`).join('');
+    setStep(hot ? step : 2);
+    // guests in orbit
+    const g = state.guests || [];
+    $$('#radar .guest').forEach((e) => e.remove());
+    g.slice(0, 6).forEach((name, k) => {
+      const a = (-90 + k * (360 / Math.max(3, g.length))) * Math.PI / 180;
+      const el = document.createElement('div'); el.className = 'guest';
+      el.style.left = `calc(50% + ${Math.cos(a) * 95}px - 42px)`; el.style.top = `calc(50% + ${Math.sin(a) * 95}px - 30px)`; el.style.width = '84px';
+      const h = hue(name);
+      el.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 60%),hsl(${(h + 50) % 360} 85% 50%))">${esc(name.trim()[0] || '?').toUpperCase()}</span><small>${esc(name)}</small>`;
+      $('#radar').appendChild(el);
+    });
+    $('#statusT').firstChild.textContent = g.length ? `${g.length} phone${g.length > 1 ? 's' : ''} connected` : hot ? 'Waiting for the other phone…' : 'Waiting for the other phone…';
+    $('#statusS').textContent = g.length ? 'They can download now. Keep this screen open.' : hot ? 'Show them step 1, then step 2.' : 'Both phones need to be on the same Wi-Fi.';
+    $('#statGuests').textContent = g.length;
+    $('#statSent').textContent = fmt(state.sentBytes || 0) || '0 B';
+    // items with progress
+    const items = state.items || [];
+    $('#liveList').innerHTML = items.length ? items.map((x) => {
+      const p = prog.get(x.i); const done = sentNames.has(x.name) && (!p || p.done >= p.total);
+      const st = p && !done ? `<span>${fmt(p.done)} of ${fmt(x.size)}</span>` : done ? '<span class="ok">Sent ✓</span>' : `<span>${fmt(x.size)} · waiting</span>`;
+      return `<div class="it">${badge(x)}<div class="n"><b>${esc(label(x))}</b>${st}</div>${p && !done ? ring(p.done / Math.max(1, p.total)) : done ? `<span class="tick">${ICON.check}</span>` : `<button class="rm" data-rm="${x.i}" aria-label="Remove">${ICON.x}</button>`}</div>`;
+    }).join('') : '<div class="empty">Nothing to send. The other phone can still send to you.</div>';
+    $$('#liveList [data-rm]').forEach((b) => (b.onclick = async () => apply(await DW.p2pRemove({ i: +b.dataset.rm }))));
+    const got = state.received || [];
+    $('#gotWrap').classList.toggle('hidden', !got.length);
+    $('#gotList').innerHTML = got.slice().reverse().map((r) => `<div class="it">${badge(r)}<div class="n"><b>${esc(r.name)}</b><span class="ok">From ${esc(r.from)} · ${esc(r.folder)}</span></div><button class="act" data-open="${esc(r.uri)}" data-name="${esc(r.name)}">Open</button></div>`).join('');
+    $$('#gotList [data-open]').forEach((b) => (b.onclick = () => DW.p2pOpen({ uri: b.dataset.open, name: b.dataset.name }).catch((e) => toast(e.message))));
+  }
+  function tickSpeed(bytes) {
+    const now = performance.now();
+    if (lastT && now - lastT > 400) { const s = ((bytes - lastBytes) / (now - lastT)) * 1000; speed = speed ? speed * 0.6 + s * 0.4 : s; $('#statSpeed').textContent = `${fmt(Math.max(0, speed))}/s`; lastBytes = bytes; lastT = now; }
+    if (!lastT) { lastT = now; lastBytes = bytes; }
+  }
+  let liveTimer = null;
+  const refresh = () => { clearTimeout(liveTimer); liveTimer = setTimeout(async () => apply(await DW.p2pInfo()), 120); };
+
+  // ---------- RECEIVE ----------
+  let rstate = 'idle'; // idle | conn | pin | list | run | done
+  let rItems = [], rSel = new Set(), rFrom = '', rGot = [], rProg = new Map(), rTotal = 0, rT0 = 0;
+  // Phones sharing on the same Wi-Fi (DropWave on both): no QR needed, the other phone allows it.
+  const near = new Map();
+  let nearOn = false;
+  function syncNearby() {
+    const want = view === 'recv' && rstate === 'idle' && document.visibilityState === 'visible';
+    if (want === nearOn) return;
+    nearOn = want;
+    if (!want) near.clear();
+    DW.p2pNearby({ on: want }).catch(() => {});
+    renderNear();
+  }
+  function renderNear() {
+    const list = [...near.values()];
+    $('#nearEmpty')?.classList.toggle('hidden', list.length > 0);
+    $$('#nearList .near').forEach((e) => { if (!near.has(e.dataset.key)) e.remove(); });
+    for (const n of list) {
+      if ($(`#nearList .near[data-key="${CSS.escape(n.key)}"]`)) continue;
+      const h = hue(n.name);
+      const b = document.createElement('button');
+      b.className = 'it near'; b.dataset.key = n.key;
+      b.innerHTML = `<span class="av" style="background:linear-gradient(140deg,hsl(${h} 80% 60%),hsl(${(h + 50) % 360} 85% 50%))">${esc((n.name.trim()[0] || '?').toUpperCase())}</span><div class="n"><b>${esc(n.name)}</b><span>${n.count ? `Sharing ${n.count} item${n.count > 1 ? 's' : ''}` : 'Ready to swap files'}</span></div><span class="act">Connect</span>`;
+      b.onclick = () => knock(n);
+      $('#nearList').appendChild(b);
+      buzz(10);
+    }
+  }
+  async function knock(n) {
+    buzz();
+    rShow('conn');
+    rSid = Date.now();
+    $('#phase [data-p="join"]').lastChild.textContent = `Waiting for ${n.name} to allow`;
+    phase('join', 'now'); phase('find', null);
+    try {
+      const r = await DW.p2pKnock({ host: n.host, port: n.port });
+      phase('join', 'done'); phase('find', 'now');
+      rFrom = r.from || n.name;
+      await loadRecv();
+    } catch (e) {
+      toast((e.code || e.message) === 'declined' ? `${n.name} didn’t allow it` : (e.message || 'Couldn’t connect'));
+      rShow('idle');
+    } finally { $('#phase [data-p="join"]').lastChild.textContent = 'Joining DropWave Wi-Fi'; }
+  }
+  DW?.addListener('p2precv', (e) => {
+    if (e.type === 'nearby') { near.set(e.key, e); renderNear(); }
+    if (e.type === 'nearbylost') { near.delete(e.key); renderNear(); }
+  });
+  document.addEventListener('visibilitychange', syncNearby);
+
+  function rShow(s) {
+    rstate = s;
+    setTimeout(syncNearby);
+    ['rIdle', 'rConn', 'rPin', 'rList', 'rRun', 'rDoneV'].forEach((id) => $('#' + id).classList.add('hidden'));
+    $('#' + { idle: 'rIdle', conn: 'rConn', pin: 'rPin', list: 'rList', run: 'rRun', done: 'rDoneV' }[s]).classList.remove('hidden');
+    renderDock();
+  }
+  function phase(p, st) { const e = $(`#phase [data-p="${p}"]`); e.classList.remove('now', 'done'); if (st) e.classList.add(st); e.querySelector('.dot').innerHTML = st === 'done' ? '<svg class="i" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : ''; }
+  async function scan() {
+    buzz();
+    let r;
+    try { r = await DW.p2pScan(); }
+    catch (e) { if ((e.code || e.message) !== 'cancelled') toast(e.message || 'Couldn’t scan'); return; }
+    rShow('conn');
+    rSid = Date.now();
+    phase('join', r.joined ? 'done' : null); phase('find', 'now');
+    if (r.joined && !r.dropwave) { toast('Joined the Wi-Fi. Now scan step 2 on the other phone.'); rShow('idle'); setTimeout(scan, 700); return; }
+    rFrom = r.from || '';
+    await loadRecv();
+  }
+  async function loadRecv(pin) {
+    try {
+      const info = await DW.p2pRecvInfo(pin ? { pin } : {});
+      if (info.pin) { rShow('pin'); if (pin) { $('#pinErr').textContent = 'Wrong PIN, try again'; $$('#pins input').forEach((x) => (x.value = '')); } setTimeout(() => $('#pins input').focus(), 120); return; }
+      phase('find', 'done');
+      rFrom = info.from || rFrom || 'Phone';
+      rItems = info.items || [];
+      rSel = new Set(rItems.map((x) => x.i));
+      $('#rFrom').textContent = rFrom;
+      renderRecvList();
+      buzz(25);
+      setTimeout(() => rShow('list'), 250);
+    } catch (e) { toast(e.message || 'Couldn’t reach the other phone'); leave(); }
+  }
+  $$('#pins input').forEach((inp, k, all) => {
+    inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, '').slice(-1); if (inp.value && all[k + 1]) all[k + 1].focus(); const v = all.map((x) => x.value).join(''); if (v.length === 4) { $('#pinErr').textContent = ''; loadRecv(v); } });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !inp.value && all[k - 1]) all[k - 1].focus(); });
+  });
+  function renderRecvList() {
+    const total = rItems.reduce((a, x) => a + Math.max(0, x.size), 0);
+    $('#rH').textContent = `${rItems.length} item${rItems.length === 1 ? '' : 's'} · ${fmt(total)}`;
+    $('#rToggle').textContent = rSel.size === rItems.length ? 'Select none' : 'Select all';
+    $('#rItems').innerHTML = rItems.length ? rItems.map((x, k) => `<button class="it" style="width:100%;text-align:left;animation-delay:${Math.min(k, 12) * 30}ms" data-i="${x.i}">${badge(x)}<div class="n"><b>${esc(label(x))}</b><span>${fmt(x.size)}</span></div><span class="chk ${rSel.has(x.i) ? 'on' : ''}">${ICON.check}</span></button>`).join('')
+      : '<div class="empty"><span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></svg></span>Nothing shared yet. Files they add show up here.</div>';
+    $$('#rItems [data-i]').forEach((b) => (b.onclick = () => { buzz(8); const i = +b.dataset.i; rSel.has(i) ? rSel.delete(i) : rSel.add(i); b.querySelector('.chk').classList.toggle('on', rSel.has(i)); $('#rToggle').textContent = rSel.size === rItems.length ? 'Select none' : 'Select all'; renderDock(); }));
+    renderDock();
+  }
+  $('#rToggle').onclick = () => { rSel = rSel.size === rItems.length ? new Set() : new Set(rItems.map((x) => x.i)); renderRecvList(); };
+  async function receive() {
+    const list = rItems.filter((x) => rSel.has(x.i));
+    if (!list.length) return;
+    list.forEach((x) => gotKeys.add(x.i));
+    rGot = []; rProg = new Map(); rTotal = list.reduce((a, x) => a + Math.max(0, x.size), 0); rT0 = performance.now();
+    $('#rRunList').innerHTML = list.map((x) => `<div class="it" data-ri="${x.i}">${badge(x)}<div class="n"><b>${esc(label(x))}</b><span>${fmt(x.size)} · waiting</span></div><span class="w"></span></div>`).join('');
+    setBig(0, 'Starting…');
+    $('#rDone').textContent = `0/${list.length}`;
+    rShow('run'); buzz(20);
+    await DW.p2pRecvGet({ items: list });
+  }
+  function setBig(f, sub) {
+    $('#bigFg').style.strokeDashoffset = String(553 * (1 - Math.min(1, f)));
+    $('#bigPct').textContent = `${Math.floor(Math.min(1, f) * 100)}%`;
+    if (sub) $('#bigSub').textContent = sub;
+  }
+  function confetti() {
+    const box = document.createElement('div'); box.className = 'confetti';
+    const cols = ['#8b7dff', '#2cc8ea', '#ff5a8a', '#ffd36e', '#3ddc97'];
+    for (let k = 0; k < 46; k++) { const i = document.createElement('i'); i.style.left = `${Math.random() * 100}%`; i.style.background = cols[k % cols.length]; i.style.animationDelay = `${Math.random() * 0.4}s`; i.style.animationDuration = `${1.2 + Math.random() * 0.9}s`; box.appendChild(i); }
+    document.body.appendChild(box); setTimeout(() => box.remove(), 2600);
+  }
+  function finish(e) {
+    const ok = rGot.length;
+    $('#doneT').textContent = e.cancelled ? 'Stopped' : ok === e.count ? 'All received' : `${ok} of ${e.count} received`;
+    $('#doneP').textContent = `${fmt(e.bytes)} in ${dur(e.secs)} from ${rFrom}`;
+    const has = (re) => rGot.filter((g) => re.test(g.name));
+    const acts = [];
+    if (has(/\.vcf$/i).length) acts.push(`<button class="btn primary" data-open="${esc(has(/\.vcf$/i)[0].uri)}" data-name="${esc(has(/\.vcf$/i)[0].name)}"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/></svg>Import contacts</button>`);
+    if (has(/\.apk$/i).length) acts.push(`<button class="btn ${acts.length ? 'soft' : 'primary'}" data-open="${esc(has(/\.apk$/i)[0].uri)}" data-name="${esc(has(/\.apk$/i)[0].name)}"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Install ${esc(has(/\.apk$/i)[0].name.replace(/\.apk$/i, ''))}</button>`);
+    $('#doneActions').innerHTML = acts.join('');
+    $('#doneList').innerHTML = rGot.map((g) => `<div class="it">${badge(g)}<div class="n"><b>${esc(label(g))}</b><span class="ok">${esc(g.folder)}</span></div><button class="act" data-open="${esc(g.uri)}" data-name="${esc(g.name)}">${/\.apk$/i.test(g.name) ? 'Install' : /\.vcf$/i.test(g.name) ? 'Import' : 'Open'}</button></div>`).join('');
+    $$('#rDoneV [data-open]').forEach((b) => (b.onclick = () => DW.p2pOpen({ uri: b.dataset.open, name: b.dataset.name }).catch((x) => toast(x.message))));
+    rShow('done');
+    if (ok && !e.cancelled) { confetti(); buzz([20, 60, 30]); }
+  }
+  // While connected, look for files the other phone added since (no need to scan again).
+  const gotKeys = new Set();
+  setInterval(async () => {
+    if (document.visibilityState !== 'visible' || (rstate !== 'list' && rstate !== 'done')) return;
+    let info; try { info = await DW.p2pRecvInfo({}); } catch { return; }
+    if (!info.items) return;
+    const known = new Set(rItems.map((x) => x.i));
+    const fresh = info.items.filter((x) => !known.has(x.i));
+    rItems = info.items;
+    if (!fresh.length) { if (rstate === 'list') renderRecvList(); return; }
+    buzz(20);
+    if (rstate === 'list') { fresh.forEach((x) => rSel.add(x.i)); renderRecvList(); toast(`${fresh.length} new from ${rFrom}`); }
+    else {
+      rSel = new Set(fresh.map((x) => x.i));
+      $('#doneActions').insertAdjacentHTML('afterbegin', `<button class="btn primary" id="getNew"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>${fresh.length} new from ${esc(rFrom)} <small>· Receive</small></button>`);
+      $('#getNew').onclick = () => { renderRecvList(); rShow('list'); };
+    }
+  }, 3000);
+  async function leave() { await DW.p2pLeave().catch(() => {}); rItems = []; rShow('idle'); }
+
+  DW?.addListener('p2precv', (e) => {
+    if (e.type === 'progress') {
+      rProg.set(e.i, e.done);
+      const f = rTotal ? e.all / rTotal : 0;
+      const left = e.speed > 0 ? (rTotal - e.all) / e.speed : Infinity;
+      setBig(f, `${fmt(e.all)} of ${fmt(rTotal)}`);
+      $('#rSpeed').textContent = `${fmt(e.speed)}/s`; $('#rLeft').textContent = dur(left);
+      const row = $(`#rRunList [data-ri="${e.i}"]`);
+      if (row) { row.querySelector('.n span').textContent = `${fmt(e.done)} of ${fmt(e.size)}`; row.querySelector('.w').innerHTML = ring(e.done / Math.max(1, e.size)); }
+    } else if (e.type === 'file') {
+      rGot.push(e);
+      hist.log(rSid, 'in', rFrom || 'A phone', e.name, e.size);
+      $('#rDone').textContent = `${rGot.length}/${$$('#rRunList .it').length}`;
+      const row = $(`#rRunList [data-ri="${e.i}"]`);
+      if (row) { row.querySelector('.n span').className = 'ok'; row.querySelector('.n span').textContent = `Saved · ${e.folder}`; row.querySelector('.w').innerHTML = `<span class="tick">${ICON.check}</span>`; }
+      buzz(8);
+    } else if (e.type === 'error') {
+      const row = $(`#rRunList [data-ri="${e.i}"]`);
+      if (row) { row.querySelector('.n span').className = 'err'; row.querySelector('.n span').textContent = e.error; row.querySelector('.w').innerHTML = ''; }
+    } else if (e.type === 'done') { setBig(1); setTimeout(() => finish(e), 450); }
+    else if (e.type === 'uploaded') { toast(`Sent ${e.name}`); hist.log(rSid, 'out', rFrom || 'A phone', e.name, e.size); }
+    else if (e.type === 'uperror') toast(`Couldn’t send ${e.name}: ${e.error}`);
+    else if (e.type === 'asking') toast(`Asking ${rFrom || 'the other phone'} to accept ${e.count} file${e.count > 1 ? 's' : ''}…`);
+    else if (e.type === 'declined') toast(`${rFrom || 'The other phone'} didn’t accept`);
+    else if (e.type === 'lost' && rstate !== 'idle' && rstate !== 'done') { toast('Lost the other phone’s Wi-Fi'); leave(); }
+  });
+
+  DW?.addListener('p2p', (e) => {
+    if (e.type === 'progress') { prog.set(e.i, { done: e.done, total: e.total }); tickSpeed(e.sentBytes); const row = $$('#liveList .it')[[...(state.items || [])].findIndex((x) => x.i === e.i)];
+      if (row) { const s = row.querySelector('.n span'); s.className = ''; s.textContent = `${fmt(e.done)} of ${fmt(e.total)} → ${e.guest}`; const w = row.lastElementChild; if (w && !w.classList.contains('ring')) w.outerHTML = ring(e.done / Math.max(1, e.total)); else if (w) w.outerHTML = ring(e.done / Math.max(1, e.total)); }
+      $('#statSent').textContent = fmt(e.sentBytes); return; }
+    if (e.type === 'sent') { prog.delete(e.i); sentNames.add(e.name); hist.log(shareSid, 'out', e.guest || 'A phone', e.name, e.total); buzz(8); }
+    if (e.type === 'received') { toast(`Received ${e.name} from ${e.guest}`); hist.log(shareSid, 'in', e.guest || 'A phone', e.name, e.size); buzz(20); }
+    if (e.type === 'ask') { askQueue.push(e); showAsk(); return; }
+    if (e.type === 'asked') { askQueue = askQueue.filter((a) => a.id !== e.id); if (askNow?.id === e.id) closeAsk(); return; }
+    if (e.type === 'receiving') { $('#statusS').textContent = `Receiving ${e.name} · ${Math.floor((e.done / Math.max(1, e.total)) * 100)}%`; return; }
+    if (e.type === 'guest' && state.mode === 'hotspot' && step === 1) setStep(2);
+    if (e.type === 'guest') buzz(30);
+    if (e.type === 'stopped') toast('DropWave Wi-Fi stopped');
+    refresh();
+  });
+
+  // ---------- "X wants to send you files": accept / decline / trust ----------
+  let askQueue = [], askNow = null;
+  const askEl = document.createElement('div');
+  askEl.className = 'sheet'; askEl.id = 'askSheet';
+  askEl.innerHTML = '<div class="body" style="height:auto;padding:6px 18px calc(18px + env(safe-area-inset-bottom))"><div class="grab"></div><div id="askBody"></div></div>';
+  document.body.appendChild(askEl);
+  function showAsk() {
+    if (askNow || !askQueue.length) return;
+    askNow = askQueue.shift();
+    const a = askNow; const h = hue(a.name);
+    $('#askBody').innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px;margin:8px 0 14px">
+        <span class="av" style="width:56px;height:56px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;flex:none;background:linear-gradient(140deg,hsl(${h} 80% 60%),hsl(${(h + 50) % 360} 85% 50%));animation:pop .45s var(--spring)">${esc((a.name.trim()[0] || '?').toUpperCase())}</span>
+        <div style="min-width:0"><b style="display:block;font-size:19px;letter-spacing:-.02em">${esc(a.name)}</b><span style="color:var(--muted);font-size:14px">${a.kind === 'see' ? 'wants to see what you’re sharing' : `wants to send you ${a.count === 1 ? 'a file' : `${a.count} files`}${a.bytes > 0 ? ` · ${fmt(a.bytes)}` : ''}`}</span></div>
+      </div>
+      ${a.names ? `<div class="list" style="padding:10px 14px;font-size:13px;color:var(--muted);line-height:1.5">${esc(a.names)}${a.count > 5 ? ` and ${a.count - 5} more` : ''}</div>` : ''}
+      <button class="row press" id="askTrust" style="width:100%;text-align:left;margin-top:10px"><span class="t"><b>Always allow ${esc(a.name)}</b><span>Trusted phones connect and send without asking. Change it in History.</span></span><span class="sw" id="askSw"></span></button>
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn soft" id="askNo">Decline</button><button class="btn primary" id="askYes"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>${a.kind === 'see' ? 'Allow' : 'Accept all'}</button></div>`;
+    let trust = false;
+    $('#askTrust').onclick = () => { buzz(); trust = !trust; $('#askSw').classList.toggle('on', trust); };
+    const answer = (ok) => { buzz(ok ? 20 : 8); DW.p2pAnswer({ id: a.id, ok, trust: ok && trust, gid: a.gid, name: a.name }); if (ok && trust) toast(`${a.name} is now trusted`); closeAsk(); };
+    $('#askYes').onclick = () => answer(true);
+    $('#askNo').onclick = () => answer(false);
+    askEl.classList.add('open'); buzz([30, 50, 30]);
+  }
+  function closeAsk() { askEl.classList.remove('open'); askNow = null; setTimeout(showAsk, 350); }
+
+  // ---------- history ----------
+  async function renderTrusted() {
+    const t = (await DW.p2pTrusted().catch(() => ({ list: [] }))).list || [];
+    const box = $('#trustBox'); if (!box) return;
+    box.innerHTML = t.length ? `<div class="list">${t.map((x) => { const h = hue(x.name); return `<div class="it"><span class="badge" style="border-radius:50%;color:#fff;background:linear-gradient(140deg,hsl(${h} 80% 60%),hsl(${(h + 50) % 360} 85% 50%))">${esc((x.name.trim()[0] || '?').toUpperCase())}</span><div class="n"><b>${esc(x.name)}</b><span>Sends without asking</span></div><button class="act" data-untrust="${esc(x.gid)}">Remove</button></div>`; }).join('')}</div>`
+      : '<div class="empty" style="padding:14px">No trusted phones. When a phone asks to send, turn on “Always accept”.</div>';
+    $$('#trustBox [data-untrust]').forEach((b) => (b.onclick = async () => { await DW.p2pUntrust({ gid: b.dataset.untrust }); renderTrusted(); }));
+  }
+  function renderHist() {
+    const h = hist.get();
+    const trustHtml = '<h2>Trusted phones</h2><div id="trustBox"></div><h2>History</h2>';
+    if (!h.length) { $('#histBox').innerHTML = trustHtml + '<div class="empty" style="margin-top:20px"><span class="em"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></span>Nothing yet. What you send and receive phone to phone shows here.</div>'; renderTrusted(); return; }
+    let day = '', out = trustHtml;
+    for (const e of h) {
+      const d = new Date(e.at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+      if (d !== day) { if (day) out += '</div>'; day = d; out += `<div class="hist-day">${esc(d)}</div><div class="list">`; }
+      out += `<div class="it"><span class="badge" style="background:${e.dir === 'in' ? 'color-mix(in oklab, var(--good) 15%, transparent);color:var(--good)' : 'var(--a1);color:var(--accent)'}"><svg class="i" viewBox="0 0 24 24">${e.dir === 'in' ? '<path d="M12 5v14M19 12l-7 7-7-7"/>' : '<path d="M12 19V5M5 12l7-7 7 7"/>'}</svg></span><div class="n"><b>${e.dir === 'in' ? `From ${esc(e.peer || e.from)}` : `To ${esc(e.peer || e.to)}`}</b><span>${e.count} item${e.count > 1 ? 's' : ''} · ${fmt(e.bytes)} · ${new Date(e.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}<br/>${esc((e.names || []).join(', '))}</span></div></div>`;
+    }
+    $('#histBox').innerHTML = out + '</div><div style="text-align:center;margin-top:16px"><button class="act" id="histClear">Clear history</button></div>';
+    $('#histClear').onclick = () => { localStorage.removeItem(HKEY); renderHist(); };
+    renderTrusted();
+  }
+
+  // ---------- start ----------
+  (async () => {
+    let paths = [];
+    try { paths = JSON.parse(sessionStorage.getItem('dw_p2p_paths') || '[]'); sessionStorage.removeItem('dw_p2p_paths'); } catch {}
+    const q = new URLSearchParams(location.search);
+    apply(paths.length ? await DW.p2pAddPaths({ paths }) : await DW.p2pInfo());
+    checkPerm();
+    setView(q.get('v') === 'recv' ? 'recv' : 'send');
+  })();
+})();
+</script>
+</body>
+</html>

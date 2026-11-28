@@ -13,6 +13,19 @@ internal const val TAG = "DropWave"
 
 /** System notifications: files offered by a PC (with Download / Decline) and chat messages. */
 object Notifs {
+    /** Phone to phone: someone wants to send files (answered in DropWave). */
+    fun askToReceive(c: Context, from: String, count: Int, see: Boolean = false) {
+        runCatching {
+            post(c, 7710, androidx.core.app.NotificationCompat.Builder(c, CH_DOWNLOADS)
+                .setSmallIcon(R.drawable.ic_stat_dropwave)
+                .setContentTitle(if (see) "$from wants to see what you’re sharing" else "$from wants to send you ${if (count == 1) "a file" else "$count files"}")
+                .setContentText(if (see) "Open DropWave to allow or decline" else "Open DropWave to accept or decline")
+                .setContentIntent(openApp(c))
+                .setAutoCancel(true)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH))
+        }
+    }
+
     const val CH_TRANSFERS = "transfers"
     const val CH_STATUS = "status"
     const val CH_DOWNLOADS = "downloads"

@@ -16,6 +16,7 @@ const csp = {
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss(), csp],
-  server: { port: 5173, strictPort: true },
+  // The Android project and its generated files change during app builds: not part of the PC UI.
+  server: { port: 5173, strictPort: true, watch: { ignored: ['**/mobile/**', '**/marketing/**', '**/dist/**', '**/release/**'] } },
   build: { outDir: 'dist', emptyOutDir: true },
 });

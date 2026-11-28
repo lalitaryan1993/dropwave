@@ -84,6 +84,7 @@ export function CallBanner({ phones, inline }) {
               )}
               <button onClick={() => act('decline')} title="Decline" className="no-drag grid h-12 w-12 place-items-center rounded-full bg-bad text-white shadow-lg active:scale-95"><PhoneOff className="h-5 w-5" /></button>
               {(!c.key || c.answer >= 0) && <button onClick={() => act('answer')} title="Answer on the phone" className="no-drag grid h-12 w-12 place-items-center rounded-full bg-good text-white shadow-lg active:scale-95"><Phone className="h-5 w-5" /></button>}
+              <button onClick={() => api.callDismiss?.(p.id)} title="Hide this (the call on the phone is not touched)" aria-label="Hide" className="no-drag grid h-7 w-7 shrink-0 place-items-center rounded-full text-faint transition hover:bg-[var(--line)] hover:text-fg"><X className="h-4 w-4" /></button>
             </div>
           ) : (
             <div className={`drag flex items-center gap-3 rounded-full border border-good/50 bg-panel-solid py-1.5 pl-4 pr-1.5 shadow-xl ${inline ? 'w-full' : ''}`}>
@@ -95,6 +96,7 @@ export function CallBanner({ phones, inline }) {
                 <Round title={c.speaker ? 'Speaker off' : 'Speaker'} on={c.speaker} onClick={() => act(c.speaker ? 'earpiece' : 'speaker')}><Volume2 className="h-4 w-4" /></Round>
               </>}
               <button onClick={() => act('end')} className="no-drag flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-bad px-3 text-[12px] font-semibold text-white active:scale-95"><PhoneOff className="h-3.5 w-3.5" /> Hang up</button>
+              <button onClick={() => api.callDismiss?.(p.id)} title="Hide this (the call on the phone is not touched)" aria-label="Hide" className="no-drag grid h-7 w-7 shrink-0 place-items-center rounded-full text-faint transition hover:bg-[var(--line)] hover:text-fg"><X className="h-4 w-4" /></button>
             </div>
           )}
         </motion.div>

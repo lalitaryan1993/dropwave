@@ -1,7 +1,7 @@
 {
   "name": "dropwave-android",
   "private": true,
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "DropWave for Android",
   "scripts": {
     "sync": "node build-www.cjs && npx cap sync android",

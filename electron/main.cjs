@@ -485,6 +485,15 @@ const chatSummaries = () => Object.values(chats.threads)
   .map((t) => ({ peer: t.peer, unread: t.unread, last: t.messages.at(-1) || null, updatedAt: t.updatedAt || 0 }))
   .sort((a, b) => b.updatedAt - a.updatedAt);
 
+// ---- vault: messages and files for a device that is away, sent by themselves when it is back ----
+let vault = []; // [{ id, peer:{id,name,kind,web}, text?, paths?, msgId?, at }]
+const VAULT_KEEP = 7 * 24 * 3600 * 1000;
+const vaultList = () => vault.map((x) => ({ id: x.id, peer: x.peer, text: x.text || '', names: (x.paths || []).map((p) => path.basename(p)), msgId: x.msgId || null, at: x.at }));
+function saveVault() { save('vault.json', vault); push('vault', vaultList()); }
+let flushVault = () => {}; // set in registerIpc (needs the senders there)
+let vaultTimer = null;
+const vaultSoon = () => { if (!vault.length) return; clearTimeout(vaultTimer); vaultTimer = setTimeout(() => flushVault(), 2500); };
+
 // Text from a PC or a browser lands in that device's conversation.
 function handleText(m) {
   const t = addMessage({ ...m.from, kind: m.from.kind }, { id: m.id || crypto.randomUUID(), dir: 'in', text: m.text, at: m.at || Date.now() });
@@ -567,7 +576,7 @@ async function startWeb() {
     decide: askUser,
     remote: (from, ev) => phoneHub.remote(from, ev),
   });
-  w.on('clients', (list) => { push('peers', allPeers()); phoneHub.sync(list); });
+  w.on('clients', (list) => { push('peers', allPeers()); phoneHub.sync(list); vaultSoon(); });
   w.on('phone', (m) => phoneHub.handle(m));
   w.on('transfer', handleTransfer);
   w.on('text', handleText);
@@ -651,7 +660,7 @@ async function startEngine() {
     onNewKey: (id, key) => { settings.knownKeys = { ...settings.knownKeys, [id]: key }; save('settings.json', settings); },
   });
 
-  engine.on('peers', () => push('peers', allPeers()));
+  engine.on('peers', () => { push('peers', allPeers()); vaultSoon(); });
   engine.on('request-closed', (id) => { pendingRequests.delete(id); push('request-closed', id); });
   engine.on('log', (m) => console.log('[engine]', m));
   engine.on('transfer', handleTransfer);
@@ -749,6 +758,95 @@ function registerIpc() {
     return sendTo(findPeer(peerId), clean);
   });
 
+  // ---- vault ----
+  const knownPeer = (peerId) => allPeers().find((x) => x.id === peerId) || chats.threads[peerId]?.peer || null;
+  const vaultAdd = (peer, item) => {
+    const it = { id: crypto.randomUUID(), peer: { id: peer.id, name: peer.name, kind: peer.kind || peer.platform, web: !!peer.web }, at: Date.now(), ...item };
+    vault.push(it);
+    saveVault();
+    return it;
+  };
+  // Files for a device: sent now if it is online, else kept (with a line in the chat) until it is back.
+  const filesFor = async (peerId, paths) => {
+    const clean = (paths || []).filter((p) => typeof p === 'string' && p && fs.existsSync(p));
+    if (!clean.length) throw new Error('Could not read the dropped items');
+    const online = allPeers().find((x) => x.id === peerId);
+    if (online) { await sendTo(online, clean); return { sent: true }; }
+    const peer = knownPeer(peerId);
+    if (!peer) throw new Error('That device is no longer online');
+    const names = clean.map((p) => path.basename(p));
+    const msg = { id: crypto.randomUUID(), dir: 'out', text: `📎 ${names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3} more` : names.join(', ')}`, at: Date.now(), status: 'queued' };
+    addMessage(peer, msg);
+    vaultAdd(peer, { paths: clean, msgId: msg.id });
+    return { queued: true, name: peer.name };
+  };
+  let vaultBusy = false;
+  flushVault = async () => {
+    if (vaultBusy || !vault.length) return;
+    vaultBusy = true;
+    try {
+      vault = vault.filter((x) => Date.now() - x.at < VAULT_KEEP);
+      for (const item of [...vault]) {
+        const peer = allPeers().find((p) => p.id === item.peer.id);
+        if (!peer) continue;
+        try {
+          if (item.text) {
+            if (peer.web) { if (!web?.sendText(peer.id, item.text)) throw new Error('That device is no longer connected'); }
+            else await engine.sendText(peer, item.text);
+          }
+          const paths = (item.paths || []).filter((p) => fs.existsSync(p));
+          if (paths.length) await sendTo(peer, paths);
+          if (item.msgId) updateMessage(item.peer.id, item.msgId, { status: 'sent', error: undefined });
+          vault = vault.filter((x) => x.id !== item.id);
+          saveVault();
+        } catch (e) {
+          console.warn('[vault]', item.peer.name, e.message);
+        }
+      }
+    } finally { vaultBusy = false; }
+  };
+  // ---- TV remote (Android TV / Google TV) ----
+  let tvHub = null;
+  const tv = () => {
+    if (tvHub) return tvHub;
+    const { TvHub } = require('./tv.cjs');
+    tvHub = new TvHub(dataFile('tv.json'));
+    tvHub.on('changed', () => push('tv', { type: 'list', ...tvHub.list() }));
+    tvHub.on('state', (s) => push('tv', { type: 'state', state: s }));
+    tvHub.on('closed', (host) => push('tv', { type: 'closed', host }));
+    return tvHub;
+  };
+  const tvCall = (fn) => async (_e, ...a) => { try { return await fn(...a); } catch (e) { throw new Error(e.code === 'pair' || e.message === 'pair' ? 'pair' : (e.message || 'TV error')); } };
+  ipcMain.handle('tv:list', tvCall(() => tv().list()));
+  ipcMain.handle('tv:find', tvCall((on) => { tv().find(!!on); return tv().list(); }));
+  ipcMain.handle('tv:pair', tvCall((host, name) => tv().pairStart(String(host), String(name || 'TV'))));
+  ipcMain.handle('tv:code', tvCall((code) => tv().pairCode(String(code))));
+  ipcMain.handle('tv:open', tvCall(async (host) => { await tv().open(String(host)); return tv().list(); }));
+  ipcMain.handle('tv:close', tvCall(() => { tv().close(); return tv().list(); }));
+  ipcMain.handle('tv:key', tvCall((code, dir) => tv().key(Number(code) | 0, Number(dir) || 3)));
+  ipcMain.handle('tv:text', tvCall((s) => tv().text(String(s || '').slice(0, 500))));
+  ipcMain.handle('tv:launch', tvCall((link) => { const l = String(link); if (!/^(https?:|market:|spotify:|vnd\.|intent:)/i.test(l)) throw new Error('Not a link'); tv().launch(l); }));
+  ipcMain.handle('tv:rename', tvCall((host, name) => { tv().rename(String(host), String(name)); return tv().list(); }));
+  ipcMain.handle('tv:forget', tvCall((host) => { tv().forget(String(host)); return tv().list(); }));
+
+  ipcMain.handle('vault:list', () => vaultList());
+  ipcMain.handle('vault:remove', (_e, id) => {
+    const it = vault.find((x) => x.id === id || (x.msgId && x.msgId === id));
+    if (!it) return vaultList();
+    vault = vault.filter((x) => x !== it);
+    if (it.msgId) updateMessage(it.peer.id, it.msgId, { status: 'failed', error: 'Removed from the Vault' });
+    saveVault();
+    return vaultList();
+  });
+  ipcMain.handle('vault:files', (_e, peerId, paths) => filesFor(String(peerId), paths));
+  ipcMain.handle('vault:pick', async (_e, peerId) => {
+    const peer = knownPeer(String(peerId));
+    const r = await dialog.showOpenDialog(win, { title: `Send to ${peer?.name || 'device'}`, properties: ['openFile', 'multiSelections'] });
+    if (r.canceled || !r.filePaths.length) return null;
+    return filesFor(String(peerId), r.filePaths);
+  });
+  setTimeout(() => flushVault(), 8000);
+
   ipcMain.handle('send:pick', async (_e, peerId, kind) => {
     const peer = findPeer(peerId);
     const r = await dialog.showOpenDialog(win, {
@@ -785,6 +883,7 @@ function registerIpc() {
   // Phone on PC (Android app)
   ipcMain.handle('phone:list', () => ({ phones: phoneHub.list(), timeline: phoneHub.timeline, asks: phoneHub.pendingAsks(), remote: phoneHub.remoteState() }));
   ipcMain.handle('phone:cmd', (_e, id, cmd) => phoneHub.command(String(id), cmd));
+  ipcMain.handle('call:dismiss', (_e, id) => phoneHub.dismissCall(String(id)));
   ipcMain.handle('remote:respond', (_e, id, allow, always) => phoneHub.respond(String(id), !!allow, !!always));
   ipcMain.handle('remote:revoke', (_e, id) => phoneHub.revoke(String(id)));
   ipcMain.handle('photos:get', (_e, id) => phoneHub.photos(String(id)));
@@ -916,6 +1015,11 @@ function registerIpc() {
     const known = allPeers().find((x) => x.id === peerId) || chats.threads[peerId]?.peer || { id: peerId, name: 'Unknown' };
     const msg = { id: crypto.randomUUID(), dir: 'out', text: body, at: Date.now(), status: 'sending' };
     addMessage(known, msg);
+    if (!allPeers().some((x) => x.id === peerId) && chats.threads[peerId]) { // away: keep it until it is back
+      updateMessage(peerId, msg.id, { status: 'queued' });
+      vaultAdd(known, { text: body, msgId: msg.id });
+      return msg.id;
+    }
     try {
       const peer = findPeer(peerId);
       if (peer.web) { if (!web?.sendText(peer.id, body)) throw new Error('That device is no longer connected'); }
@@ -1073,6 +1177,9 @@ app.whenReady().then(async () => {
   save('settings.json', settings);
   history = load('history.json', { items: [] });
   chats = load('chats.json', { threads: {} });
+  // load() merges objects, so a list is read as it is.
+  try { vault = JSON.parse(fs.readFileSync(dataFile('vault.json'), 'utf8')); } catch { vault = []; }
+  vault = (Array.isArray(vault) ? vault : Object.values(vault)).filter((x) => x && x.peer?.id && Date.now() - x.at < VAULT_KEEP);
   nativeTheme.themeSource = settings.theme;
   nativeTheme.on('updated', () => { applyTheme(); push('state', publicState()); });
 

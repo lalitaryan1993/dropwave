@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.webmanifest" />
 <title>DropWave</title>
+<script src="look.js?v=1.11.0"></script>
 <style>
   :root {
     --bg:#f5f6fa; --panel:#ffffffd9; --raised:#fff; --line:rgba(20,24,40,.09); --line2:rgba(20,24,40,.16);
@@ -167,6 +168,12 @@
   .call.full #cKeys { position:absolute; left:10px; right:84px; bottom:8px; width:auto; margin:0; z-index:3; }
   .call .chint { position:relative; z-index:2; text-align:center; font-size:12.5px; color:#fffb; padding:0 16px 6px; }
 
+  .vault { border:1px dashed var(--line2); background:var(--panel); border-radius:18px; padding:12px 14px; margin-bottom:12px; }
+  .vault-h { font-weight:700; font-size:14.5px; }
+  .vault-sub { color:var(--faint); font-size:12.5px; margin:2px 0 8px; }
+  .vault-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:13px; }
+  .vault-t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vault-row button { border:0; background:transparent; color:var(--faint); font-size:15px; padding:4px 8px; cursor:pointer; }
   .toast { position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--raised); border:1px solid var(--line2); padding:11px 16px; border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.25); font-size:14px; z-index:60; }
   @media (min-width: 900px) { .wrap { max-width:760px; } body { font-size:16px; } }
 
@@ -238,6 +245,79 @@
   .empty-state b { color:var(--fg); font-size:15px; }
   .offer { margin-bottom:14px; }
   @media (min-width: 640px) { .pills { grid-template-columns:repeat(3, 1fr); } }
+
+  /* ===== 1.11 look: motion, depth, colour-coded actions ===== */
+  :root { --ease:cubic-bezier(.2,.8,.2,1); --spring:cubic-bezier(.34,1.56,.64,1); }
+  @keyframes dwRise { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
+  @keyframes dwPop { 0% { transform:scale(.6); opacity:0 } 70% { transform:scale(1.08) } 100% { transform:scale(1); opacity:1 } }
+  @keyframes dwRipple { from { transform:scale(.7); opacity:.9 } to { transform:scale(2.3); opacity:0 } }
+  @keyframes dwFlow { from { left:-12% } to { left:100% } }
+  header.top { margin:4px 0 18px; }
+  header.top img { width:36px; height:36px; border-radius:12px; box-shadow:0 10px 24px -12px var(--glow); }
+  header.top .t { font-size:21px; font-weight:820; letter-spacing:-.03em; }
+  .chip { transition:transform .18s var(--ease), background .2s; }
+  .chip:active { transform:scale(.94); }
+  .chip.icon { width:38px; padding:0; justify-content:center; }
+  .chip.icon svg { width:18px; height:18px; color:var(--fg); }
+
+  .tab[data-tab="home"] > * { animation:dwRise .5s var(--ease) both; }
+  .tab[data-tab="home"] > *:nth-child(2) { animation-delay:.04s } .tab[data-tab="home"] > *:nth-child(3) { animation-delay:.08s }
+  .tab[data-tab="home"] > *:nth-child(4) { animation-delay:.12s } .tab[data-tab="home"] > *:nth-child(5) { animation-delay:.16s }
+  .tab[data-tab="home"] > *:nth-child(6) { animation-delay:.2s } .tab[data-tab="home"] > *:nth-child(n+7) { animation-delay:.24s }
+
+  /* hero: phone and PC linked by a flowing line */
+  .hero { padding:20px; border-radius:30px; min-height:196px; }
+  .hero::before { content:""; position:absolute; inset:0; background:radial-gradient(90% 60% at 10% 110%, rgba(255,255,255,.14), transparent 60%); pointer-events:none; }
+  .linkviz { position:relative; z-index:1; display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .linkviz .node { width:52px; height:52px; border-radius:17px; display:grid; place-items:center; flex:none; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.28); backdrop-filter:blur(6px); }
+  .linkviz .node svg { width:26px; height:26px; }
+  .linkviz .node.pc { width:60px; height:52px; }
+  .linkviz .wire { position:relative; flex:1; height:4px; border-radius:4px; background:rgba(255,255,255,.22); overflow:hidden; }
+  .linkviz .wire i { position:absolute; top:0; width:12%; height:100%; border-radius:4px; background:linear-gradient(90deg, transparent, #fff, transparent); animation:dwFlow 1.8s linear infinite; }
+  .linkviz .wire i:nth-child(2) { animation-delay:.6s } .linkviz .wire i:nth-child(3) { animation-delay:1.2s }
+  .hero.off .linkviz .wire i { animation:none; opacity:0; }
+  .hero.off .linkviz .wire { background:repeating-linear-gradient(90deg, rgba(255,255,255,.35) 0 6px, transparent 6px 12px); }
+  .hero.off .linkviz .node.pc { opacity:.6; }
+  .hero-name { font-size:26px; letter-spacing:-.03em; }
+  .hchip { backdrop-filter:blur(6px); height:30px; }
+
+  /* phone to phone card */
+  .p2pcard { position:relative; overflow:hidden; display:flex; align-items:center; gap:14px; width:100%; text-align:left; margin-top:14px; padding:14px 14px 14px 12px; border-radius:24px; color:var(--fg);
+    background:var(--panel); border:1px solid transparent; background-image:linear-gradient(var(--panel),var(--panel)), linear-gradient(120deg,var(--accent),var(--accent2)); background-origin:border-box; background-clip:padding-box,border-box;
+    transition:transform .18s var(--ease); }
+  .p2pcard:active { transform:scale(.98); }
+  .p2pcard .orb { position:relative; width:52px; height:52px; flex:none; display:grid; place-items:center; }
+  .p2pcard .orb b { position:relative; z-index:1; width:44px; height:44px; border-radius:15px; display:grid; place-items:center; color:#fff; background:linear-gradient(140deg,#ff8a5b,#ff3d77); box-shadow:0 10px 22px -10px rgba(255,61,119,.6); }
+  .p2pcard .orb b svg { width:24px; height:24px; }
+  .p2pcard .orb span { position:absolute; inset:4px; border-radius:50%; border:2px solid #ff5a7a; animation:dwRipple 2.6s var(--ease) infinite; }
+  .p2pcard .orb span:nth-child(2) { animation-delay:1.3s }
+  .p2pcard .tx { flex:1; min-width:0; } .p2pcard .tx b { display:block; font-size:15.5px; font-weight:740; } .p2pcard .tx small { display:block; font-size:12.5px; color:var(--muted); margin-top:2px; line-height:1.4; }
+  .p2pcard .new { font-size:10px; font-weight:800; letter-spacing:.04em; color:#fff; padding:3px 7px; border-radius:999px; background:linear-gradient(120deg,#ff8a5b,#ff3d77); margin-left:6px; vertical-align:2px; }
+  .p2pcard > svg { width:20px; height:20px; color:var(--faint); flex:none; }
+  .tvcard { margin-top:10px; } .tvcard .orb b { background:linear-gradient(140deg,#6366f1,#06b6d4); box-shadow:0 10px 22px -10px rgba(99,102,241,.6); } .tvcard .orb span { border-color:#6366f1; } .tvcard .new { background:linear-gradient(120deg,#6366f1,#06b6d4); }
+
+  /* sections and colour-coded action buttons */
+  .sec-h { font-size:11.5px; font-weight:760; letter-spacing:.1em; margin:26px 6px 10px; }
+  .group { padding:8px; border-radius:26px; }
+  .pills { gap:8px; }
+  .pbtn { min-height:60px; gap:12px; padding:0 12px 0 10px; border-radius:19px; font-weight:660; font-size:14px; background:var(--raised); border:1px solid var(--line); transition:transform .18s var(--ease), background .2s, box-shadow .2s; }
+  .pbtn:active { transform:scale(.96); }
+  .pbtn > svg { box-sizing:content-box; width:20px; height:20px; padding:9px; border-radius:13px; flex:none; color:var(--tone, var(--accent)); background:color-mix(in oklab, var(--tone, var(--accent)) 15%, transparent); }
+  .pbtn.primary { background:linear-gradient(120deg,var(--accent),var(--accent2)); border-color:transparent; }
+  .pbtn.primary > svg { color:#fff; background:rgba(255,255,255,.2); }
+  .group[data-tone="control"] { --tone:#8b5cf6; } .group[data-tone="transfer"] { --tone:#0ea5e9; }
+  .group[data-tone="docs"] { --tone:#f97316; } .group[data-tone="power"] { --tone:#10b981; }
+  .target { transition:transform .18s var(--ease), background .2s; } .target:active { transform:scale(.95); }
+  .target.on { box-shadow:0 10px 22px -14px var(--glow); }
+
+  /* tab bar */
+  .tabbar { padding:6px; gap:2px; }
+  .tabbar button { transition:background .3s var(--ease), color .25s, padding .3s var(--ease); }
+  .tabbar button.on { box-shadow:0 8px 20px -10px var(--glow); }
+  .tabbar button.on span { animation:dwRise .3s var(--ease) both; }
+  .tbadge { animation:dwPop .35s var(--spring); }
+  .offer { animation:dwRise .4s var(--ease) both; }
+  .svgi { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-4px; }
 </style>
 </head>
 <body>
@@ -260,20 +340,24 @@
       <img src="icon-192.png" alt="" />
       <div class="t">DropWave</div>
       <button id="switchBtn" class="chip hidden" title="Connect to a different PC"><svg class="i" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></svg><span>PCs</span></button>
+      <button id="lookBtn" class="chip icon" aria-label="Appearance" title="Appearance"><svg class="i" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-.5a2 2 0 0 1 2-2h1.5A4.5 4.5 0 0 0 22 13 10 10 0 0 0 12 2z"/></svg></button>
       <button id="meBtn" class="chip me" title="Rename this device"><span id="meName" class="ellipsis">This device</span><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
     </header>
 
+    <div id="vaultBox" class="hidden"></div>
     <div id="offers" class="list"></div>
 
     <!-- Home -->
     <div class="tab" data-tab="home">
-      <div class="hero">
-        <div class="hero-row">
-          <div class="hero-ic"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
-          <div style="min-width:0;flex:1">
-            <div id="conn" class="status"><span class="dot"></span><span id="connText" class="ellipsis">Connecting…</span></div>
-            <div id="heroName" class="hero-name ellipsis">Your PC</div>
-          </div>
+      <div class="hero" id="hero">
+        <div class="linkviz" aria-hidden="true">
+          <span class="node"><svg class="i" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span>
+          <span class="wire"><i></i><i></i><i></i></span>
+          <span class="node pc"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+        </div>
+        <div style="position:relative;z-index:1;min-width:0">
+          <div id="conn" class="status"><span class="dot"></span><span id="connText" class="ellipsis">Connecting…</span></div>
+          <div id="heroName" class="hero-name ellipsis">Your PC</div>
         </div>
         <div class="hero-chips">
           <span class="hchip" id="secChip"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span id="secText">Encrypted</span></span>
@@ -282,11 +366,23 @@
         </div>
       </div>
 
+      <button class="p2pcard hidden" id="p2pCard">
+        <span class="orb"><span></span><span></span><b><svg class="i" viewBox="0 0 24 24"><rect x="2" y="5" width="7" height="14" rx="2"/><rect x="15" y="5" width="7" height="14" rx="2"/><path d="M11 9.5q1 2.5 0 5M13 8q2 4 0 8"/></svg></b></span>
+        <span class="tx"><b>Phone to phone<span class="new">NEW</span></b><small>Send to any phone nearby. No internet, no PC.</small></span>
+        <svg class="i" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+
+      <button class="p2pcard tvcard hidden" id="tvCard">
+        <span class="orb"><span></span><span></span><b><svg class="i" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></b></span>
+        <span class="tx"><b>TV remote<span class="new">NEW</span></b><small>Control your Android or Google TV. Type, apps, volume.</small></span>
+        <svg class="i" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+
       <div class="sec-h">Send to</div>
       <div id="targets" class="targets"></div>
 
       <div class="sec-h">Screen, calls &amp; control</div>
-      <div class="group"><div class="pills">
+      <div class="group" data-tone="control"><div class="pills">
         <span id="slotControl" class="contents"></span>
         <span id="callRow" class="contents hidden">
           <button class="pbtn" id="callScreen"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>View screen</span></button>
@@ -296,7 +392,7 @@
       </div></div>
 
       <div class="sec-h">Transfer &amp; clipboard</div>
-      <div class="group"><div class="pills">
+      <div class="group" data-tone="transfer"><div class="pills">
         <label id="drop" class="pbtn primary" tabindex="0"><svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg><span>Send files</span><input id="file" type="file" multiple class="hidden" /></label>
         <span id="slotClip" class="contents"></span>
         <button class="pbtn" id="noteBtn"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Send a note</span></button>
@@ -304,7 +400,7 @@
 
       <div id="docsWrap" class="hidden">
         <div class="sec-h">Print &amp; scan</div>
-        <div class="group"><div class="pills">
+        <div class="group" data-tone="docs"><div class="pills">
           <label class="pbtn" id="printBtn" tabindex="0"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg><span>Print on PC</span><input id="printFile" type="file" multiple accept="application/pdf,image/*" class="hidden" /></label>
           <button class="pbtn" id="scanBtn"><svg class="i" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg><span>Scan to PC</span></button>
           <input id="scanFile" type="file" accept="image/*" capture="environment" multiple class="hidden" />
@@ -313,7 +409,7 @@
 
       <div id="slotPowerWrap">
         <div class="sec-h">System &amp; power</div>
-        <div class="group"><div class="pills" id="slotPower"></div></div>
+        <div class="group" data-tone="power"><div class="pills" id="slotPower"></div></div>
       </div>
 
       <div id="phoneBox"></div>
@@ -385,6 +481,7 @@
 
 <script src="translate.js?v=1.8.1"></script>
 <script src="rtc.js?v=1.8.1"></script>
+<script src="vault.js?v=1.10.0"></script>
 <script>
 (() => {
   // Inside the DropWave Android app, window.DW_APP = { base, key, download(url, name), saveKey(key),
@@ -433,7 +530,10 @@
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
     const r = await api('/api/hello', { signal: ctl.signal }).then((x) => x.json()).catch(() => null);
     clearTimeout(t);
-    if (!r && APP) { APP.switchPC(); return; } // the app: back to the list of PCs (shows which are online)
+    if (!r && APP) { // the app: back to the list of PCs (shows which are online)
+      await vaultShared();
+      APP.switchPC(); return;
+    }
     if (!r) { $('#lock').classList.remove('hidden'); $('#pinErr').textContent = 'Can’t reach the PC. Is DropWave open?'; return; }
     pc = r.pc;
     document.title = `DropWave · ${pc.name}`;
@@ -459,7 +559,44 @@
     $('#pin').value = ''; $('#pin').focus();
   });
 
-  let lostSince = 0;
+  let lostSince = 0, linked = false;
+  // ---------- vault: things for the PC that couldn't go yet ----------
+  const VAULT = window.DWVault;
+  const pcPeer = () => (linked ? peers.find((p) => p.pc) : null);
+  async function vaultShared() {
+    const sh = APP?.pendingShare;
+    if (!VAULT || !sh || (!sh.files?.length && !sh.text)) return;
+    APP.pendingShare = null;
+    try { await VAULT.add({ ...sh, pc: localStorage.getItem('dw_current') }); store.set('dw_vault_note', '1'); } catch (e) { console.warn(e); }
+  }
+  async function toVault(item, why) {
+    if (!VAULT) return false;
+    try {
+      await VAULT.add({ ...item, pc: pc?.id || null });
+      toast(why || `Saved in the Vault. It goes to ${pc?.name || 'the PC'} when it’s back.`);
+      return true;
+    } catch (e) { toast(e.message || 'Couldn’t save it'); return false; }
+  }
+  async function flushVault() {
+    const to = pcPeer();
+    if (!VAULT || !to) return;
+    const n = await VAULT.flush(pc.id, {
+      sendText: async (text, item) => {
+        const r = await api('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) }).catch(() => null);
+        const ok = !!(r && r.ok);
+        if (ok) {
+          const m = item.msgId && msgs.find((x) => x.id === item.msgId);
+          if (m) m.status = 'sent'; else msgs.push({ id: 'v' + item.id, peer: to.id, name: to.name, dir: 'out', text, at: Date.now(), status: 'sent' });
+          saveMsgs(); renderThread();
+        }
+        return ok;
+      },
+      sendFiles: (files) => send(files, '', to),
+    }).catch(() => 0);
+    if (n) toast(`Vault: sent ${n} waiting item${n > 1 ? 's' : ''} to ${to.name}`);
+  }
+  if (VAULT) VAULT.mount($('#vaultBox'), () => `Not sent yet. Goes to ${pc?.name || 'your PC'} by itself when the phone and PC are on the same Wi-Fi again.`);
+
   function connect() {
     if (es) es.close();
     const name = store.get('ld_name') || '';
@@ -469,21 +606,23 @@
       const d = JSON.parse(m.data);
       $('#meName').textContent = d.you.name;
       setConn(true);
+      linked = true;
       APP?.connected?.(d.pc?.name || pc.name);
       window.dwPhone?.connected();
     });
     es.addEventListener('phone', (m) => window.dwPhone?.command(JSON.parse(m.data)));
-    es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); });
+    es.addEventListener('peers', (m) => { peers = JSON.parse(m.data); renderTargets(); flushVault(); });
     es.addEventListener('offer', (m) => addOffer(JSON.parse(m.data)));
     es.addEventListener('text', (m) => addText(JSON.parse(m.data)));
     es.addEventListener('rtc', (m) => onRtc(JSON.parse(m.data)));
     es.addEventListener('offer-closed', (m) => { const id = JSON.parse(m.data).id; document.getElementById('o-' + id)?.remove(); APP?.clearNotify?.('o-' + id); toast('The sender cancelled'); });
     es.onerror = () => {
       setConn(false);
+      linked = false;
       // In the Android app: still unreachable after 20 s? The PC may have a new address: go back to
       // the start screen, which finds it again on the Wi-Fi and reconnects.
       if (!lostSince) lostSince = Date.now();
-      else if (APP && Date.now() - lostSince > 20000 && /client\.html/.test(location.pathname)) { es.close(); location.href = 'index.html'; return; }
+      else if (APP && Date.now() - lostSince > 20000 && /client\.html/.test(location.pathname)) { es.close(); vaultShared().finally(() => { location.href = 'index.html'; }); return; }
       window.dwPhone?.disconnected();
       // A locked response (PIN changed) also lands here: re-check.
       api('/api/hello').then((x) => x.json()).then((r) => { if (!r.authed) { es.close(); boot(); } }).catch(() => {});
@@ -491,6 +630,7 @@
   }
 
   function setConn(on) {
+    $('#hero')?.classList.toggle('off', !on);
     $('#conn .dot').classList.toggle('off', !on);
     $('#connText').textContent = on ? 'Connected' : 'Reconnecting…';
     $('#secText').textContent = APP?.secure || location.protocol === 'https:' ? 'Encrypted' : 'Local network';
@@ -528,6 +668,10 @@
     $('#chatBadge').classList.toggle('hidden', !n);
   }
 
+  // Phone to phone (Android app only): its own Wi-Fi + QR, no PC needed.
+  if (APP) { $('#p2pCard').classList.remove('hidden'); $('#p2pCard').addEventListener('click', () => { location.href = 'p2p.html'; }); }
+  if (APP) { $('#tvCard').classList.remove('hidden'); $('#tvCard').addEventListener('click', () => { location.href = 'tv.html'; }); }
+  $('#lookBtn').addEventListener('click', () => window.DWLook?.open());
   if (APP) { $('#switchBtn').classList.remove('hidden'); $('#switchBtn').addEventListener('click', () => APP.switchPC()); }
 
   $('#meBtn').addEventListener('click', async () => {
@@ -567,18 +711,21 @@
   drop.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) send([...e.dataTransfer.files]); });
 
   // purpose: 'print' | 'scan' opens the pages in a window on the PC (Print / Save as PDF) instead of saving them.
-  async function send(files, purpose = '') {
-    const to = purpose ? peers.find((p) => p.pc) : (peers.find((p) => p.id === target) || peers[0]);
-    if (!to) return toast(purpose ? 'Connect to your PC first' : 'No device to send to');
+  async function send(files, purpose = '', toPeer = null) {
+    const to = toPeer || (purpose ? peers.find((p) => p.pc) : (peers.find((p) => p.id === target) || peers[0]));
+    if (!to || !linked) {
+      if (!purpose && (!to || to.pc)) return toVault({ files }), false; // PC away: keep it for later
+      toast(purpose ? 'Connect to your PC first' : 'No device to send to'); return false;
+    }
     const list = files.map((f) => ({ name: f.webkitRelativePath || f.name, size: f.size }));
     const total = files.reduce((a, f) => a + f.size, 0);
     const label = files.length === 1 ? files[0].name : `${files.length} ${purpose === 'scan' ? 'pages' : 'files'}`;
     // A PC asks its user first, so show that we're waiting.
-    const row = activityRow('pending', `${purpose === 'print' ? '🖨' : purpose === 'scan' ? '📄' : '↑'} ${label}`, purpose ? `to ${to.name} · ${fmt(total)}` : to.pc ? `Waiting for ${to.name} to accept…` : `to ${to.name} · ${fmt(total)}`, false);
+    const row = activityRow('pending', `${purpose === 'print' ? 'Print:' : purpose === 'scan' ? 'Scan:' : '↑'} ${label}`, purpose ? `to ${to.name} · ${fmt(total)}` : to.pc ? `Waiting for ${to.name} to accept…` : `to ${to.name} · ${fmt(total)}`, false);
     if (purpose) showTab('activity');
     const r = await api('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, files: list, purpose }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return finishRow(row, false, j.error || 'Could not start the transfer');
+    if (!r.ok) { finishRow(row, false, j.error || 'Could not start the transfer'); return false; }
     row.querySelector('.row').insertAdjacentHTML('beforeend', `<button class="btn ghost small" data-cancel aria-label="Cancel">${svg('x')}</button>`);
     row.querySelector('[data-sub]').textContent = `to ${to.name} · ${fmt(total)}`;
     const u = { id: j.id, xhr: null, cancelled: false };
@@ -607,8 +754,10 @@
         done += files[i].size;
       }
       finishRow(row, true, purpose ? `Open on ${to.name}: press Print there` : `Sent to ${to.name} · ${fmt(total)}`);
+      return true;
     } catch (e) {
       finishRow(row, false, u.cancelled ? 'Cancelled' : e.message);
+      return u.cancelled; // cancelled on purpose: don't keep it in the vault
     } finally { uploads.delete(j.id); }
   }
 
@@ -647,7 +796,7 @@
     const list = msgs.filter((m) => m.peer === target);
     box.innerHTML = list.length ? '' : `<div class="none">No messages with ${esc(to?.name || 'this device')} yet. Send a link or a note.</div>`;
     for (const m of list) {
-      const b = el('div', `bub ${m.dir}`, `${linkify(m.text)}<div class="meta">${m.dir === 'in' ? '<button data-copy>Copy</button>' : ''}<span>${hhmm(m.at)}${m.dir === 'out' ? (m.status === 'failed' ? ' · not sent' : m.status === 'sending' ? ' · …' : ' ✓') : ''}</span></div>`);
+      const b = el('div', `bub ${m.dir}`, `${linkify(m.text)}<div class="meta">${m.dir === 'in' ? '<button data-copy>Copy</button>' : ''}<span>${hhmm(m.at)}${m.dir === 'out' ? (m.status === 'failed' ? ' · not sent' : m.status === 'queued' ? ' · in Vault' : m.status === 'sending' ? ' · …' : ' ✓') : ''}</span></div>`);
       b.querySelector('[data-copy]')?.addEventListener('click', async (e) => { e.currentTarget.textContent = (await copyText(m.text)) ? 'Copied ✓' : 'Hold text to copy'; });
       box.appendChild(b);
     }
@@ -662,13 +811,20 @@
     e.preventDefault();
     const text = textIn.value.trim();
     const to = peers.find((p) => p.id === target) || peers[0];
-    if (!text || !to) return;
+    if (!text) return;
+    if (!linked && (!to || to.pc)) { // PC away: keep it for later
+      const m = { id: String(Date.now()) + Math.random().toString(36).slice(2, 6), peer: to?.id || '', name: to?.name || pc?.name || 'PC', dir: 'out', text, at: Date.now(), status: 'queued' };
+      if (await toVault({ text, msgId: to ? m.id : null })) { if (to) { msgs.push(m); saveMsgs(); renderThread(); } textIn.value = ''; textIn.style.height = 'auto'; }
+      return;
+    }
+    if (!to) return;
     const m = { id: String(Date.now()) + Math.random().toString(36).slice(2, 6), peer: to.id, name: to.name, dir: 'out', text, at: Date.now(), status: 'sending' };
     msgs.push(m); saveMsgs(); renderThread();
     textIn.value = ''; textIn.style.height = 'auto';
     const r = await api('/api/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: myId, to: to.id, text }) }).catch(() => null);
     m.status = r && r.ok ? 'sent' : 'failed';
-    if (m.status === 'failed') toast((r && (await r.json().catch(() => ({}))).error) || 'Could not send — check the connection');
+    if (!r && to.pc && (await toVault({ text, msgId: m.id }))) m.status = 'queued'; // the link just dropped
+    else if (m.status === 'failed') toast((r && (await r.json().catch(() => ({}))).error) || 'Could not send — check the connection');
     saveMsgs(); renderThread();
   });
 
@@ -1020,19 +1176,26 @@
     const what = [n ? `${n} file${n > 1 ? 's' : ''}` : '', shared.text ? 'a message' : ''].filter(Boolean).join(' and ');
     const card = el('div', 'offer', `
       <div style="font-weight:700;font-size:16px">Send ${what}</div>
-      <div class="faint" style="font-size:13px;margin-top:2px">Pick a device under “Send to”, then tap Send.</div>
+      <div class="faint" style="font-size:13px;margin-top:2px">${linked ? 'Pick a device under “Send to”, then tap Send.' : `${esc(pc?.name || 'Your PC')} isn’t reachable now. Save it and it goes by itself when the PC is back.`}</div>
       ${shared.text ? `<div class="msg"></div>` : ''}
       <div class="row" style="gap:10px;margin-top:12px">
         <button class="btn ghost" data-x style="flex:1">Cancel</button>
-        <button class="btn primary" data-go style="flex:2">Send</button>
+        <button class="btn primary" data-go style="flex:2">${linked ? 'Send' : '<svg class="svgi" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M12 9V7M7 20v1M17 20v1"/></svg> Save in Vault'}</button>
       </div>
-      ${n && peers.some((p) => p.pc) && shared.files.every((f) => /\.(pdf|jpe?g|png|webp|gif|bmp)$/i.test(f.name)) ? `<button class="btn ghost" data-print style="width:100%;margin-top:8px">🖨 Print on ${esc(peers.find((p) => p.pc).name)}</button>` : ''}`);
+      ${APP?.sharedPaths?.length ? '<button class="btn ghost" data-near style="width:100%;margin-top:8px"><svg class="svgi" viewBox="0 0 24 24"><rect x="2" y="5" width="7" height="14" rx="2"/><rect x="15" y="5" width="7" height="14" rx="2"/><path d="M11 9.5q1 2.5 0 5M13 8q2 4 0 8"/></svg> Send to a phone nearby (no internet)</button>' : ''}
+      ${n && peers.some((p) => p.pc) && shared.files.every((f) => /\.(pdf|jpe?g|png|webp|gif|bmp)$/i.test(f.name)) ? `<button class="btn ghost" data-print style="width:100%;margin-top:8px"><svg class="svgi" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print on ${esc(peers.find((p) => p.pc).name)}</button>` : ''}`);
     card.id = 'share-card';
     card.querySelector('[data-print]')?.addEventListener('click', () => { const s = shared; shared = null; card.remove(); send(s.files, 'print'); });
+    card.querySelector('[data-near]')?.addEventListener('click', () => {
+      try { sessionStorage.setItem('dw_p2p_paths', JSON.stringify(APP.sharedPaths || [])); } catch {}
+      shared = null; card.remove(); if (APP) APP.pendingShare = null; location.href = 'p2p.html';
+    });
     if (shared.text) card.querySelector('.msg').textContent = shared.text;
-    card.querySelector('[data-x]').onclick = () => { shared = null; card.remove(); };
+    card.querySelector('[data-x]').onclick = () => { shared = null; card.remove(); if (APP) APP.pendingShare = null; };
     card.querySelector('[data-go]').onclick = async () => {
       const s = shared; shared = null; card.remove();
+      if (APP) APP.pendingShare = null;
+      if (!linked) return toVault({ text: s.text, files: s.files });
       if (s.text) { textIn.value = s.text; $('#textForm').requestSubmit(); }
       if (s.files.length) await send(s.files);
     };

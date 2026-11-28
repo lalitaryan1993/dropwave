@@ -305,6 +305,29 @@ class PhoneHub {
     if (state === 'ringing' && prev?.state !== 'ringing') {
       this.o.attention(`${label} is calling`, `On ${p.name} · answer or decline in DropWave`);
     }
+    // A phone stops ringing within about a minute. If the "ended" message never comes (it can get
+    // lost on the phone), don't leave a ringing call on screen forever.
+    if (state === 'ringing') {
+      const call = p.call;
+      clearTimeout(p.ringTimer);
+      p.ringTimer = setTimeout(() => { if (p.call && p.call.state === call.state && p.call.since === call.since && !p.call.key) { p.call = null; this.#emit(p); } }, 2 * 60 * 1000);
+    }
+  }
+
+  /** Decline / hang up pressed here: if the phone doesn't say the call ended, take it off screen anyway. */
+  #dropCallSoon(p) {
+    const call = p.call;
+    if (!call) return;
+    setTimeout(() => { if (p.call && p.call.state === call.state && p.call.since === call.since && p.call.key === call.key) { p.call = null; this.#emit(p); } }, 3000);
+  }
+
+  /** The ✕ on the call popup: take it off this PC (the call on the phone is not touched). */
+  dismissCall(id) {
+    const p = this.phones.get(id);
+    if (!p?.call) return;
+    clearTimeout(p.ringTimer);
+    p.call = null;
+    this.#emit(p);
   }
 
   /** A call in an app (WhatsApp, Telegram…), from its call notification. */
@@ -332,6 +355,10 @@ class PhoneHub {
     };
     if (state === 'ringing' && !(prev?.key === key && prev.state === 'ringing')) {
       this.o.attention(`${p.call.name || 'Someone'} is calling on ${p.call.app}`, `On ${p.name} · answer or decline in DropWave`);
+      // App calls ring for about a minute; if the phone never says it ended, take it off screen.
+      const call = p.call;
+      clearTimeout(p.ringTimer);
+      p.ringTimer = setTimeout(() => { if (p.call && p.call.key === call.key && p.call.state === 'ringing') { p.call = null; this.#emit(p); } }, 75 * 1000);
     }
   }
 
@@ -795,6 +822,7 @@ class PhoneHub {
     if (cmd.type === 'clip') this.#event('clip-out', p, 'Clipboard sent');
     if (cmd.type === 'dial') this.#event('dial', p, `Calling ${str(cmd.number, 40)}`);
     if (cmd.type === 'call' && cmd.action === 'answer' && p.call) { p.call = { ...p.call, state: 'offhook', since: Date.now() }; this.#emit(p); }
+    if (cmd.type === 'call' && ['decline', 'end', 'sms'].includes(cmd.action)) this.#dropCallSoon(p);
     return true;
   }
 

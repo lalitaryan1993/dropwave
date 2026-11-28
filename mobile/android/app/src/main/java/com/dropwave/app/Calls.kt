@@ -79,8 +79,28 @@ object Calls {
         DropWavePlugin.emit("call", o)
     }
 
-    fun current(): JSObject? = lastState?.takeIf { it != "idle" }?.let { s ->
-        JSObject().put("state", s).apply { lastNumber?.let { put("number", it) } }
+    fun current(ctx: Context): JSObject? {
+        dropIfStale(ctx)
+        return lastState?.takeIf { it != "idle" }?.let { s ->
+            JSObject().put("state", s).apply { lastNumber?.let { put("number", it) } }
+        }
+    }
+
+    /**
+     * The "call ended" broadcast can be missed (phone asleep, app restarted by the system), which
+     * left a ringing call on the PC forever. Asks Android whether a call is really going on and,
+     * if not, ends ours too and tells the PC.
+     */
+    @SuppressLint("MissingPermission")
+    private fun dropIfStale(ctx: Context) {
+        if (lastState == null || lastState == "idle") return
+        if (!granted(ctx, Manifest.permission.READ_PHONE_STATE)) return
+        val inCall = runCatching { ctx.getSystemService(TelecomManager::class.java)?.isInCall }.getOrNull() ?: return
+        if (inCall) return
+        Log.i(TAG, "call: $lastState was stale, now idle")
+        lastState = "idle"
+        lastNumber = null
+        DropWavePlugin.emit("call", JSObject().put("state", "idle").put("at", System.currentTimeMillis()))
     }
 
     /** Mic muted / speaker on, for the PC's call bar. */
@@ -131,6 +151,7 @@ object Calls {
         }
         // Tell the PC the new state right away (also for WhatsApp / Telegram calls).
         DropWavePlugin.emit("callaudio", audio(ctx, JSObject()))
+        dropIfStale(ctx)
         lastState?.takeIf { it != "idle" }?.let { s ->
             val o = JSObject().put("state", s).put("at", System.currentTimeMillis())
             lastNumber?.let { o.put("number", it) }

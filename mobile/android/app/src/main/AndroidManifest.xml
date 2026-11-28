@@ -208,6 +208,13 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Finding PCs on the Wi-Fi from their broadcast -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Phone to phone: DropWave's own Wi-Fi (local-only hotspot, no internet shared) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" tools:targetApi="33" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
+    <!-- Phone to phone: install an app the other phone sent (Android asks first) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <!-- Phone controls from the PC: brightness (after "Modify system settings"), Do Not Disturb, uninstall (Android asks first) -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />

@@ -48,6 +48,9 @@
         files.push(new File([await r.blob()], f.name, { type: f.type }));
       } catch (e) { console.error('DropWave share: could not load', f.path, e); say(`Couldn’t open ${f.name}`); }
     }
+    // Kept until it is sent or saved: if the PC can't be reached, the page puts it in the Vault.
+    window.DW_APP.pendingShare = { files, text: d.text || '' };
+    window.DW_APP.sharedPaths = (d.files || []).map((f) => f.path);
     const go = () => (window.dwShare ? window.dwShare(files, d.text) : setTimeout(go, 150));
     go();
   }

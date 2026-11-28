@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0d14" />
 <title>DropWave</title>
+<script src="look.js"></script>
 <style>
   :root { --bg:#f5f6fa; --panel:#ffffffd9; --raised:#fff; --line:rgba(20,24,40,.09); --line2:rgba(20,24,40,.16); --fg:#151827; --muted:#5f6478; --faint:#8a8fa3;
     --accent:#6d5dfc; --accent2:#19b5d8; --good:#12a36b; --bad:#e5484d; --glow:rgba(109,93,252,.28); --a1:rgba(109,93,252,.16); --a2:rgba(25,181,216,.14); }
@@ -61,17 +62,45 @@
   .av { width:46px; height:46px; border-radius:15px; }
   .btn { border-radius:16px; height:52px; }
   input { border-radius:16px; height:52px; }
+  .vault { border:1px dashed var(--line2, rgba(128,128,128,.35)); border-radius:18px; padding:12px 14px; margin:14px 0 4px; }
+  .vault-h { font-weight:700; font-size:14.5px; }
+  .vault-sub { opacity:.7; font-size:12.5px; margin:2px 0 8px; }
+  .vault-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid rgba(128,128,128,.18); font-size:13px; }
+  .vault-t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vault-row button { border:0; background:transparent; color:inherit; opacity:.6; font-size:15px; padding:4px 8px; }
+  #vaultAdd textarea { width:100%; box-sizing:border-box; border-radius:14px; padding:10px 12px; font:inherit; border:1px solid rgba(128,128,128,.3); background:transparent; color:inherit; min-height:46px; resize:vertical; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header><img src="icon-192.png" alt="" /><b>DropWave</b></header>
+  <header><img src="icon-192.png" alt="" /><b style="flex:1">DropWave</b><button onclick="DWLook.open()" aria-label="Appearance" style="width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line)"><svg viewBox="0 0 24 24" style="width:19px;height:19px;vertical-align:-3px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-.5a2 2 0 0 1 2-2h1.5A4.5 4.5 0 0 0 22 13 10 10 0 0 0 12 2z"/></svg></button></header>
 
   <div class="welcome" id="welcome">
     <b>Your phone and PC,<br/>working as one</b>
     <p>Files, calls, clipboard, notifications and a touchpad for your PC. Everything stays on your Wi-Fi.</p>
-    <ul><li>📁 Send files</li><li>🖱️ Control PC</li><li>🔔 Notifications</li><li>📋 Clipboard</li></ul>
+    <ul><li><svg viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>Send files</li><li><svg viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></svg>Control PC</li><li><svg viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Notifications</li><li><svg viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>Clipboard</li></ul>
   </div>
+
+  <button class="card p2p" id="p2pCard" onclick="location.href='p2p.html'">
+    <span class="av" style="background:linear-gradient(140deg,#ff7a59,#ff3d77)"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="7" height="14" rx="2"/><rect x="15" y="5" width="7" height="14" rx="2"/><path d="M11 9.5q1 2.5 0 5M13 8q2 4 0 8"/></svg></span>
+    <span class="meta"><span class="n">Phone to phone</span><span class="s">Send to any phone nearby. No internet, no PC.</span></span>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--faint)"><path d="M9 18l6-6-6-6"/></svg>
+  </button>
+  <button class="card" onclick="location.href='tv.html'">
+    <span class="av" style="background:linear-gradient(140deg,#6366f1,#06b6d4)"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+    <span class="meta"><span class="n">TV remote</span><span class="s">Android TV and Google TV. No PC needed.</span></span>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--faint)"><path d="M9 18l6-6-6-6"/></svg>
+  </button>
+  <div id="vaultBox" class="hidden"></div>
+  <details id="vaultAdd" class="hidden" style="margin:8px 0 4px">
+    <summary style="font-size:13.5px;font-weight:600;cursor:pointer">🗄️ Keep something for the PC</summary>
+    <div class="hint">PC off or you're away from the Wi-Fi? Put a link, a note or files in the Vault. They go to your PC by themselves when you're back.</div>
+    <textarea id="vaultText" placeholder="Link or note…"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label class="btn soft" style="display:grid;place-items:center">📎 Add files<input id="vaultFiles" type="file" multiple hidden /></label>
+      <button id="vaultSave" class="btn primary" type="button">Save in Vault</button>
+    </div>
+  </details>
 
   <div id="mine-box">
     <h2>Your PCs</h2>
@@ -102,6 +131,7 @@
   </form>
 </div></div>
 
+<script src="vault.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -279,6 +309,33 @@
     btn.disabled = false; btn.textContent = 'Scan again';
   });
 
+  // ---------- Vault ----------
+  const V = window.DWVault;
+  if (V) {
+    V.mount($('#vaultBox'), 'Goes to your PC by itself when the phone and PC are on the same Wi-Fi again.');
+    if (pcs.length) $('#vaultAdd').classList.remove('hidden');
+    if (localStorage.getItem('dw_vault_note')) { localStorage.removeItem('dw_vault_note'); toast('PC not reachable: saved in the Vault'); }
+    $('#vaultSave').onclick = async () => {
+      const text = $('#vaultText').value.trim();
+      const files = [...$('#vaultFiles').files];
+      if (!text && !files.length) return toast('Type a link or note, or add files');
+      try {
+        await V.add({ text, files, pc: localStorage.getItem('dw_current') });
+        $('#vaultText').value = ''; $('#vaultFiles').value = '';
+        toast('Saved in the Vault');
+      } catch (e) { toast(e.message || 'Couldn’t save it'); }
+    };
+  }
+  async function keepShared() {
+    if (!V || !DW?.takeShared) return;
+    const d = await DW.takeShared().catch(() => null);
+    if (!d || (!(d.files || []).length && !d.text)) return;
+    const item = await V.fromShare(d);
+    if (!item.files.length && !item.text) return toast('Couldn’t read the shared item');
+    try { await V.add({ ...item, pc: localStorage.getItem('dw_current') }); toast('No PC reachable: saved in the Vault'); }
+    catch (e) { toast(e.message || 'Couldn’t save it'); }
+  }
+
   // Start: go straight to the last PC if it's reachable and still unlocked.
   (async () => {
     renderMine();
@@ -323,6 +380,9 @@
     renderMine();
     const last = [...pcs].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
     if (!pick && last && last.ok) return open(last);
+    // No PC to open: an item shared into the app now goes in the Vault instead of getting lost.
+    keepShared();
+    DW?.addListener('shared', keepShared);
     if (!pcs.length) $('#scan').click();
     // Saved PCs but none reachable (PC asleep or DropWave closed): look again every 10 s while this
     // screen is in front, and connect by itself as soon as the PC is back.

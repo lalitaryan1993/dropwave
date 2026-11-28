@@ -57,7 +57,7 @@ object PhotoLibrary {
         ContentUris.withAppendedId(if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
 
     /** "i123" / "v456" -> content uri */
-    private fun uriOf(ref: String): Uri? {
+    fun uriOf(ref: String): Uri? {
         val id = ref.drop(1).toLongOrNull() ?: return null
         return when (ref.firstOrNull()) { 'i' -> uriOf(false, id); 'v' -> uriOf(true, id); else -> null }
     }

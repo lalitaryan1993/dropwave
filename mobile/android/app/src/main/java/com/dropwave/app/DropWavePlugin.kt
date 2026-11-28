@@ -598,7 +598,7 @@ class DropWavePlugin : Plugin() {
 
     @PluginMethod
     fun callState(call: PluginCall) {
-        call.resolve(JSObject().put("call", Calls.current() ?: JSONObject.NULL))
+        call.resolve(JSObject().put("call", Calls.current(context) ?: JSONObject.NULL))
     }
 
     // ---------- photos (the PC's Photos page) ----------
@@ -804,6 +804,323 @@ class DropWavePlugin : Plugin() {
         pendingShare = null
         call.resolve(d ?: JSObject().put("files", JSArray()).put("text", ""))
     }
+
+    // ---------- phone to phone ----------
+
+    private var p2pKeptAlive = false // we started the "keep running" service for sharing (not for a PC link)
+
+    /** What stops DropWave Wi-Fi now: "permission" | "location" | null; and whether photos / contacts are allowed. */
+    @PluginMethod
+    fun p2pCheck(call: PluginCall) {
+        call.resolve(JSObject().put("missing", P2P.missing(context) ?: JSONObject.NULL).put("photos", PhotoLibrary.access(context))
+            .put("contacts", ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED)
+            .put("name", P2P.deviceName()))
+    }
+
+    @PluginMethod
+    fun p2pAllow(call: PluginCall) {
+        when (call.getString("what") ?: P2P.missing(context)) {
+            "permission" -> ActivityCompat.requestPermissions(activity, P2P.permissions(), 7340)
+            "location" -> runCatching { activity.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+            "photos" -> ActivityCompat.requestPermissions(activity, PhotoLibrary.permissions(), 7303)
+            "contacts" -> ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.READ_CONTACTS), 7331)
+        }
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun p2pStart(call: PluginCall) {
+        val hotspot = call.getBoolean("hotspot", true) == true
+        val pin = call.getBoolean("pin", false) == true
+        if (hotspot) P2P.missing(context)?.let { return call.reject(it, it) }
+        activity.runOnUiThread {
+            P2P.start(context, hotspot, pin) { info, err ->
+                if (err != null) call.reject(err)
+                else {
+                    if (!KeepAliveService.running) {
+                        p2pKeptAlive = runCatching { context.startForegroundService(Intent(context, KeepAliveService::class.java).putExtra("text", "Sharing with a phone nearby")) }.isSuccess
+                    }
+                    call.resolve(info)
+                }
+            }
+        }
+    }
+
+    private fun p2pReleaseKeepAlive() {
+        if (p2pKeptAlive && !P2P.running && !P2PReceive.connected) { p2pKeptAlive = false; runCatching { context.stopService(Intent(context, KeepAliveService::class.java)) } }
+    }
+
+    @PluginMethod
+    fun p2pStop(call: PluginCall) {
+        if (call.getBoolean("clear", false) == true) P2P.clear() else P2P.stop()
+        p2pReleaseKeepAlive()
+        call.resolve(P2P.info())
+    }
+
+    @PluginMethod
+    fun p2pInfo(call: PluginCall) { call.resolve(P2P.info()) }
+
+    @PluginMethod
+    fun p2pPick(call: PluginCall) {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        if (call.getString("kind") == "media") i.putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+        startActivityForResult(call, i, "p2pPicked")
+    }
+
+    private fun pickedUris(result: androidx.activity.result.ActivityResult): List<Uri> {
+        val data = result.data ?: return emptyList()
+        val uris = mutableListOf<Uri>()
+        data.clipData?.let { c -> for (k in 0 until c.itemCount) uris.add(c.getItemAt(k).uri) }
+        if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        return uris
+    }
+
+    @com.getcapacitor.annotation.ActivityCallback
+    private fun p2pPicked(call: PluginCall?, result: androidx.activity.result.ActivityResult) {
+        P2P.addUris(context, pickedUris(result))
+        call?.resolve(P2P.info())
+    }
+
+    /** Photos / videos picked in DropWave's own gallery picker. */
+    @PluginMethod
+    fun p2pAddRefs(call: PluginCall) {
+        val a = call.getArray("refs") ?: JSArray()
+        scope.launch { P2P.addRefs(context, (0 until a.length()).map { a.getString(it) }); call.resolve(P2P.info()) }
+    }
+
+    @PluginMethod
+    fun p2pAddApps(call: PluginCall) {
+        val a = call.getArray("pkgs") ?: JSArray()
+        scope.launch { val skipped = P2P.addApps(context, (0 until a.length()).map { a.getString(it) }); call.resolve(P2P.info().put("skipped", skipped)) }
+    }
+
+    @PluginMethod
+    fun p2pAddApp(call: PluginCall) { P2P.addApp(context); call.resolve(P2P.info()) }
+
+    @PluginMethod
+    fun p2pAddContacts(call: PluginCall) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return call.reject("contacts", "contacts")
+        scope.launch {
+            try {
+                val ids = call.getArray("ids")?.let { a -> (0 until a.length()).map { a.getLong(it) }.toSet() }
+                val n = P2P.addContacts(context, ids)
+                call.resolve(P2P.info().put("contacts", n))
+            }
+            catch (e: Exception) { call.reject(e.message ?: "Couldn’t read contacts") }
+        }
+    }
+
+    /** Contacts for the picker (needs only "read contacts"). */
+    @PluginMethod
+    fun p2pContacts(call: PluginCall) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return call.reject("contacts", "contacts")
+        scope.launch { try { call.resolve(Contacts.list(context)) } catch (e: Exception) { call.reject(e.message ?: "Couldn’t read contacts") } }
+    }
+
+    @PluginMethod
+    fun p2pAddPaths(call: PluginCall) {
+        val a = call.getArray("paths") ?: JSArray()
+        P2P.addPaths((0 until a.length()).map { a.getString(it) })
+        call.resolve(P2P.info())
+    }
+
+    @PluginMethod
+    fun p2pRemove(call: PluginCall) {
+        if (call.getBoolean("all", false) == true) P2P.removeAll() else P2P.remove(call.getInt("i", -1)!!)
+        call.resolve(P2P.info())
+    }
+
+    /** Open a received file: photos/videos in the gallery app, a .vcf in Contacts (import), an .apk in the installer. */
+    @PluginMethod
+    fun p2pOpen(call: PluginCall) {
+        val u = Uri.parse(call.getString("uri") ?: return call.reject("No file"))
+        val name = call.getString("name", "")!!
+        val type = when {
+            name.endsWith(".apk", true) -> "application/vnd.android.package-archive"
+            name.endsWith(".vcf", true) -> "text/x-vcard"
+            else -> context.contentResolver.getType(u) ?: "*/*"
+        }
+        runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(u, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
+            .onFailure { return call.reject("No app on this phone opens that file") }
+        call.resolve()
+    }
+
+    // receiving with DropWave
+
+    @PluginMethod
+    fun p2pScan(call: PluginCall) {
+        P2PReceive.scan(activity) { raw, err ->
+            if (raw == null) return@scan call.reject(err ?: "cancelled", if (err == "cancelled") "cancelled" else null)
+            P2PReceive.connect(context, raw) { info, e ->
+                if (info == null) call.reject(e ?: "Couldn’t connect")
+                else {
+                    if (!KeepAliveService.running) p2pKeptAlive = runCatching { context.startForegroundService(Intent(context, KeepAliveService::class.java).putExtra("text", "Receiving from a phone nearby")) }.isSuccess
+                    call.resolve(info)
+                }
+            }
+        }
+    }
+
+    @PluginMethod
+    fun p2pRecvInfo(call: PluginCall) {
+        call.getString("pin")?.let { P2PReceive.setPin(it) }
+        scope.launch {
+            try { call.resolve(P2PReceive.info(P2P.deviceName())) } catch (e: Exception) { call.reject(e.message ?: "Couldn’t reach the other phone") }
+        }
+    }
+
+    @PluginMethod
+    fun p2pRecvGet(call: PluginCall) {
+        val a = call.getArray("items") ?: JSArray()
+        val list = (0 until a.length()).map { a.getJSONObject(it) }
+        scope.launch { P2PReceive.download(context, list) }
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun p2pRecvStop(call: PluginCall) { P2PReceive.stopDownload(); call.resolve() }
+
+    @PluginMethod
+    fun p2pRecvSend(call: PluginCall) {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        startActivityForResult(call, i, "p2pRecvPicked")
+    }
+
+    @com.getcapacitor.annotation.ActivityCallback
+    private fun p2pRecvPicked(call: PluginCall?, result: androidx.activity.result.ActivityResult) {
+        val uris = pickedUris(result)
+        call?.resolve(JSObject().put("count", uris.size))
+        if (uris.isNotEmpty()) scope.launch { P2PReceive.upload(context, uris) }
+    }
+
+    /** Accept or decline a phone that wants to send files; trust = always accept it. */
+    @PluginMethod
+    fun p2pAnswer(call: PluginCall) {
+        P2P.answer(call.getString("id", "")!!, call.getBoolean("ok", false) == true, call.getBoolean("trust", false) == true, call.getString("gid", "")!!, call.getString("name", "Phone")!!)
+        runCatching { androidx.core.app.NotificationManagerCompat.from(context).cancel(7710) }
+        call.resolve()
+    }
+
+    // ---------- TV remote (Android TV / Google TV) ----------
+
+    @PluginMethod
+    fun tvFind(call: PluginCall) { TvRemote.discover(context, call.getBoolean("on", true) == true); call.resolve(JSObject().put("saved", TvRemote.saved(context))) }
+
+    @PluginMethod
+    fun tvSaved(call: PluginCall) { call.resolve(JSObject().put("saved", TvRemote.saved(context))) }
+
+    @PluginMethod
+    fun tvForget(call: PluginCall) { TvRemote.forget(context, call.getString("host", "")!!); call.resolve(JSObject().put("saved", TvRemote.saved(context))) }
+
+    @PluginMethod
+    fun tvRename(call: PluginCall) { TvRemote.rename(context, call.getString("host", "")!!, call.getString("name", "TV")!!); call.resolve(JSObject().put("saved", TvRemote.saved(context))) }
+
+    @PluginMethod
+    fun tvPair(call: PluginCall) {
+        val host = call.getString("host") ?: return call.reject("No TV")
+        TvRemote.pairStart(context, host, call.getString("name", "TV")!!) { err -> if (err == null) call.resolve() else call.reject(err) }
+    }
+
+    @PluginMethod
+    fun tvCode(call: PluginCall) { TvRemote.pairFinish(call.getString("code", "")!!) { err -> if (err == null) call.resolve() else call.reject(err) } }
+
+    @PluginMethod
+    fun tvOpen(call: PluginCall) {
+        val host = call.getString("host") ?: return call.reject("No TV")
+        TvRemote.open(context, host) { err -> if (err == null) call.resolve() else call.reject(err, if (err == "pair") "pair" else null) }
+    }
+
+    @PluginMethod
+    fun tvClose(call: PluginCall) { TvRemote.close(); call.resolve() }
+
+    @PluginMethod
+    fun tvKey(call: PluginCall) {
+        try { TvRemote.key(call.getInt("code", 0)!!, call.getInt("dir", 3)!!); call.resolve() } catch (e: Exception) { call.reject(e.message) }
+    }
+
+    @PluginMethod
+    fun tvText(call: PluginCall) { try { TvRemote.text(call.getString("text", "")!!); call.resolve() } catch (e: Exception) { call.reject(e.message) } }
+
+    // Voice for the TV: the phone listens (Android speech recognition) and the words go to the TV.
+    private var speech: android.speech.SpeechRecognizer? = null
+
+    @PluginMethod
+    fun tvListen(call: PluginCall) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.RECORD_AUDIO), 7350)
+            return call.reject("mic", "mic")
+        }
+        if (!android.speech.SpeechRecognizer.isRecognitionAvailable(context)) return call.reject("This phone has no speech recognition (install Google app)")
+        val lang = call.getString("lang", "en-IN")!!
+        activity.runOnUiThread {
+            speech?.destroy()
+            val r = android.speech.SpeechRecognizer.createSpeechRecognizer(context)
+            speech = r
+            var done = false
+            r.setRecognitionListener(object : android.speech.RecognitionListener {
+                override fun onReadyForSpeech(p: android.os.Bundle?) { emitOnly("tv", JSObject().put("type", "listening")) }
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(v: Float) { emitOnly("tv", JSObject().put("type", "rms").put("v", v.toDouble())) }
+                override fun onBufferReceived(b: ByteArray?) {}
+                override fun onEndOfSpeech() { emitOnly("tv", JSObject().put("type", "heard")) }
+                override fun onError(e: Int) {
+                    if (done) return; done = true
+                    call.reject(when (e) { android.speech.SpeechRecognizer.ERROR_NO_MATCH, android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Didn’t catch that. Try again."; android.speech.SpeechRecognizer.ERROR_NETWORK, android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Voice needs internet on this phone"; android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Allow the microphone for DropWave"; else -> "Voice stopped ($e)" })
+                }
+                override fun onResults(b: android.os.Bundle?) {
+                    if (done) return; done = true
+                    val t = b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (t.isBlank()) call.reject("Didn’t catch that. Try again.") else call.resolve(JSObject().put("text", t))
+                }
+                override fun onPartialResults(b: android.os.Bundle?) {
+                    b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let { emitOnly("tv", JSObject().put("type", "partial").put("text", it)) }
+                }
+                override fun onEvent(t: Int, p: android.os.Bundle?) {}
+            })
+            r.startListening(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, lang)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1))
+        }
+    }
+
+    @PluginMethod
+    fun tvStopListen(call: PluginCall) { activity.runOnUiThread { speech?.stopListening() }; call.resolve() }
+
+    @PluginMethod
+    fun tvLaunch(call: PluginCall) { try { TvRemote.launch(call.getString("link", "")!!); call.resolve() } catch (e: Exception) { call.reject(e.message) } }
+
+    /** Look for phones sharing on this Wi-Fi ("nearby" / "nearbylost" events). */
+    @PluginMethod
+    fun p2pNearby(call: PluginCall) { P2PReceive.nearby(context, call.getBoolean("on", true) == true); call.resolve() }
+
+    /** Ask a nearby phone to let this one see its share. */
+    @PluginMethod
+    fun p2pKnock(call: PluginCall) {
+        val host = call.getString("host") ?: return call.reject("No address")
+        P2PReceive.knock(context, host, call.getInt("port", P2P.PORT) ?: P2P.PORT) { info, err ->
+            if (info == null) call.reject(err ?: "Couldn’t connect", if (err == "declined") "declined" else null)
+            else {
+                if (!KeepAliveService.running) p2pKeptAlive = runCatching { context.startForegroundService(Intent(context, KeepAliveService::class.java).putExtra("text", "Receiving from a phone nearby")) }.isSuccess
+                call.resolve(info)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun p2pTrusted(call: PluginCall) {
+        val t = P2P.trusted(context); val a = JSArray()
+        t.keys().forEach { k -> a.put(JSObject().put("gid", k).put("name", t.optString(k))) }
+        call.resolve(JSObject().put("list", a))
+    }
+
+    @PluginMethod
+    fun p2pUntrust(call: PluginCall) { P2P.untrust(context, call.getString("gid", "")!!); call.resolve() }
+
+    @PluginMethod
+    fun p2pLeave(call: PluginCall) { P2PReceive.leave(context); p2pReleaseKeepAlive(); call.resolve() }
 
     // ---------- files ----------
 

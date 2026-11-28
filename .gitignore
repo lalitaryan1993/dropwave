@@ -23,3 +23,6 @@ build/kvm/
 research_notes/
 reports/
 build/*.preview.png
+mobile/www/look.js
+mobile/www/vault.js
+mobile/www/fonts/
